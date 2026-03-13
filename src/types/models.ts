@@ -22,7 +22,7 @@ export type TaskStatus   = "Pending" | "Done"
 export type TaskPriority = "High" | "Medium" | "Low"
 export type TaskCategory = "Marketing" | "Dispatch" | "Leads" | "Admin" | "Other"
 
-export type NoteEntityType = "lead" | "driver" | "load" | "broker" | "invoice"
+export type NoteEntityType = "lead" | "lead_call" | "driver" | "load" | "broker" | "invoice"
 export type AuditAction    = "create" | "update" | "delete"
 
 export interface User {

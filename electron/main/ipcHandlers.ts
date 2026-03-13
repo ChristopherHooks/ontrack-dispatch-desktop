@@ -37,9 +37,20 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     const outstandingInvoices = db.prepare(
       "SELECT COUNT(*) AS c FROM invoices WHERE status IN ('Draft','Sent','Overdue')"
     ).get()
-    const todayTasks = db.prepare(
-      "SELECT * FROM tasks WHERE due_date = date('now') OR due_date = 'Daily' ORDER BY time_of_day ASC"
-    ).all()
+    const todayTasksRaw = db.prepare(
+      "SELECT * FROM tasks WHERE due_date = date('now') OR due_date = 'Daily'"
+    ).all() as any[]
+    const tMin = (s: string | null): number => {
+      if (!s) return 9999
+      const m = s.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+      if (!m) return 9999
+      let h = parseInt(m[1])
+      const pm = m[3].toUpperCase() === 'PM'
+      if (pm && h !== 12) h += 12
+      else if (!pm && h === 12) h = 0
+      return h * 60 + parseInt(m[2])
+    }
+    const todayTasks = todayTasksRaw.sort((a, b) => tMin(a.time_of_day) - tMin(b.time_of_day))
     return { driversNeedingLoads, loadsInTransit, leadsFollowUp, outstandingInvoices, todayTasks }
   })
 

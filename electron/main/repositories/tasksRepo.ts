@@ -1,11 +1,31 @@
 import Database from 'better-sqlite3'
 import type { Task, TaskCompletion, CreateTaskDto, UpdateTaskDto } from '../../../src/types/models'
 
+function timeToMin(t: string | null): number {
+  if (!t) return 9999
+  const m = t.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+  if (!m) return 9999
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  const pm = m[3].toUpperCase() === 'PM'
+  if (pm && h !== 12) h += 12
+  else if (!pm && h === 12) h = 0
+  return h * 60 + min
+}
+
+function sortTasks(tasks: Task[]): Task[] {
+  return tasks.sort((a, b) => {
+    const da = a.due_date ?? 'ZZZZ', db = b.due_date ?? 'ZZZZ'
+    if (da !== db) return da.localeCompare(db)
+    return timeToMin(a.time_of_day) - timeToMin(b.time_of_day)
+  })
+}
+
 export function listTasks(db: Database.Database, category?: string, dueDate?: string): Task[] {
-  if (category && dueDate) return db.prepare('SELECT * FROM tasks WHERE category=? AND due_date=? ORDER BY time_of_day ASC').all(category, dueDate) as Task[]
-  if (category) return db.prepare('SELECT * FROM tasks WHERE category=? ORDER BY due_date ASC, time_of_day ASC').all(category) as Task[]
-  if (dueDate) return db.prepare('SELECT * FROM tasks WHERE due_date=? ORDER BY time_of_day ASC').all(dueDate) as Task[]
-  return db.prepare('SELECT * FROM tasks ORDER BY due_date ASC, time_of_day ASC').all() as Task[]
+  if (category && dueDate) return sortTasks(db.prepare('SELECT * FROM tasks WHERE category=? AND due_date=?').all(category, dueDate) as Task[])
+  if (category) return sortTasks(db.prepare('SELECT * FROM tasks WHERE category=?').all(category) as Task[])
+  if (dueDate)  return sortTasks(db.prepare('SELECT * FROM tasks WHERE due_date=?').all(dueDate) as Task[])
+  return sortTasks(db.prepare('SELECT * FROM tasks').all() as Task[])
 }
 export function getTask(db: Database.Database, id: number): Task | undefined {
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Task | undefined
