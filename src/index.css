@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets ─────────────────────────────────────────────────────────── */
+@layer base {
+  * { box-sizing: border-box; }
+  html { height: 100%; -webkit-font-smoothing: antialiased; }
+  body { height: 100%; margin: 0; overflow: hidden; }
+  #root { height: 100%; }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3a3a44; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4a4a56; }
+
+  /* Light mode overrides (applied when .dark class is NOT on <html>) */
+  html:not(.dark) {
+    color-scheme: light;
+  }
+  html:not(.dark) body {
+    background-color: #f4f4f5;
+    color: #18181b;
+  }
+  html:not(.dark) .bg-surface-800  { background-color: #f4f4f5 !important; }
+  html:not(.dark) .bg-surface-750  { background-color: #e4e4e7 !important; }
+  html:not(.dark) .bg-surface-700  { background-color: #ffffff  !important; }
+  html:not(.dark) .bg-surface-600  { background-color: #f0f0f2  !important; }
+  html:not(.dark) .bg-surface-500  { background-color: #e8e8ed  !important; }
+  html:not(.dark) .border-surface-400 { border-color: #d4d4d8  !important; }
+  html:not(.dark) .border-surface-300 { border-color: #a1a1aa  !important; }
+  html:not(.dark) .text-gray-100   { color: #18181b !important; }
+  html:not(.dark) .text-gray-200   { color: #27272a !important; }
+  html:not(.dark) .text-gray-300   { color: #3f3f46 !important; }
+  html:not(.dark) .text-gray-400   { color: #52525b !important; }
+  html:not(.dark) .text-gray-500   { color: #71717a !important; }
+  html:not(.dark) .text-gray-600   { color: #a1a1aa !important; }
+  html:not(.dark) .text-gray-700   { color: #d4d4d8 !important; }
+}
+
+/* ── Default dark theme (applied when .dark IS on <html>) ───────────────── */
+html.dark { color-scheme: dark; }
+
+/* ── Utility classes ─────────────────────────────────────────────────────── */
+@layer utilities {
+  .drag-region { -webkit-app-region: drag; }
+  .no-drag     { -webkit-app-region: no-drag; }
+}
