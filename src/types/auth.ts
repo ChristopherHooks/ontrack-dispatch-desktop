@@ -1,12 +1,6 @@
-export type UserRole = 'Admin' | 'Dispatcher' | 'Sales'
+import type { User, UserRole, ThemePreference } from './models'
 
-export interface User {
-  id: number
-  name: string
-  email: string
-  role: UserRole
-  active: boolean
-}
+export type { User, UserRole, ThemePreference }
 
 export interface AuthState {
   user: User | null

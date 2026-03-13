@@ -1,57 +1,121 @@
 import { IpcMain } from 'electron'
 import Store from 'electron-store'
 import { getDb } from './db'
+import {
+  listLeads, getLead, createLead, updateLead, deleteLead,
+  listDrivers, getDriver, createDriver, updateDriver, deleteDriver,
+  listDriverDocuments, getDriverDocument, createDriverDocument, updateDriverDocument, deleteDriverDocument,
+  listLoads, getLoad, createLoad, updateLoad, deleteLoad,
+  listBrokers, getBroker, createBroker, updateBroker, deleteBroker,
+  listInvoices, getInvoice, createInvoice, updateInvoice,
+  listTasks, getTask, createTask, updateTask, deleteTask,
+  markTaskComplete, markTaskIncomplete, getTaskCompletions,
+  listNotes, createNote, deleteNote,
+  listUsers, getUser, getUserByEmail, createUser, updateUser,
+  listAuditLog,
+} from './repositories'
 
-// Registers all IPC handlers for database operations.
-// Renderer communicates via window.api.* (defined in preload).
-export function registerDbHandlers(ipcMain: IpcMain, store: Store): void {
+export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
-  // ── Settings ─────────────────────────────────────────────────────────────
-  ipcMain.handle('settings:get', (_e, key: string) => store.get(key))
-  ipcMain.handle('settings:set', (_e, key: string, value: unknown) => {
-    store.set(key, value)
-  })
+  // -- Settings --
+  ipcMain.handle('settings:get',    (_e, key: string) => store.get(key))
+  ipcMain.handle('settings:set',    (_e, key: string, value: unknown) => { store.set(key, value) })
   ipcMain.handle('settings:getAll', () => store.store)
 
-  // ── Generic CRUD helpers ─────────────────────────────────────────────────
-  // Each module (leads, drivers, etc.) will add specific handlers in Phase 2.
-  // For now we expose a safe query-runner for read-only operations.
-  ipcMain.handle('db:query', (_e, sql: string, params: unknown[] = []) => {
+  // -- Dashboard --
+  ipcMain.handle('dashboard:stats', () => {
+    const db = getDb()
+    const driversNeedingLoads = db.prepare(
+      "SELECT COUNT(*) AS c FROM drivers WHERE status = 'Active'"
+    ).get()
+    const loadsInTransit = db.prepare(
+      "SELECT COUNT(*) AS c FROM loads WHERE status = 'In Transit'"
+    ).get()
+    const leadsFollowUp = db.prepare(
+      "SELECT COUNT(*) AS c FROM leads WHERE follow_up_date <= date('now') AND status NOT IN ('Signed','Rejected')"
+    ).get()
+    const outstandingInvoices = db.prepare(
+      "SELECT COUNT(*) AS c FROM invoices WHERE status IN ('Draft','Sent','Overdue')"
+    ).get()
+    const todayTasks = db.prepare(
+      "SELECT * FROM tasks WHERE due_date = date('now') OR due_date = 'Daily' ORDER BY time_of_day ASC"
+    ).all()
+    return { driversNeedingLoads, loadsInTransit, leadsFollowUp, outstandingInvoices, todayTasks }
+  })
+
+  // -- Generic read-only query (dev/debug) --
+  ipcMain.handle('db:query', (_e, sql: string, params?: unknown[]) => {
     try {
-      const db = getDb()
-      return { data: db.prepare(sql).all(...params), error: null }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return { data: null, error: msg }
+      const data = getDb().prepare(sql).all(...(params ?? []))
+      return { data, error: null }
+    } catch (err) {
+      return { data: null, error: String(err) }
     }
   })
 
-  // ── Dashboard stats ───────────────────────────────────────────────────────
-  ipcMain.handle('dashboard:stats', () => {
-    const db = getDb()
-    return {
-      driversNeedingLoads: db.prepare(
-        "SELECT COUNT(*) as c FROM drivers WHERE status='Active' " +
-        "AND id NOT IN (SELECT driver_id FROM loads WHERE status IN ('Searching','Booked','Picked Up','In Transit'))"
-      ).get(),
-      loadsInTransit: db.prepare("SELECT COUNT(*) as c FROM loads WHERE status='In Transit'").get(),
-      leadsFollowUp: db.prepare("SELECT COUNT(*) as c FROM leads WHERE follow_up_date <= date('now') AND status NOT IN ('Signed','Rejected')").get(),
-      outstandingInvoices: db.prepare("SELECT COUNT(*) as c FROM invoices WHERE status IN ('Sent','Overdue')").get(),
-      todayTasks: db.prepare(
-        "SELECT * FROM tasks WHERE (due_date='Daily' OR due_date=date('now')) " +
-        "ORDER BY CASE " +
-        "  WHEN time_of_day IS NULL THEN 9999 " +
-        "  WHEN time_of_day LIKE '%PM' " +
-        "    AND CAST(substr(time_of_day, 1, instr(time_of_day, ':') - 1) AS INTEGER) != 12 " +
-        "    THEN (CAST(substr(time_of_day, 1, instr(time_of_day, ':') - 1) AS INTEGER) + 12) * 60 " +
-        "         + CAST(substr(time_of_day, instr(time_of_day, ':') + 1, 2) AS INTEGER) " +
-        "  WHEN time_of_day LIKE '%AM' " +
-        "    AND CAST(substr(time_of_day, 1, instr(time_of_day, ':') - 1) AS INTEGER) = 12 " +
-        "    THEN CAST(substr(time_of_day, instr(time_of_day, ':') + 1, 2) AS INTEGER) " +
-        "  ELSE CAST(substr(time_of_day, 1, instr(time_of_day, ':') - 1) AS INTEGER) * 60 " +
-        "       + CAST(substr(time_of_day, instr(time_of_day, ':') + 1, 2) AS INTEGER) " +
-        "END"
-      ).all(),
-    }
-  })
+  // -- Leads --
+  ipcMain.handle('leads:list',   (_e, status?: string) => listLeads(getDb(), status))
+  ipcMain.handle('leads:get',    (_e, id: number) => getLead(getDb(), id))
+  ipcMain.handle('leads:create', (_e, dto: unknown) => createLead(getDb(), dto as any))
+  ipcMain.handle('leads:update', (_e, id: number, dto: unknown) => updateLead(getDb(), id, dto as any))
+  ipcMain.handle('leads:delete', (_e, id: number) => deleteLead(getDb(), id))
+
+  // -- Drivers --
+  ipcMain.handle('drivers:list',   (_e, status?: string) => listDrivers(getDb(), status))
+  ipcMain.handle('drivers:get',    (_e, id: number) => getDriver(getDb(), id))
+  ipcMain.handle('drivers:create', (_e, dto: unknown) => createDriver(getDb(), dto as any))
+  ipcMain.handle('drivers:update', (_e, id: number, dto: unknown) => updateDriver(getDb(), id, dto as any))
+  ipcMain.handle('drivers:delete', (_e, id: number) => deleteDriver(getDb(), id))
+
+  // -- Driver Documents --
+  ipcMain.handle('driverDocs:list',   (_e, driverId: number) => listDriverDocuments(getDb(), driverId))
+  ipcMain.handle('driverDocs:get',    (_e, id: number) => getDriverDocument(getDb(), id))
+  ipcMain.handle('driverDocs:create', (_e, dto: unknown) => createDriverDocument(getDb(), dto as any))
+  ipcMain.handle('driverDocs:update', (_e, id: number, dto: unknown) => updateDriverDocument(getDb(), id, dto as any))
+  ipcMain.handle('driverDocs:delete', (_e, id: number) => deleteDriverDocument(getDb(), id))
+
+  // -- Loads --
+  ipcMain.handle('loads:list',   (_e, status?: string) => listLoads(getDb(), status))
+  ipcMain.handle('loads:get',    (_e, id: number) => getLoad(getDb(), id))
+  ipcMain.handle('loads:create', (_e, dto: unknown) => createLoad(getDb(), dto as any))
+  ipcMain.handle('loads:update', (_e, id: number, dto: unknown) => updateLoad(getDb(), id, dto as any))
+  ipcMain.handle('loads:delete', (_e, id: number) => deleteLoad(getDb(), id))
+
+  // -- Brokers --
+  ipcMain.handle('brokers:list',   () => listBrokers(getDb()))
+  ipcMain.handle('brokers:get',    (_e, id: number) => getBroker(getDb(), id))
+  ipcMain.handle('brokers:create', (_e, dto: unknown) => createBroker(getDb(), dto as any))
+  ipcMain.handle('brokers:update', (_e, id: number, dto: unknown) => updateBroker(getDb(), id, dto as any))
+  ipcMain.handle('brokers:delete', (_e, id: number) => deleteBroker(getDb(), id))
+
+  // -- Invoices (no delete -- change status to void instead) --
+  ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))
+  ipcMain.handle('invoices:get',    (_e, id: number) => getInvoice(getDb(), id))
+  ipcMain.handle('invoices:create', (_e, dto: unknown) => createInvoice(getDb(), dto as any))
+  ipcMain.handle('invoices:update', (_e, id: number, dto: unknown) => updateInvoice(getDb(), id, dto as any))
+
+  // -- Tasks --
+  ipcMain.handle('tasks:list',           (_e, category?: string, dueDate?: string) => listTasks(getDb(), category, dueDate))
+  ipcMain.handle('tasks:get',            (_e, id: number) => getTask(getDb(), id))
+  ipcMain.handle('tasks:create',         (_e, dto: unknown) => createTask(getDb(), dto as any))
+  ipcMain.handle('tasks:update',         (_e, id: number, dto: unknown) => updateTask(getDb(), id, dto as any))
+  ipcMain.handle('tasks:delete',         (_e, id: number) => deleteTask(getDb(), id))
+  ipcMain.handle('tasks:markComplete',   (_e, taskId: number, date: string, userId?: number) => markTaskComplete(getDb(), taskId, date, userId))
+  ipcMain.handle('tasks:markIncomplete', (_e, taskId: number, date: string) => markTaskIncomplete(getDb(), taskId, date))
+  ipcMain.handle('tasks:completions',    (_e, taskId: number) => getTaskCompletions(getDb(), taskId))
+
+  // -- Notes --
+  ipcMain.handle('notes:list',   (_e, entityType: string, entityId: number) => listNotes(getDb(), entityType, entityId))
+  ipcMain.handle('notes:create', (_e, dto: unknown) => createNote(getDb(), dto as any))
+  ipcMain.handle('notes:delete', (_e, id: number) => deleteNote(getDb(), id))
+
+  // -- Users --
+  ipcMain.handle('users:list',       () => listUsers(getDb()))
+  ipcMain.handle('users:get',        (_e, id: number) => getUser(getDb(), id))
+  ipcMain.handle('users:getByEmail', (_e, email: string) => getUserByEmail(getDb(), email))
+  ipcMain.handle('users:create',     (_e, dto: unknown) => createUser(getDb(), dto as any))
+  ipcMain.handle('users:update',     (_e, id: number, dto: unknown) => updateUser(getDb(), id, dto as any))
+
+  // -- Audit Log --
+  ipcMain.handle('audit:list', (_e, entityType?: string, entityId?: number) => listAuditLog(getDb(), entityType, entityId))
 }

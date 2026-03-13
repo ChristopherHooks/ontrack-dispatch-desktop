@@ -1,36 +1,109 @@
-// Type declarations for the contextBridge API exposed from preload
-interface Window {
-  api: {
-    settings: {
-      get: (key: string) => Promise<unknown>
-      set: (key: string, value: unknown) => Promise<void>
-      getAll: () => Promise<Record<string, unknown>>
-    }
-    dashboard: {
-      stats: () => Promise<DashboardStats>
-    }
-    db: {
-      query: (sql: string, params?: unknown[]) => Promise<{ data: unknown[] | null; error: string | null }>
+import type {
+  Lead, Driver, DriverDocument, Load, Broker, Invoice,
+  Task, TaskCompletion, Note, User, AuditLogEntry,
+  CreateLeadDto, UpdateLeadDto,
+  CreateDriverDto, UpdateDriverDto,
+  CreateDriverDocumentDto, UpdateDriverDocumentDto,
+  CreateLoadDto, UpdateLoadDto,
+  CreateBrokerDto, UpdateBrokerDto,
+  CreateInvoiceDto, UpdateInvoiceDto,
+  CreateTaskDto, UpdateTaskDto,
+  CreateNoteDto,
+  CreateUserDto, UpdateUserDto,
+} from './models'
+
+declare global {
+
+  interface Window {
+    api: {
+      settings: {
+        get:    (key: string) => Promise<unknown>
+        set:    (key: string, value: unknown) => Promise<void>
+        getAll: () => Promise<Record<string, unknown>>
+      }
+      dashboard: {
+        stats: () => Promise<DashboardStats>
+      }
+      db: {
+        query: (sql: string, params?: unknown[]) => Promise<{ data: unknown[] | null; error: string | null }>
+      }
+      leads: {
+        list:   (status?: string) => Promise<Lead[]>
+        get:    (id: number) => Promise<Lead | undefined>
+        create: (dto: CreateLeadDto) => Promise<Lead>
+        update: (id: number, dto: UpdateLeadDto) => Promise<Lead | undefined>
+        delete: (id: number) => Promise<boolean>
+      }
+      drivers: {
+        list:   (status?: string) => Promise<Driver[]>
+        get:    (id: number) => Promise<Driver | undefined>
+        create: (dto: CreateDriverDto) => Promise<Driver>
+        update: (id: number, dto: UpdateDriverDto) => Promise<Driver | undefined>
+        delete: (id: number) => Promise<boolean>
+      }
+      driverDocs: {
+        list:   (driverId: number) => Promise<DriverDocument[]>
+        get:    (id: number) => Promise<DriverDocument | undefined>
+        create: (dto: CreateDriverDocumentDto) => Promise<DriverDocument>
+        update: (id: number, dto: UpdateDriverDocumentDto) => Promise<DriverDocument | undefined>
+        delete: (id: number) => Promise<boolean>
+      }
+      loads: {
+        list:   (status?: string) => Promise<Load[]>
+        get:    (id: number) => Promise<Load | undefined>
+        create: (dto: CreateLoadDto) => Promise<Load>
+        update: (id: number, dto: UpdateLoadDto) => Promise<Load | undefined>
+        delete: (id: number) => Promise<boolean>
+      }
+      brokers: {
+        list:   () => Promise<Broker[]>
+        get:    (id: number) => Promise<Broker | undefined>
+        create: (dto: CreateBrokerDto) => Promise<Broker>
+        update: (id: number, dto: UpdateBrokerDto) => Promise<Broker | undefined>
+        delete: (id: number) => Promise<boolean>
+      }
+      invoices: {
+        list:   (status?: string) => Promise<Invoice[]>
+        get:    (id: number) => Promise<Invoice | undefined>
+        create: (dto: CreateInvoiceDto) => Promise<Invoice>
+        update: (id: number, dto: UpdateInvoiceDto) => Promise<Invoice | undefined>
+      }
+      tasks: {
+        list:           (category?: string, dueDate?: string) => Promise<Task[]>
+        get:            (id: number) => Promise<Task | undefined>
+        create:         (dto: CreateTaskDto) => Promise<Task>
+        update:         (id: number, dto: UpdateTaskDto) => Promise<Task | undefined>
+        delete:         (id: number) => Promise<boolean>
+        markComplete:   (taskId: number, date: string, userId?: number) => Promise<void>
+        markIncomplete: (taskId: number, date: string) => Promise<void>
+        getCompletions: (taskId: number) => Promise<TaskCompletion[]>
+      }
+      notes: {
+        list:   (entityType: string, entityId: number) => Promise<Note[]>
+        create: (dto: CreateNoteDto) => Promise<Note>
+        delete: (id: number) => Promise<boolean>
+      }
+      users: {
+        list:       () => Promise<User[]>
+        get:        (id: number) => Promise<User | undefined>
+        getByEmail: (email: string) => Promise<User | undefined>
+        create:     (dto: CreateUserDto) => Promise<User>
+        update:     (id: number, dto: UpdateUserDto) => Promise<User | undefined>
+      }
+      audit: {
+        list: (entityType?: string, entityId?: number) => Promise<AuditLogEntry[]>
+      }
     }
   }
+
+  interface DashboardStats {
+    driversNeedingLoads: { c: number }
+    loadsInTransit:      { c: number }
+    leadsFollowUp:       { c: number }
+    outstandingInvoices: { c: number }
+    todayTasks:          Task[]
+  }
+
 }
 
-interface DashboardStats {
-  driversNeedingLoads: { c: number }
-  loadsInTransit:      { c: number }
-  leadsFollowUp:       { c: number }
-  outstandingInvoices: { c: number }
-  todayTasks:          Task[]
-}
-
-interface Task {
-  id: number
-  title: string
-  category: string | null
-  priority: 'High' | 'Medium' | 'Low'
-  due_date: string | null
-  time_of_day: string | null
-  recurring: 0 | 1
-  status: 'Pending' | 'Done'
-  notes: string | null
-}
+export {}
