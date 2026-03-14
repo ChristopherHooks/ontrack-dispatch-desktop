@@ -21,6 +21,7 @@ import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus } from './fmcsaImport'
 import { runSeedIfEmpty, resetAndReseed } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
+import { getRecommendations } from './loadScanner'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -180,6 +181,10 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('dispatch:availableLoads',   () => getAvailableLoads(getDb()))
   ipcMain.handle('dispatch:assignLoad', (_e, payload: { loadId: number; driverId: number }) =>
     assignLoadToDriver(getDb(), payload.loadId, payload.driverId))
+
+  // -- Load Opportunity Scanner --
+  ipcMain.handle('scanner:recommendLoads', (_e, payload: { driverId?: number }) =>
+    getRecommendations(getDb(), payload?.driverId))
 
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',      () => { runSeedIfEmpty(getDb()); return { ok: true } })

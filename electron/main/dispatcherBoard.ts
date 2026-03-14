@@ -112,7 +112,7 @@ export function assignLoadToDriver(
     ).run(driverId, now, loadId)
 
     db.prepare(
-      "UPDATE drivers SET status = 'On Load', updated_at = ? WHERE id = ?"
+      "UPDATE drivers SET status = 'On Load', current_location = NULL, updated_at = ? WHERE id = ?"
     ).run(now, driverId)
 
     return { ok: true }

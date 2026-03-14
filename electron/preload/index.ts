@@ -147,6 +147,11 @@ contextBridge.exposeInMainWorld('api', {
     assignLoad:     (payload: { loadId: number; driverId: number }) => ipcRenderer.invoke('dispatch:assignLoad', payload),
   },
 
+  // -- Load Opportunity Scanner --
+  scanner: {
+    recommendLoads: (payload: { driverId?: number }) => ipcRenderer.invoke('scanner:recommendLoads', payload),
+  },
+
   // -- Dev Utilities (non-packaged builds only) --
   dev: {
     seed:   () => ipcRenderer.invoke('dev:seed'),

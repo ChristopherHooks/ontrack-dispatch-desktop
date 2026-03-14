@@ -8,7 +8,7 @@ interface Props { driver: Driver | null; onSave: (d: Driver) => void; onClose: (
 const BLANK: CreateDriverDto = {
   name: '', company: null, mc_number: null, dot_number: null, cdl_number: null,
   cdl_expiry: null, phone: null, email: null, truck_type: null, trailer_type: null,
-  home_base: null, preferred_lanes: null, min_rpm: null, dispatch_percent: 7,
+  home_base: null, current_location: null, preferred_lanes: null, min_rpm: null, dispatch_percent: 7,
   factoring_company: null, insurance_expiry: null, start_date: null, status: 'Active', notes: null,
 }
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
@@ -84,6 +84,12 @@ export function DriverModal({ driver, onSave, onClose }: Props) {
               <div className='col-span-2'>
                 <Field label='Home Base' icon={<MapPin size={10} />}>
                   <input className={`${inp} max-w-xs`} value={form.home_base??''} onChange={e=>str('home_base',e.target.value)} placeholder='Charlotte, NC' />
+                </Field>
+              </div>
+              <div className='col-span-2'>
+                <Field label='Current Location' icon={<MapPin size={10} />}>
+                  <input className={`${inp} max-w-xs`} value={form.current_location??''} onChange={e=>str('current_location',e.target.value)} placeholder='Memphis, TN' />
+                  <p className='text-2xs text-gray-600 mt-1'>Override deadhead origin for load scanner. Cleared automatically when a load is assigned.</p>
                 </Field>
               </div>
               <Sec title='Carrier Info' />

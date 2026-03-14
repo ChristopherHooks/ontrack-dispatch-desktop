@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import type { BoardRow, AvailableLoad, AssignLoadResult } from '../types/models'
-import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2 } from 'lucide-react'
+import type { BoardRow, AvailableLoad, AssignLoadResult, LoadRecommendation } from '../types/models'
+import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star } from 'lucide-react'
 
 type BoardGroup = 'Needs Load' | 'In Transit' | 'Picked Up' | 'Booked' | 'Available Soon' | 'Inactive'
 
@@ -48,6 +48,11 @@ export function DispatcherBoard() {
   const [assignError,    setAssignError]    = useState<string | null>(null)
   const [activeLoad,     setActiveLoad]     = useState<AvailableLoad | null>(null)
 
+  const [selectedDriverId,   setSelectedDriverId]   = useState<number | null>(null)
+  const [selectedDriverName, setSelectedDriverName] = useState<string | null>(null)
+  const [recommendations,    setRecommendations]    = useState<LoadRecommendation[]>([])
+  const [recsLoading,        setRecsLoading]        = useState(false)
+
   const loadBoard = async () => {
     setLoading(true)
     try {
@@ -58,6 +63,24 @@ export function DispatcherBoard() {
 
   const loadAvailable = async () => {
     setAvailableLoads(await window.api.dispatcher.availableLoads())
+  }
+
+  const selectDriver = async (driverId: number, driverName: string) => {
+    if (selectedDriverId === driverId) {
+      setSelectedDriverId(null)
+      setSelectedDriverName(null)
+      setRecommendations([])
+      return
+    }
+    setSelectedDriverId(driverId)
+    setSelectedDriverName(driverName)
+    setRecsLoading(true)
+    try {
+      const result = await window.api.scanner.recommendLoads({ driverId })
+      setRecommendations(result.length > 0 ? result[0].recommendations : [])
+    } finally {
+      setRecsLoading(false)
+    }
   }
 
   useEffect(() => { loadBoard(); loadAvailable() }, [])
@@ -246,7 +269,7 @@ export function DispatcherBoard() {
                   <h2 className={`text-xs font-semibold uppercase tracking-wide ${meta.color}`}>{g}</h2>
                   <span className='text-xs text-gray-600'>({groupRows.length})</span>
                 </div>
-                <BoardTable rows={groupRows} group={g} />
+                <BoardTable rows={groupRows} group={g} selectedDriverId={selectedDriverId} onSelectDriver={selectDriver} />
               </section>
             )
           })}
@@ -259,8 +282,32 @@ export function DispatcherBoard() {
           )}
         </div>
 
-        {/* Available Loads panel */}
-        <AvailableLoadsPanel loads={availableLoads} />
+        {/* Right column: Available Loads + Recommended Loads */}
+        <div className='flex flex-col gap-4 shrink-0'>
+          <AvailableLoadsPanel loads={availableLoads} />
+          {selectedDriverId != null && (
+            <RecommendedLoadsPanel
+              driverName={selectedDriverName ?? ''}
+              recommendations={recommendations}
+              loading={recsLoading}
+              onAssign={async (loadId) => {
+                const result: AssignLoadResult = await window.api.dispatcher.assignLoad({
+                  loadId,
+                  driverId: selectedDriverId,
+                })
+                if (result.ok) {
+                  setSelectedDriverId(null)
+                  setSelectedDriverName(null)
+                  setRecommendations([])
+                  await Promise.all([loadBoard(), loadAvailable()])
+                } else {
+                  setAssignError(result.error ?? 'Assignment failed.')
+                }
+              }}
+              onClose={() => { setSelectedDriverId(null); setSelectedDriverName(null); setRecommendations([]) }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Drag overlay */}
@@ -374,9 +421,14 @@ function LoadCardContent({ load }: { load: AvailableLoad }) {
 }
 
 // -- Board Table --
-interface BoardTableProps { rows: BoardRow[]; group: BoardGroup }
+interface BoardTableProps {
+  rows: BoardRow[]
+  group: BoardGroup
+  selectedDriverId: number | null
+  onSelectDriver: (id: number, name: string) => void
+}
 
-function BoardTable({ rows, group }: BoardTableProps) {
+function BoardTable({ rows, group, selectedDriverId, onSelectDriver }: BoardTableProps) {
   return (
     <div className='rounded-xl border border-surface-400 overflow-hidden'>
       <table className='w-full text-xs'>
@@ -396,7 +448,15 @@ function BoardTable({ rows, group }: BoardTableProps) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(row => <DriverBoardRow key={row.driver_id} row={row} group={group} />)}
+          {rows.map(row => (
+            <DriverBoardRow
+              key={row.driver_id}
+              row={row}
+              group={group}
+              isSelected={selectedDriverId === row.driver_id}
+              onSelectDriver={onSelectDriver}
+            />
+          ))}
         </tbody>
       </table>
     </div>
@@ -404,9 +464,14 @@ function BoardTable({ rows, group }: BoardTableProps) {
 }
 
 // -- Driver Board Row (droppable) --
-interface DriverBoardRowProps { row: BoardRow; group: BoardGroup }
+interface DriverBoardRowProps {
+  row: BoardRow
+  group: BoardGroup
+  isSelected: boolean
+  onSelectDriver: (id: number, name: string) => void
+}
 
-function DriverBoardRow({ row, group }: DriverBoardRowProps) {
+function DriverBoardRow({ row, group, isSelected, onSelectDriver }: DriverBoardRowProps) {
   const meta = GROUP_META[group]
   const { setNodeRef, isOver } = useDroppable({
     id: `driver-${row.driver_id}`,
@@ -433,9 +498,11 @@ function DriverBoardRow({ row, group }: DriverBoardRowProps) {
   return (
     <tr
       ref={setNodeRef}
+      onClick={() => onSelectDriver(row.driver_id, row.driver_name)}
       className={[
-        `border-b border-surface-600 last:border-0 transition-colors ${meta.rowBg}`,
-        isOver ? 'outline outline-2 outline-orange-500 outline-offset-[-1px] bg-orange-950/40' : '',
+        `border-b border-surface-600 last:border-0 transition-colors cursor-pointer ${meta.rowBg}`,
+        isOver     ? 'outline outline-2 outline-orange-500 outline-offset-[-1px] bg-orange-950/40' : '',
+        isSelected ? 'ring-1 ring-inset ring-yellow-500/60 bg-yellow-950/10' : '',
       ].join(' ')}
     >
       <td className='px-3 py-2.5'>
@@ -590,6 +657,104 @@ function AssignmentModal({ load, driver, assigning, error, onCancel, onConfirm }
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// -- Recommended Loads Panel --
+interface RecommendedLoadsPanelProps {
+  driverName:      string
+  recommendations: LoadRecommendation[]
+  loading:         boolean
+  onAssign:        (loadId: number) => Promise<void>
+  onClose:         () => void
+}
+
+function RecommendedLoadsPanel({ driverName, recommendations, loading, onAssign, onClose }: RecommendedLoadsPanelProps) {
+  const [assigningId, setAssigningId] = useState<number | null>(null)
+  return (
+    <div className='w-72 bg-surface-800 border border-yellow-700/40 rounded-xl overflow-hidden'>
+      <div className='px-3 py-2.5 border-b border-yellow-700/30 bg-surface-750'>
+        <div className='flex items-center gap-2'>
+          <Star size={14} className='text-yellow-400' />
+          <h2 className='text-xs font-semibold uppercase tracking-wide text-yellow-400'>Recommended Loads</h2>
+          <button onClick={onClose} className='ml-auto text-gray-500 hover:text-gray-300 transition-colors'>
+            <X size={14} />
+          </button>
+        </div>
+        <p className='text-xs text-gray-600 mt-0.5 truncate'>Top 5 for {driverName}</p>
+      </div>
+      <div className='p-2 space-y-2 max-h-[calc(100vh-420px)] overflow-y-auto'>
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className='h-16 rounded-lg bg-surface-700 animate-pulse' />
+          ))
+        ) : recommendations.length === 0 ? (
+          <div className='py-8 text-center'>
+            <Package size={24} className='mx-auto mb-2 text-gray-700' />
+            <p className='text-xs text-gray-600'>No available loads to rank</p>
+          </div>
+        ) : (
+          recommendations.map((rec, i) => (
+            <RecommendationCard
+              key={rec.load_id_pk}
+              rec={rec}
+              rank={i + 1}
+              assigning={assigningId === rec.load_id_pk}
+              onAssign={async () => {
+                setAssigningId(rec.load_id_pk)
+                try { await onAssign(rec.load_id_pk) }
+                finally { setAssigningId(null) }
+              }}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// -- Recommendation Card --
+interface RecommendationCardProps {
+  rec:      LoadRecommendation
+  rank:     number
+  assigning: boolean
+  onAssign: () => void
+}
+
+function RecommendationCard({ rec, rank, assigning, onAssign }: RecommendationCardProps) {
+  const origin = [rec.origin_city, rec.origin_state].filter(Boolean).join(', ')
+  const dest   = [rec.dest_city,   rec.dest_state  ].filter(Boolean).join(', ')
+  return (
+    <div className='rounded-lg border border-surface-400 bg-surface-700 p-2.5'>
+      <div className='flex items-start gap-2 mb-1.5'>
+        <span className='shrink-0 w-5 h-5 rounded-full bg-surface-600 text-gray-400 text-2xs flex items-center justify-center font-mono font-bold'>
+          {rank}
+        </span>
+        <div className='min-w-0 flex-1'>
+          <p className='text-xs font-semibold text-gray-200 truncate'>{origin || '?'} &rarr; {dest || '?'}</p>
+          {rec.broker_name && <p className='text-2xs text-gray-500 truncate'>{rec.broker_name}</p>}
+        </div>
+        {rec.rpm != null && (
+          <span className='text-xs font-mono font-semibold text-green-400 shrink-0'>${rec.rpm.toFixed(2)}</span>
+        )}
+      </div>
+      <div className='flex items-center gap-2 text-2xs text-gray-500 mb-2'>
+        {rec.rate  != null && <span className='text-gray-300'>${rec.rate.toLocaleString()}</span>}
+        {rec.miles != null && <span>{rec.miles.toLocaleString()} mi</span>}
+        <span className='text-gray-600'>{rec.deadhead_miles} dh</span>
+        <span className='ml-auto font-mono text-yellow-500/80'>#{rec.score.toFixed(1)}</span>
+      </div>
+      <button
+        onClick={onAssign}
+        disabled={assigning}
+        className='w-full flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded bg-orange-700/40 border border-orange-700/40 text-orange-300 hover:bg-orange-600/50 hover:text-orange-200 transition-colors disabled:opacity-50'
+      >
+        {assigning
+          ? <><Loader2 size={12} className='animate-spin' /> Assigning...</>
+          : <><Check size={12} /> Assign Load</>
+        }
+      </button>
     </div>
   )
 }

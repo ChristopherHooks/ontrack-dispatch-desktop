@@ -73,6 +73,7 @@ export interface Driver {
   truck_type: string | null
   trailer_type: string | null
   home_base: string | null
+  current_location: string | null  // temporary position; cleared on load assignment
   preferred_lanes: string | null
   min_rpm: number | null
   dispatch_percent: number        // default 7.0
@@ -329,4 +330,30 @@ export interface AvailableLoad {
 export interface AssignLoadResult {
   ok:    boolean
   error?: string
+}
+
+// -- Load Opportunity Scanner --
+export interface LoadRecommendation {
+  load_id_pk:     number
+  load_ref:       string | null
+  origin_city:    string | null
+  origin_state:   string | null
+  dest_city:      string | null
+  dest_state:     string | null
+  rate:           number | null
+  miles:          number | null    // loaded miles
+  rpm:            number | null
+  deadhead_miles: number
+  total_revenue:  number | null
+  score:          number
+  broker_name:    string | null
+  broker_flag:    BrokerFlag | null
+  pickup_date:    string | null
+}
+
+export interface ScannerRecommendation {
+  driver_id:       number
+  driver_name:     string
+  home_base:       string | null
+  recommendations: LoadRecommendation[]
 }

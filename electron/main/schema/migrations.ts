@@ -221,10 +221,23 @@ const migration003: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 004 -- Add current_location to drivers table
+// ---------------------------------------------------------------------------
+
+const migration004: Migration = {
+  version: 4,
+  description: 'Add current_location column to drivers (nullable, cleared on load assignment)',
+  up: (db) => {
+    addColumnIfMissing(db, 'drivers', 'current_location', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (4)")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

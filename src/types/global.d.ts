@@ -2,7 +2,7 @@ import type {
   Lead, Driver, DriverDocument, Load, Broker, Invoice,
   Task, TaskCompletion, Note, User, AuditLogEntry,
   SopDocument, AnalyticsStats, SearchResult, FmcsaImportResult, FmcsaImportStatus, BoardRow,
-  AvailableLoad, AssignLoadResult,
+  AvailableLoad, AssignLoadResult, ScannerRecommendation,
   CreateLeadDto, UpdateLeadDto,
   CreateDriverDto, UpdateDriverDto,
   CreateDriverDocumentDto, UpdateDriverDocumentDto,
@@ -125,6 +125,9 @@ declare global {
         board:          () => Promise<BoardRow[]>
         availableLoads: () => Promise<AvailableLoad[]>
         assignLoad:     (payload: { loadId: number; driverId: number }) => Promise<AssignLoadResult>
+      }
+      scanner: {
+        recommendLoads: (payload: { driverId?: number }) => Promise<ScannerRecommendation[]>
       }
       dev: {
         seed:   () => Promise<{ ok: boolean }>
