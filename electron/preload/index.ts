@@ -21,11 +21,12 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Leads --
   leads: {
-    list:   (status?: string) => ipcRenderer.invoke('leads:list', status),
-    get:    (id: number) => ipcRenderer.invoke('leads:get', id),
-    create: (dto: unknown) => ipcRenderer.invoke('leads:create', dto),
-    update: (id: number, dto: unknown) => ipcRenderer.invoke('leads:update', id, dto),
-    delete: (id: number) => ipcRenderer.invoke('leads:delete', id),
+    list:         (status?: string) => ipcRenderer.invoke('leads:list', status),
+    get:          (id: number) => ipcRenderer.invoke('leads:get', id),
+    create:       (dto: unknown) => ipcRenderer.invoke('leads:create', dto),
+    update:       (id: number, dto: unknown) => ipcRenderer.invoke('leads:update', id, dto),
+    delete:       (id: number) => ipcRenderer.invoke('leads:delete', id),
+    importFmcsa:  () => ipcRenderer.invoke('leads:importFmcsa'),
   },
 
   // -- Drivers --

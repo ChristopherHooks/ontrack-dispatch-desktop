@@ -18,6 +18,7 @@ import {
 import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
+import { importFmcsaLeads } from './fmcsaImport'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -74,11 +75,16 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   })
 
   // -- Leads --
-  ipcMain.handle('leads:list',   (_e, status?: string) => listLeads(getDb(), status))
-  ipcMain.handle('leads:get',    (_e, id: number) => getLead(getDb(), id))
-  ipcMain.handle('leads:create', (_e, dto: unknown) => createLead(getDb(), dto as any))
-  ipcMain.handle('leads:update', (_e, id: number, dto: unknown) => updateLead(getDb(), id, dto as any))
-  ipcMain.handle('leads:delete', (_e, id: number) => deleteLead(getDb(), id))
+  ipcMain.handle('leads:list',         (_e, status?: string) => listLeads(getDb(), status))
+  ipcMain.handle('leads:get',          (_e, id: number) => getLead(getDb(), id))
+  ipcMain.handle('leads:create',       (_e, dto: unknown) => createLead(getDb(), dto as any))
+  ipcMain.handle('leads:update',       (_e, id: number, dto: unknown) => updateLead(getDb(), id, dto as any))
+  ipcMain.handle('leads:delete',       (_e, id: number) => deleteLead(getDb(), id))
+  ipcMain.handle('leads:importFmcsa',  async () => {
+    const result = await importFmcsaLeads(getDb())
+    store.set('last_fmcsa_import_at', new Date().toISOString())
+    return result
+  })
 
   // -- Drivers --
   ipcMain.handle('drivers:list',   (_e, status?: string) => listDrivers(getDb(), status))

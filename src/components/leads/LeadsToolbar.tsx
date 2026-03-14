@@ -10,14 +10,17 @@ export interface LeadFilters {
 }
 
 interface Props {
-  search:    string
-  onSearch:  (v: string) => void
-  filters:   LeadFilters
-  onFilters: (f: LeadFilters) => void
-  view:      'table' | 'kanban'
-  onView:    (v: 'table' | 'kanban') => void
-  total:     number
-  onAdd:     () => void
+  search:       string
+  onSearch:     (v: string) => void
+  filters:      LeadFilters
+  onFilters:    (f: LeadFilters) => void
+  view:         'table' | 'kanban'
+  onView:       (v: 'table' | 'kanban') => void
+  total:        number
+  onAdd:        () => void
+  onImport:     () => void
+  importBusy:   boolean
+  lastImportAt: string | null
 }
 
 const selCls =
@@ -26,6 +29,7 @@ const selCls =
 
 export function LeadsToolbar({
   search, onSearch, filters, onFilters, view, onView, total, onAdd,
+  onImport, importBusy, lastImportAt,
 }: Props) {
   const hasFilters =
     filters.status !== '' || filters.priority !== '' ||
@@ -87,13 +91,17 @@ export function LeadsToolbar({
           </button>
         </div>
 
-        {/* FMCSA import (placeholder) */}
+        {/* FMCSA import */}
         <button
-          disabled
-          title='FMCSA import — coming soon'
-          className='flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs text-gray-600 border border-surface-400 bg-surface-700 cursor-not-allowed opacity-40'
+          onClick={onImport}
+          disabled={importBusy}
+          title={lastImportAt ? `Last import: ${new Date(lastImportAt).toLocaleString()}` : 'Import leads from FMCSA'}
+          className='flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-surface-400 bg-surface-600 hover:bg-surface-500 hover:border-orange-600/40 text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
         >
-          <Upload size={12} /> FMCSA Import
+          {importBusy
+            ? <><svg className='animate-spin h-3 w-3' viewBox='0 0 24 24' fill='none'><circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' /><path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8v8z' /></svg> Importing…</>
+            : <><Upload size={12} /> FMCSA Import</>
+          }
         </button>
 
         {/* Add lead */}

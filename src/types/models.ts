@@ -250,6 +250,14 @@ export interface AnalyticsStats {
   revenueByMonth:    Array<{ month: string; revenue: number; loads: number }>
 }
 
+// -- FMCSA Import --
+export interface FmcsaImportResult {
+  leadsFound:        number
+  leadsAdded:        number
+  duplicatesSkipped: number
+  errors:            string[]
+}
+
 // -- Global Search --
 export type SearchResultType = 'lead' | 'driver' | 'load' | 'broker' | 'invoice' | 'task' | 'document'
 export interface SearchResult {

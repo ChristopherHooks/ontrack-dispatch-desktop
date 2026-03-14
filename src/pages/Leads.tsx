@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Lead, LeadStatus } from '../types/models'
+import type { Lead, LeadStatus, FmcsaImportResult } from '../types/models'
 import { LeadsToolbar, type LeadFilters } from '../components/leads/LeadsToolbar'
 import { LeadsTable }  from '../components/leads/LeadsTable'
 import { LeadsKanban } from '../components/leads/LeadsKanban'
@@ -14,16 +14,24 @@ export function Leads() {
   const [filters,  setFilters]  = useState<LeadFilters>({ status: '', priority: '', source: '', overdue: false })
   const [sortKey,  setSortKey]  = useState<keyof Lead>('follow_up_date')
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>('asc')
-  const [selected, setSelected] = useState<Lead | null>(null)
-  const [editLead, setEditLead] = useState<Lead | null>(null)
-  const [modal,    setModal]    = useState(false)
+  const [selected,     setSelected]     = useState<Lead | null>(null)
+  const [editLead,     setEditLead]     = useState<Lead | null>(null)
+  const [modal,        setModal]        = useState(false)
+  const [importBusy,   setImportBusy]   = useState(false)
+  const [importResult, setImportResult] = useState<FmcsaImportResult | null>(null)
+  const [lastImportAt, setLastImportAt] = useState<string | null>(null)
 
   const reload = async () => {
     setLoading(true)
     try     { setLeads(await window.api.leads.list()) }
     finally { setLoading(false) }
   }
-  useEffect(() => { reload() }, [])
+  useEffect(() => {
+    reload()
+    window.api.settings.get('last_fmcsa_import_at').then(v => {
+      if (typeof v === 'string') setLastImportAt(v)
+    })
+  }, [])
 
   const handleSort = (key: keyof Lead) => {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -49,6 +57,20 @@ export function Leads() {
     if (updated) {
       setLeads(p => p.map(l => l.id === updated.id ? updated : l))
       if (selected?.id === updated.id) setSelected(updated)
+    }
+  }
+
+  const handleImport = async () => {
+    setImportBusy(true)
+    setImportResult(null)
+    try {
+      const result = await window.api.leads.importFmcsa()
+      setImportResult(result)
+      const ts = await window.api.settings.get('last_fmcsa_import_at')
+      if (typeof ts === 'string') setLastImportAt(ts)
+      if (result.leadsAdded > 0) await reload()
+    } finally {
+      setImportBusy(false)
     }
   }
 
@@ -88,12 +110,39 @@ export function Leads() {
         <p className='text-sm text-gray-500 mt-0.5'>Manage your carrier pipeline</p>
       </div>
 
+      {importResult && (
+        <div className={`rounded-md px-4 py-3 text-sm flex items-start justify-between gap-4
+          ${importResult.errors.length > 0
+            ? 'bg-yellow-900/40 border border-yellow-700/50 text-yellow-200'
+            : 'bg-green-900/40 border border-green-700/50 text-green-200'}`}
+        >
+          <div className='space-y-1'>
+            <div className='flex gap-4 font-medium'>
+              <span>Found: {importResult.leadsFound}</span>
+              <span>Added: {importResult.leadsAdded}</span>
+              <span>Skipped: {importResult.duplicatesSkipped}</span>
+            </div>
+            {importResult.errors.map((e, i) => (
+              <p key={i} className='text-xs opacity-80'>{e}</p>
+            ))}
+          </div>
+          <button
+            onClick={() => setImportResult(null)}
+            className='opacity-60 hover:opacity-100 transition-opacity text-lg leading-none'
+            aria-label='Dismiss'
+          >×</button>
+        </div>
+      )}
+
       <LeadsToolbar
         search={search}     onSearch={setSearch}
         filters={filters}   onFilters={setFilters}
         view={view}         onView={setView}
         total={filtered.length}
         onAdd={openAdd}
+        onImport={handleImport}
+        importBusy={importBusy}
+        lastImportAt={lastImportAt}
       />
 
       {view === 'table'
