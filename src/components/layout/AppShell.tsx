@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { TopBar }  from './TopBar'
+import { GlobalSearch } from '../ui/GlobalSearch'
 import { useSettingsStore } from '../../store/settingsStore'
 
 export function AppShell() {
@@ -18,6 +19,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <GlobalSearch />
     </div>
   )
 }

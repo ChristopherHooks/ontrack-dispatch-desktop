@@ -1,7 +1,8 @@
 import { useLocation } from 'react-router-dom'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAuthStore } from '../../store/authStore'
-import { Sun, Moon, Monitor } from 'lucide-react'
+import { useUIStore } from '../../store/uiStore'
+import { Sun, Moon, Monitor, Search } from 'lucide-react'
 import type { Theme } from '../../store/settingsStore'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -23,6 +24,7 @@ export function TopBar() {
   const location = useLocation()
   const { theme, setTheme } = useSettingsStore()
   const user = useAuthStore((s) => s.user)
+  const { openGlobalSearch } = useUIStore()
   const title = PAGE_TITLES[location.pathname] ?? 'OnTrack'
 
   const themes: { value: Theme; icon: React.ReactNode; label: string }[] = [
@@ -36,20 +38,20 @@ export function TopBar() {
       <h1 className='text-sm font-semibold text-gray-100'>{title}</h1>
 
       <div className='flex items-center gap-3'>
+        {/* Global search button */}
+        <button onClick={openGlobalSearch}
+          className='flex items-center gap-2 px-3 py-1.5 bg-surface-700 hover:bg-surface-600 border border-surface-400 hover:border-surface-300 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors'>
+          <Search size={12} />
+          <span className='hidden sm:inline'>Search</span>
+          <kbd className='hidden sm:inline px-1 bg-surface-600 rounded text-2xs text-gray-600'>Ctrl K</kbd>
+        </button>
+
         {/* Theme switcher */}
         <div className='flex items-center gap-1 bg-surface-700 rounded-lg p-1'>
           {themes.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTheme(t.value)}
-              title={t.label}
-              className={[
-                'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                theme === t.value
-                  ? 'bg-surface-500 text-orange-400'
-                  : 'text-gray-500 hover:text-gray-300',
-              ].join(' ')}
-            >
+            <button key={t.value} onClick={() => setTheme(t.value)} title={t.label}
+              className={'w-6 h-6 rounded flex items-center justify-center transition-colors ' +
+                (theme === t.value ? 'bg-surface-500 text-orange-400' : 'text-gray-500 hover:text-gray-300')}>
               {t.icon}
             </button>
           ))}

@@ -1,5 +1,87 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-14 -- Prompt 7: Tasks Module + Backup Service + Scheduler + Dashboard Bug Fix
+
+### Work Completed
+
+**Tasks Module (full CRUD + completion tracking):**
+- TasksToolbar -- view tabs (Today / All Tasks / History), progress bar (X of Y / %), search + category filter, Add Task button
+- TaskModal -- create/edit: title, category, priority, due_date (accepts 'Daily' or YYYY-MM-DD), time_of_day, recurring toggle, notes
+- TaskDrawer -- slide-in: mark complete/incomplete for today, completion history (last 30 logged), edit, two-step delete
+- Tasks.tsx -- three views: Today checklist (large checkboxes + priority dots + time badges), All Tasks table (sortable, filterable), 30-day History (which tasks were done each day shown as tag pills)
+- Completion persisted by day via task_completions table; recurring tasks independently checkable each day
+- New IPC: tasks:completionsForDate(date) -- returns all completions for a given date (used for Today + History views)
+
+**Automation Scheduler (scaffolded):**
+- electron/main/scheduler.ts -- minute-tick setInterval, zero new npm packages
+- Three jobs: fmcsa-scraper @ 05:00, daily-briefing @ 06:00, marketing-queue @ Mon 07:00
+- Each job guarded by last_run key in app_settings -- fires at most once per day
+- All job handlers are stubs with TODO comments; no external API calls yet
+- Started in index.ts on app ready, stopped on window-all-closed
+
+**Backup Service:**
+- electron/main/backup.ts -- standalone module extracted from db.ts
+- Auto daily backup: YYYY-MM-DD.db -- on startup, skips if already exists
+- Periodic 6-hour backup: YYYY-MM-DD_auto-00/06/12/18.db -- up to 5 restore points per day
+- Manual backup: YYYY-MM-DD_manual.db -- via Settings UI button
+- Staged restore flow: stageRestore() saves path to electron-store; applyPendingRestore() runs at NEXT startup before DB is opened (WAL-safe, no concurrent write risk)
+- Backup records written to backups table (best-effort, does not block)
+- listBackups() reads filesystem directly -- works even if DB table is empty
+
+**Settings -- Backup & Restore UI:**
+- Lists all .db files in backups/ dir with filename + size
+- Two-step confirm: Restore -> 'Confirm restore?' -> 'Yes, stage it'
+- After staging: yellow banner shows 'Restart OnTrack to apply'
+- 'Create Backup Now' button for on-demand backup
+- Google Drive Sync section: explicit conflict warning about WAL + concurrent write risk
+
+**Dashboard Bug Fix -- driversNeedingLoads:**
+- Root cause: query was SELECT COUNT(*) FROM drivers WHERE status = 'Active' -- counted all Active drivers with no awareness of loads
+- Fix: NOT EXISTS correlated subquery excludes Active drivers who already have a load in Booked / Picked Up / In Transit
+- File: electron/main/ipcHandlers.ts, dashboard:stats handler
+
+### Files Created (7 new)
+- electron/main/backup.ts
+- electron/main/scheduler.ts
+- src/components/tasks/constants.ts
+- src/components/tasks/TasksToolbar.tsx
+- src/components/tasks/TaskModal.tsx
+- src/components/tasks/TaskDrawer.tsx
+- src/pages/Tasks.tsx (replaced PagePlaceholder stub)
+
+### Files Modified (8)
+- electron/main/db.ts -- added getDataDir() export, wired createBackup + startPeriodicBackup
+- electron/main/index.ts -- wired startScheduler, stopScheduler, stopPeriodicBackup, applyPendingRestore
+- electron/main/ipcHandlers.ts -- added backup IPC handlers, tasks:completionsForDate, fixed driversNeedingLoads query
+- electron/main/repositories/tasksRepo.ts -- added getCompletionsForDate()
+- electron/preload/index.ts -- exposed backups + tasksExtra namespaces
+- src/types/global.d.ts -- added BackupEntry interface + backups/tasksExtra API surface
+- src/pages/Settings.tsx -- full rewrite: added Backup & Restore section + Google Drive Sync section
+- docs/HANDOFF.md, docs/SESSION_LOG.md
+
+### App State at End of Session
+- Tasks page: fully operational (Today checklist, All Tasks, History, CRUD, completion persistence)
+- Backup: auto daily + 6-hour periodic + manual; staged restore via Settings UI
+- Scheduler: wired and running; job stubs ready for API implementation
+- Dashboard 'Needs Load' KPI: corrected -- excludes drivers with active loads
+- Build: clean (1527 modules, zero errors)
+- Remaining stubs: Documents, Marketing, Analytics, Help
+
+### Technical Notes
+- Restore is staged (not immediate) to avoid opening DB while copying over it
+- listBackups() reads from filesystem, not DB table, for reliability
+- scheduler.ts uses setInterval at 60s tick + last_run guard -- no node-cron dependency
+- All file writes this session used Python heredoc (Windows EEXIST constraint applies)
+- Scheduler getDb reference uses require() to avoid circular import at module load time
+
+### Known Issues at End of Session
+- No seed data -- pages show empty state
+- Dashboard mini dispatch board still uses old driver count (needs refresh after KPI fix)
+- Email workflow uses mailto: (SMTP deferred)
+- FMCSA/briefing/marketing job handlers are stubs
+
+---
+
 Reverse-chronological. Most recent session at the top.
 
 ## 2026-03-14 -- Prompt 6: Brokers Module + Invoices Module

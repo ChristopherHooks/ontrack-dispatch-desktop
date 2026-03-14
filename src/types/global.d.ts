@@ -1,6 +1,7 @@
 import type {
   Lead, Driver, DriverDocument, Load, Broker, Invoice,
   Task, TaskCompletion, Note, User, AuditLogEntry,
+  SopDocument, AnalyticsStats, SearchResult,
   CreateLeadDto, UpdateLeadDto,
   CreateDriverDto, UpdateDriverDto,
   CreateDriverDocumentDto, UpdateDriverDocumentDto,
@@ -10,6 +11,7 @@ import type {
   CreateTaskDto, UpdateTaskDto,
   CreateNoteDto,
   CreateUserDto, UpdateUserDto,
+  CreateSopDocumentDto, UpdateSopDocumentDto,
 } from './models'
 
 declare global {
@@ -101,6 +103,20 @@ declare global {
       }
       tasksExtra: {
         completionsForDate: (date: string) => Promise<TaskCompletion[]>
+      }
+      documents: {
+        list:   (category?: string) => Promise<SopDocument[]>
+        get:    (id: number) => Promise<SopDocument | undefined>
+        create: (dto: CreateSopDocumentDto) => Promise<SopDocument>
+        update: (id: number, dto: UpdateSopDocumentDto) => Promise<SopDocument | undefined>
+        delete: (id: number) => Promise<boolean>
+        search: (query: string) => Promise<SopDocument[]>
+      }
+      analytics: {
+        stats: () => Promise<AnalyticsStats>
+      }
+      search: {
+        global: (query: string) => Promise<SearchResult[]>
       }
     }
   }

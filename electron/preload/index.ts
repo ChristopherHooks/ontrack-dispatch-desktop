@@ -118,4 +118,24 @@ contextBridge.exposeInMainWorld('api', {
     completionsForDate: (date: string) => ipcRenderer.invoke('tasks:completionsForDate', date),
   },
 
+  // -- Documents --
+  documents: {
+    list:   (category?: string) => ipcRenderer.invoke('documents:list', category),
+    get:    (id: number) => ipcRenderer.invoke('documents:get', id),
+    create: (dto: unknown) => ipcRenderer.invoke('documents:create', dto),
+    update: (id: number, dto: unknown) => ipcRenderer.invoke('documents:update', id, dto),
+    delete: (id: number) => ipcRenderer.invoke('documents:delete', id),
+    search: (query: string) => ipcRenderer.invoke('documents:search', query),
+  },
+
+  // -- Analytics --
+  analytics: {
+    stats: () => ipcRenderer.invoke('analytics:stats'),
+  },
+
+  // -- Global Search --
+  search: {
+    global: (query: string) => ipcRenderer.invoke('search:global', query),
+  },
+
 })

@@ -220,3 +220,42 @@ export interface AuditLogEntry {
   new_values: string | null
   created_at: string
 }
+
+// -- SOP / Markdown Documents --
+export type DocCategory = 'SOP' | 'Policy' | 'Training' | 'Template' | 'Reference' | 'Other'
+
+export interface SopDocument {
+  id: number
+  title: string
+  category: DocCategory
+  content: string | null
+  file_path: string | null
+  driver_id: number | null
+  doc_type: string | null
+  expiry_date: string | null
+  created_at: string
+  updated_at: string
+}
+export type CreateSopDocumentDto = Omit<SopDocument, 'id' | 'created_at' | 'updated_at'>
+export type UpdateSopDocumentDto = Partial<CreateSopDocumentDto>
+
+// -- Analytics --
+export interface AnalyticsStats {
+  leadConversion:    { total: number; signed: number; rate: number }
+  driversSigned:     { thisMonth: number; total: number }
+  avgRpm:            { value: number; count: number }
+  revenueByDriver:   Array<{ driver_id: number; name: string; revenue: number; loads: number }>
+  brokerReliability: Array<{ broker_id: number; name: string; loads: number; avgRate: number; flag: string }>
+  laneProfitability: Array<{ origin_state: string; dest_state: string; loads: number; avgRpm: number; totalRevenue: number }>
+  revenueByMonth:    Array<{ month: string; revenue: number; loads: number }>
+}
+
+// -- Global Search --
+export type SearchResultType = 'lead' | 'driver' | 'load' | 'broker' | 'invoice' | 'task' | 'document'
+export interface SearchResult {
+  type:     SearchResultType
+  id:       number
+  title:    string
+  subtitle: string
+  route:    string
+}

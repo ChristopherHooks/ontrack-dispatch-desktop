@@ -207,10 +207,24 @@ const migration002: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 003 -- Add content + updated_at to documents table
+// ---------------------------------------------------------------------------
+
+const migration003: Migration = {
+  version: 3,
+  description: 'Add content and updated_at columns to documents table',
+  up: (db) => {
+    addColumnIfMissing(db, 'documents', 'content',    'TEXT')
+    addColumnIfMissing(db, 'documents', 'updated_at', "TEXT NOT NULL DEFAULT ''")
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (3)")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

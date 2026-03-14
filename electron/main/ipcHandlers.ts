@@ -13,8 +13,11 @@ import {
   listNotes, createNote, deleteNote,
   listUsers, getUser, getUserByEmail, createUser, updateUser,
   listAuditLog,
+  listDocuments, getDocument, createDocument, updateDocument, deleteDocument, searchDocuments,
 } from './repositories'
 import { createBackup, listBackups, stageRestore } from './backup'
+import { getAnalyticsStats } from './analytics'
+import { globalSearch } from './search'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -69,6 +72,7 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
       return { data: null, error: String(err) }
     }
   })
+
   // -- Leads --
   ipcMain.handle('leads:list',   (_e, status?: string) => listLeads(getDb(), status))
   ipcMain.handle('leads:get',    (_e, id: number) => getLead(getDb(), id))
@@ -111,18 +115,18 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('invoices:update', (_e, id: number, dto: unknown) => updateInvoice(getDb(), id, dto as any))
 
   // -- Tasks --
-  ipcMain.handle('tasks:list',              (_e, category?: string, dueDate?: string) => listTasks(getDb(), category, dueDate))
-  ipcMain.handle('tasks:get',              (_e, id: number) => getTask(getDb(), id))
-  ipcMain.handle('tasks:create',           (_e, dto: unknown) => createTask(getDb(), dto as any))
-  ipcMain.handle('tasks:update',           (_e, id: number, dto: unknown) => updateTask(getDb(), id, dto as any))
-  ipcMain.handle('tasks:delete',           (_e, id: number) => deleteTask(getDb(), id))
-  ipcMain.handle('tasks:markComplete',     (_e, taskId: number, date: string, userId?: number) => markTaskComplete(getDb(), taskId, date, userId))
-  ipcMain.handle('tasks:markIncomplete',   (_e, taskId: number, date: string) => markTaskIncomplete(getDb(), taskId, date))
-  ipcMain.handle('tasks:completions',      (_e, taskId: number) => getTaskCompletions(getDb(), taskId))
+  ipcMain.handle('tasks:list',            (_e, cat?: string, due?: string) => listTasks(getDb(), cat, due))
+  ipcMain.handle('tasks:get',             (_e, id: number) => getTask(getDb(), id))
+  ipcMain.handle('tasks:create',          (_e, dto: unknown) => createTask(getDb(), dto as any))
+  ipcMain.handle('tasks:update',          (_e, id: number, dto: unknown) => updateTask(getDb(), id, dto as any))
+  ipcMain.handle('tasks:delete',          (_e, id: number) => deleteTask(getDb(), id))
+  ipcMain.handle('tasks:markComplete',    (_e, taskId: number, date: string, uid?: number) => markTaskComplete(getDb(), taskId, date, uid))
+  ipcMain.handle('tasks:markIncomplete',  (_e, taskId: number, date: string) => markTaskIncomplete(getDb(), taskId, date))
+  ipcMain.handle('tasks:completions',     (_e, taskId: number) => getTaskCompletions(getDb(), taskId))
   ipcMain.handle('tasks:completionsForDate', (_e, date: string) => getCompletionsForDate(getDb(), date))
 
   // -- Notes --
-  ipcMain.handle('notes:list',   (_e, entityType: string, entityId: number) => listNotes(getDb(), entityType, entityId))
+  ipcMain.handle('notes:list',   (_e, et: string, eid: number) => listNotes(getDb(), et, eid))
   ipcMain.handle('notes:create', (_e, dto: unknown) => createNote(getDb(), dto as any))
   ipcMain.handle('notes:delete', (_e, id: number) => deleteNote(getDb(), id))
 
@@ -134,11 +138,25 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('users:update',     (_e, id: number, dto: unknown) => updateUser(getDb(), id, dto as any))
 
   // -- Audit Log --
-  ipcMain.handle('audit:list', (_e, entityType?: string, entityId?: number) => listAuditLog(getDb(), entityType, entityId))
+  ipcMain.handle('audit:list', (_e, et?: string, eid?: number) => listAuditLog(getDb(), et, eid))
 
   // -- Backups --
   ipcMain.handle('backups:list',         () => listBackups(getDataDir()))
   ipcMain.handle('backups:create',       () => createBackup(getDb(), getDataDir(), 'manual'))
-  ipcMain.handle('backups:stageRestore', (_e, filePath: string) => stageRestore(filePath, store))
+  ipcMain.handle('backups:stageRestore', (_e, fp: string) => stageRestore(fp, store))
   ipcMain.handle('backups:pending',      () => { const v = store.get('pendingRestore'); return v ? v : null })
+
+  // -- Documents --
+  ipcMain.handle('documents:list',   (_e, cat?: string) => listDocuments(getDb(), cat))
+  ipcMain.handle('documents:get',    (_e, id: number) => getDocument(getDb(), id))
+  ipcMain.handle('documents:create', (_e, dto: unknown) => createDocument(getDb(), dto as any))
+  ipcMain.handle('documents:update', (_e, id: number, dto: unknown) => updateDocument(getDb(), id, dto as any))
+  ipcMain.handle('documents:delete', (_e, id: number) => deleteDocument(getDb(), id))
+  ipcMain.handle('documents:search', (_e, q: string) => searchDocuments(getDb(), q))
+
+  // -- Analytics --
+  ipcMain.handle('analytics:stats', () => getAnalyticsStats(getDb()))
+
+  // -- Global Search --
+  ipcMain.handle('search:global', (_e, q: string) => globalSearch(getDb(), q))
 }
