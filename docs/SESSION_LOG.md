@@ -2,6 +2,66 @@
 
 Reverse-chronological. Most recent session at the top.
 
+## 2026-03-14 -- Prompt 6: Brokers Module + Invoices Module
+
+### Work Completed
+
+**Brokers Module (full profile + performance):**
+- BrokersToolbar -- search, flag filter, broker count, Add Broker button
+- BrokersTable -- sortable 8-column table; late-payer highlight (red when avg_days_pay > payment_terms + 5)
+- BrokerModal -- create/edit: all 9 fields (name, MC #, flag, phone, email, payment terms, credit rating, avg days pay, notes)
+- BrokerDrawer -- 500px slide-in: contact/payment, inline flag switcher, performance metrics (total loads, revenue, avg RPM), load history (up to 12), notes
+- Brokers.tsx -- orchestrator: search/filter/sort, delete, flag change
+
+**Invoices Module (full lifecycle + export):**
+- InvoicesToolbar -- search, status filter, outstanding fee badge, Generate Invoice button
+- InvoicesTable -- 9-column table; auto-detects Overdue (sent_date > 30 days with no payment)
+- InvoiceModal -- generate/edit: auto-generated invoice number (INV-YYYY-NNNN), load dropdown (Delivered/Invoiced/Paid only), auto-fills driver + gross + dispatch % + week ending, fee auto-calculated
+- InvoiceDrawer -- status actions (Mark Sent/Paid/Overdue), Print PDF (window.print() with injected CSS), CSV Export (client-side Blob download), Email workflow (mailto: pre-filled), financials card, notes
+- Invoices.tsx -- orchestrator: status cascade (invoice Paid/Sent updates linked load), outstanding total, search
+
+**Types:**
+- models.ts -- BrokerFlag extended with "Slow Pay" and "Blacklisted"
+
+### Files Created (10 new)
+- src/components/brokers/constants.ts
+- src/components/brokers/BrokersToolbar.tsx
+- src/components/brokers/BrokersTable.tsx
+- src/components/brokers/BrokerModal.tsx
+- src/components/brokers/BrokerDrawer.tsx
+- src/components/invoices/constants.ts
+- src/components/invoices/InvoicesToolbar.tsx
+- src/components/invoices/InvoicesTable.tsx
+- src/components/invoices/InvoiceModal.tsx
+- src/components/invoices/InvoiceDrawer.tsx
+
+### Files Modified (3)
+- src/types/models.ts -- extended BrokerFlag union
+- src/pages/Brokers.tsx -- replaced PagePlaceholder stub
+- src/pages/Invoices.tsx -- replaced PagePlaceholder stub
+
+### App State at End of Session
+- Brokers: fully operational (list, CRUD, drawer, flag management, load history, performance metrics)
+- Invoices: fully operational (list, generate from load, edit, print PDF, CSV export, email, status lifecycle)
+- Invoice status cascade: marking invoice Paid/Sent updates linked load status automatically
+- Build: clean (1523 modules, zero errors)
+- Remaining stubs: Tasks, Documents, Marketing, Analytics, Help
+
+### Technical Notes
+- PDF export: window.print() with dynamically injected @media print CSS -- no new deps
+- CSV export: client-side Blob + URL.createObjectURL -- no new IPC handlers
+- Email: mailto: link pre-filled with invoice details -- SMTP config deferred to Settings
+- Windows write constraint: avoid escape sequences (
+) in Python-written JS; use String.fromCharCode(10) instead
+- Always use encoding='utf-8' AND newline='' when writing JS/TS files via Python on Windows
+
+### Known Issues at End of Session
+- No seed data -- pages show empty until real data is entered
+- Email workflow uses mailto: (default mail client) -- SMTP deferred
+- Invoice history per driver accessible via search filter (no dedicated driver tab yet)
+
+---
+
 ---
 ## 2026-03-13 — Prompt 5: Drivers Module + Loads Module + Dispatch Board
 

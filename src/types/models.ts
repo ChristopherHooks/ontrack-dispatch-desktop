@@ -15,7 +15,7 @@ export type DriverDocType = "CDL" | "Insurance" | "BOL" | "POD" | "COI" | "Lease
 
 export type LoadStatus = "Searching" | "Booked" | "Picked Up" | "In Transit" | "Delivered" | "Invoiced" | "Paid"
 
-export type BrokerFlag = "None" | "Preferred" | "Avoid"
+export type BrokerFlag = "None" | "Preferred" | "Avoid" | "Slow Pay" | "Blacklisted"
 export type InvoiceStatus = "Draft" | "Sent" | "Overdue" | "Paid"
 
 export type TaskStatus   = "Pending" | "Done"

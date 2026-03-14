@@ -1,4 +1,4 @@
-# Handoff — OnTrack Dispatch Dashboard
+# Handoff -- OnTrack Dispatch Dashboard
 
 This file captures the current state of the project for session continuity.
 Update this file at the end of every meaningful work session.
@@ -7,79 +7,87 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-03-12
+2026-03-14
 
 ## Current Branch
 
-Unknown — git history not yet initialized in this session.
-Recommended: work on `dev` or `fix/sidebar-toggle-clipped` for recent sidebar fix.
+feature/first-real-task
 
 ---
 
 ## What Was Completed (Most Recent Sessions)
 
-### Foundation Scaffold (complete)
-- Full Electron + React + TypeScript + Tailwind project built from scratch
-- SQLite database with 8 tables, WAL mode, daily auto-backup
-- IPC channels for settings and dashboard stats
-- AppShell with collapsible sidebar (12 nav items) and TopBar
-- Dashboard page: 4 KPI cards + today's task checklist (chronological sort)
-- Settings page: theme + business prefs
-- Zustand stores (settingsStore, authStore), electron-store persistence
-- HashRouter with all 12 routes registered (10 are PagePlaceholder)
+### Prompt 6 -- Brokers + Invoices Modules (complete)
+- Brokers: full CRUD, flag management (Preferred/Slow Pay/Avoid/Blacklisted), load history, performance metrics (revenue, avg RPM, payer score)
+- Invoices: generate from completed loads, auto-calculate dispatch fee, status lifecycle (Draft/Sent/Overdue/Paid), Print PDF, CSV export, email workflow (mailto:)
+- Invoice status cascade: marking invoice Sent/Paid also updates the linked load
+- BrokerFlag type extended with "Slow Pay" and "Blacklisted"
+- Build clean: 1523 modules, zero errors
 
-### Bug Fixes Applied
-- Fixed duplicate daily tasks on every app launch (explicit IDs + dedup DELETE)
-- Fixed task timestamp only showing on hover (removed opacity-0/group-hover classes)
-- Fixed task sort order (CASE expression converts H:MM AM/PM → minutes-since-midnight)
-- Fixed sidebar collapse button being cut off (removed overflow-hidden from aside)
+### Prompt 5 -- Drivers + Loads + Dispatch Board (complete)
+- Drivers: full profile, documents, notes, expiry alerts, min RPM
+- Loads: full 7-stage lifecycle, RPM calc, dispatch fee, driver/broker assignment
+- Dispatch Board: embedded in Loads page (table/board toggle), "Needs Load" highlights
+- Dashboard mini dispatch board updated to show real data
 
-### Grounding Docs Created
-- CLAUDE.md, docs/ARCHITECTURE.md, docs/DECISIONS.md, docs/ROADMAP.md,
-  docs/HANDOFF.md, docs/SESSION_LOG.md all created this session
+### Prompt 4 -- Leads CRM (complete)
+- Leads table + kanban board, modal, drawer, lead scoring, call logs
+- Task sort order fixed (JS sort instead of SQL ORDER BY for time strings)
+
+### Foundation (complete)
+- Electron + React + TypeScript + Tailwind + SQLite + IPC layer fully built
+- 8 DB tables, WAL mode, daily auto-backup, all IPC channels wired
 
 ---
 
 ## Current App State
 
-The app launches and runs. Core scaffold is solid.
+Fully operational pages:
+- Dashboard (live KPIs + mini dispatch board)
+- Leads (full CRM)
+- Drivers (full profile + documents)
+- Loads + Dispatch Board (full lifecycle)
+- Brokers (full profile + performance)
+- Invoices (full lifecycle + PDF/CSV/email export)
+- Settings
 
-Working:
-- Electron window opens
-- Dashboard loads with live KPI data from SQLite
-- Today's tasks display in chronological order
-- Task checkboxes toggle visually (not persisted to DB yet)
-- Theme toggle (dark/light/system) works and persists
-- Sidebar collapse/expand works with toggle button fully visible
-- Settings page UI renders (save not yet wired for all fields)
-- All 12 routes registered (10 show PagePlaceholder)
-
-Not working / not built yet:
-- Task completion state is not persisted to DB
-- Dispatch board on Dashboard is a static placeholder
-- All Phase 1 CRUD modules (Leads, Drivers, Loads, Brokers, Invoices, Tasks full UI)
+PagePlaceholder stubs (not yet built):
+- Tasks, Documents, Marketing, Analytics, Help
 
 ---
 
 ## Current Blockers
 
-None. The app is stable and ready for Phase 1 work.
+None. Build is clean and app is stable.
 
 ---
 
-## Recommended Next Step
+## Recommended Next Steps (Priority Order)
 
-Begin Phase 1 CRUD modules. Suggested start: **Leads CRM**.
-
-Reason: Leads is the top of the funnel. It has the most straightforward schema
-(no FK dependencies to other tables), making it a good first module to establish
-the list-view + detail-panel pattern that all other modules will follow.
+1. **Tasks module** -- Persist task completion to DB; full daily task CRUD (currently visual-only on Dashboard)
+2. **Seed data / Migration 003** -- Sample drivers, loads, brokers, invoices so app feels real from day one
+3. **Documents module** -- File management for BOLs, PODs, COIs
+4. **Dashboard KPI rebuild** -- Update "Needs Load" to count only Active drivers without a current load
 
 ---
 
-## Files Touched in Most Recent Session
+## Files Touched in Most Recent Session (Prompt 6)
 
-- src/components/layout/Sidebar.tsx (removed overflow-hidden)
-- MEMORY.md in .claude/projects/ (updated standing instructions)
-- All docs/ files (created this session)
-- CLAUDE.md (created this session)
+New files:
+- src/components/brokers/constants.ts
+- src/components/brokers/BrokersToolbar.tsx
+- src/components/brokers/BrokersTable.tsx
+- src/components/brokers/BrokerModal.tsx
+- src/components/brokers/BrokerDrawer.tsx
+- src/components/invoices/constants.ts
+- src/components/invoices/InvoicesToolbar.tsx
+- src/components/invoices/InvoicesTable.tsx
+- src/components/invoices/InvoiceModal.tsx
+- src/components/invoices/InvoiceDrawer.tsx
+
+Modified:
+- src/types/models.ts
+- src/pages/Brokers.tsx
+- src/pages/Invoices.tsx
+- docs/HANDOFF.md (this file)
+- docs/SESSION_LOG.md
