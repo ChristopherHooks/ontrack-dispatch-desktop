@@ -27,7 +27,13 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('dashboard:stats', () => {
     const db = getDb()
     const driversNeedingLoads = db.prepare(
-      "SELECT COUNT(*) AS c FROM drivers WHERE status = 'Active'"
+      "SELECT COUNT(*) AS c FROM drivers d"
+      + " WHERE d.status = 'Active'"
+      + " AND NOT EXISTS ("
+      + "   SELECT 1 FROM loads l"
+      + "   WHERE l.driver_id = d.id"
+      + "   AND l.status IN ('Booked', 'Picked Up', 'In Transit')"
+      + ")"
     ).get()
     const loadsInTransit = db.prepare(
       "SELECT COUNT(*) AS c FROM loads WHERE status = 'In Transit'"
