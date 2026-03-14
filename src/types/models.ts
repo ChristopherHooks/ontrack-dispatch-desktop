@@ -258,6 +258,35 @@ export interface FmcsaImportResult {
   errors:            string[]
 }
 
+// -- Dispatcher Board --
+export interface BoardRow {
+  driver_id:      number
+  driver_name:    string
+  driver_status:  DriverStatus
+  driver_company: string | null
+  truck_type:     string | null
+  trailer_type:   string | null
+  home_base:      string | null
+  min_rpm:        number | null
+  driver_notes:   string | null
+  load_id_pk:     number | null
+  load_ref:       string | null   // broker reference number (loads.load_id)
+  load_status:    LoadStatus | null
+  origin_city:    string | null
+  origin_state:   string | null
+  dest_city:      string | null
+  dest_state:     string | null
+  pickup_date:    string | null
+  delivery_date:  string | null
+  miles:          number | null
+  rate:           number | null
+  commodity:      string | null
+  load_notes:     string | null
+  broker_id:      number | null
+  broker_name:    string | null
+  broker_flag:    BrokerFlag | null
+}
+
 // -- Global Search --
 export type SearchResultType = 'lead' | 'driver' | 'load' | 'broker' | 'invoice' | 'task' | 'document'
 export interface SearchResult {

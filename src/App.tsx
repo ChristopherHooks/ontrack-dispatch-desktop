@@ -4,7 +4,8 @@ import { AppShell } from './components/layout/AppShell'
 import { useSettingsStore } from './store/settingsStore'
 
 // Pages
-import { Dashboard }  from './pages/Dashboard'
+import { Dashboard }       from './pages/Dashboard'
+import { DispatcherBoard } from './pages/DispatcherBoard'
 import { Leads }      from './pages/Leads'
 import { Drivers }    from './pages/Drivers'
 import { Loads }      from './pages/Loads'
@@ -29,7 +30,8 @@ export function App() {
       <Routes>
         <Route path='/' element={<AppShell />}>
           <Route index element={<Navigate to='/dashboard' replace />} />
-          <Route path='dashboard'  element={<Dashboard />} />
+          <Route path='dashboard'    element={<Dashboard />} />
+          <Route path='dispatcher'   element={<DispatcherBoard />} />
           <Route path='leads'      element={<Leads />} />
           <Route path='drivers'    element={<Drivers />} />
           <Route path='loads'      element={<Loads />} />

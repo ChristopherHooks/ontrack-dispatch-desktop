@@ -139,6 +139,11 @@ contextBridge.exposeInMainWorld('api', {
     global: (query: string) => ipcRenderer.invoke('search:global', query),
   },
 
+  // -- Dispatcher Board --
+  dispatcher: {
+    board: () => ipcRenderer.invoke('dispatcher:board'),
+  },
+
   // -- Dev Utilities (non-packaged builds only) --
   dev: {
     seed:   () => ipcRenderer.invoke('dev:seed'),

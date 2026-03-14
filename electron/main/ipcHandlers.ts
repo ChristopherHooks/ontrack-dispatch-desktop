@@ -20,6 +20,7 @@ import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads } from './fmcsaImport'
 import { runSeedIfEmpty, resetAndReseed } from './seed'
+import { getBoardRows } from './dispatcherBoard'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -166,6 +167,9 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
   // -- Global Search --
   ipcMain.handle('search:global', (_e, q: string) => globalSearch(getDb(), q))
+
+  // -- Dispatcher Board --
+  ipcMain.handle('dispatcher:board', () => getBoardRows(getDb()))
 
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',      () => { runSeedIfEmpty(getDb()); return { ok: true } })

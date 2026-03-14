@@ -87,15 +87,15 @@ function seedLoads(db: Database.Database): void {
   ins.run(103,'COY-334512',null,102,'Atlanta','GA','Houston','TX',null,null,790,1738.00,7.0,'Building Materials','Searching',0,'Partial flatbed OK. Call for details.')
   // -- Booked --
   ins.run(104,'CHRB-110482',105,101,'Phoenix','AZ','Las Vegas','NV','2026-03-18','2026-03-19',290,667.00,7.0,'Electronics','Booked',0,'Driver confirmed. Rate con sent.')
-  ins.run(105,'COY-334598',101,102,'Dallas','TX','Atlanta','GA','2026-03-17','2026-03-19',900,2070.00,7.0,'Steel Coils','Booked',0,'Flatbed. Straps and tarps required.')
-  ins.run(106,'ECH-445672',106,103,'Kansas City','MO','Denver','CO','2026-03-19','2026-03-20',600,1320.00,7.0,'Machinery Parts','Booked',0,'Step deck confirmed. Permits not required.')
+  ins.run(105,'COY-334598',null,102,'Dallas','TX','Atlanta','GA',null,null,900,2070.00,7.0,'Steel Coils','Searching',0,'Flatbed, straps and tarps required. Need driver Dallas to Atlanta.')
+  ins.run(106,'ECH-445672',null,103,'Kansas City','MO','Denver','CO',null,null,600,1320.00,7.0,'Machinery Parts','Searching',0,'Step deck needed KC to Denver. Call broker to confirm permits.')
   ins.run(107,'LND-556231',111,105,'Dallas','TX','Nashville','TN','2026-03-20','2026-03-22',665,1463.00,7.0,'General Freight','Booked',0,'Dry van. No touch freight.')
   ins.run(108,'TQL-220904',110,106,'Memphis','TN','Columbus','OH','2026-03-21','2026-03-23',430,946.00,7.0,'Consumer Goods','Booked',0,'Team driver not required. Standard dry van.')
   // -- Picked Up --
   ins.run(109,'COY-335101',112,102,'Houston','TX','Nashville','TN','2026-03-11','2026-03-14',800,1920.00,7.5,'Frozen Goods','Picked Up',0,'Reefer set to -10F. Driver confirmed pickup.')
   ins.run(110,'CHRB-110601',115,101,'Columbus','OH','Atlanta','GA','2026-03-12','2026-03-14',720,1656.00,7.0,'Auto Parts','Picked Up',0,'Step deck. Oversized permit not required.')
   ins.run(111,'ECH-445801',104,103,'Atlanta','GA','Chicago','IL','2026-03-12','2026-03-15',720,1512.00,7.5,'Manufactured Goods','Picked Up',0,'Flatbed loaded. Tarped and secured.')
-  ins.run(112,'XPO-661234',113,104,'Phoenix','AZ','Las Vegas','NV','2026-03-13','2026-03-14',290,580.00,7.0,'Retail Goods','Picked Up',0,'Short run. Driver confirmed pickup.')
+  ins.run(112,'XPO-661234',null,104,'Phoenix','AZ','Las Vegas','NV',null,null,290,580.00,7.0,'Retail Goods','Searching',0,'Short run AZ to NV. Driver needed.')
   ins.run(113,'LND-556312',108,105,'Los Angeles','CA','Phoenix','AZ','2026-03-13','2026-03-15',370,999.00,8.0,'Produce','Picked Up',0,'Reefer at 34F. Produce load, time sensitive.')
   // -- In Transit --
   ins.run(114,'COY-335201',103,102,'Chicago','IL','Dallas','TX','2026-03-10','2026-03-14',920,1748.00,7.0,'General Freight','In Transit',0,'Driver en route. ETA 3/14 evening.')

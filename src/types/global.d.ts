@@ -1,7 +1,7 @@
 import type {
   Lead, Driver, DriverDocument, Load, Broker, Invoice,
   Task, TaskCompletion, Note, User, AuditLogEntry,
-  SopDocument, AnalyticsStats, SearchResult, FmcsaImportResult,
+  SopDocument, AnalyticsStats, SearchResult, FmcsaImportResult, BoardRow,
   CreateLeadDto, UpdateLeadDto,
   CreateDriverDto, UpdateDriverDto,
   CreateDriverDocumentDto, UpdateDriverDocumentDto,
@@ -118,6 +118,9 @@ declare global {
       }
       search: {
         global: (query: string) => Promise<SearchResult[]>
+      }
+      dispatcher: {
+        board: () => Promise<BoardRow[]>
       }
       dev: {
         seed:   () => Promise<{ ok: boolean }>
