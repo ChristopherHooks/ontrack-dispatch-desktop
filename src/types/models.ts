@@ -13,7 +13,7 @@ export type LeadPriority = "High" | "Medium" | "Low"
 export type DriverStatus  = "Active" | "Inactive" | "On Load"
 export type DriverDocType = "CDL" | "Insurance" | "BOL" | "POD" | "COI" | "Lease" | "W9" | "Other"
 
-export type LoadStatus = "Searching" | "Booked" | "Picked Up" | "In Transit" | "Delivered" | "Invoiced"
+export type LoadStatus = "Searching" | "Booked" | "Picked Up" | "In Transit" | "Delivered" | "Invoiced" | "Paid"
 
 export type BrokerFlag = "None" | "Preferred" | "Avoid"
 export type InvoiceStatus = "Draft" | "Sent" | "Overdue" | "Paid"

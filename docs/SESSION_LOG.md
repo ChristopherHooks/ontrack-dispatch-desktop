@@ -3,6 +3,138 @@
 Reverse-chronological. Most recent session at the top.
 
 ---
+## 2026-03-13 — Prompt 5: Drivers Module + Loads Module + Dispatch Board
+
+### Work Completed
+
+**Drivers Module (full profile + documents):**
+- `DriversToolbar` — search, status filter (Active / On Load / Inactive), driver count, Add Driver button
+- `DriversTable` — sortable 9-column table: Driver, Company, Status, MC #, Equipment, Home Base, Min RPM, CDL Exp, Ins. Exp; expiry warning badges (orange, 60-day window); hover row actions
+- `DriverModal` — create/edit modal: all 19 driver fields across 4 sections (Contact, Carrier Info, Equipment, Dispatch Settings) including min_rpm, dispatch %, factoring company, preferred lanes
+- `DriverDrawer` — 500px slide-in detail panel: current load banner (Booked/Picked Up/In Transit), contact, carrier (MC#/DOT#/CDL# with expiry warnings), equipment, dispatch settings (min RPM + preferred lanes), linked documents (add/delete with doc type + expiry), notes
+- `Drivers.tsx` — orchestrator: search/filter/sort state, status change, delete
+
+**Loads Module (full lifecycle):**
+- `LoadsToolbar` — search, status filter (all 7 statuses), load count, table/board toggle, Add Load
+- `LoadsTable` — sortable 9-column table: Load #, Driver (unassigned highlight), Route (origin→dest), Miles, Rate, RPM (green if meets driver min, red if below), Pickup, Delivery, Status
+- `LoadModal` — create/edit modal: driver dropdown, broker dropdown, route (city+state each end), schedule, miles, rate with live RPM preview, dispatch %, commodity, status, notes
+- `LoadDrawer` — 480px slide-in: "Mark [Next Status]" action button, route card (origin→dest), financials (rate, RPM with min-RPM comparison, dispatch %, dispatch fee), assignment (driver + broker), notes
+
+**Dispatch Board:**
+- Embedded in Loads page as a second view (table ↔ board toggle in toolbar)
+- Responsive card grid (1/2/3/4 columns by breakpoint)
+- Each card: driver name, company, status badge, equipment chips, home base
+- "Needs Load" highlight (orange glow border, pulsing dot) for Active drivers with no current load
+- Drivers on load: clickable load card showing status badge + route + pickup date + RPM (green/red)
+- Inactive drivers: dimmed (opacity-50)
+- Sort order: Active drivers first, then unloaded before loaded
+
+**Dashboard Mini Dispatch Board (updated):**
+- Now fetches real driver + load data in a second parallel useEffect
+- Compact list of up to 6 drivers, sorted: Active-unloaded first
+- Shows status badge, current load status + route, or "Needs Load" pulse indicator
+
+**Data model:**
+- `LoadStatus` union extended with "Paid" (7th lifecycle stage)
+- No schema changes, no IPC changes — all relationships joined client-side
+
+### Files Created (10 new)
+- src/components/drivers/constants.ts
+- src/components/drivers/DriversToolbar.tsx
+- src/components/drivers/DriversTable.tsx
+- src/components/drivers/DriverModal.tsx
+- src/components/drivers/DriverDrawer.tsx
+- src/components/loads/constants.ts
+- src/components/loads/LoadsToolbar.tsx
+- src/components/loads/LoadsTable.tsx
+- src/components/loads/LoadModal.tsx
+- src/components/loads/LoadDrawer.tsx
+
+### Files Modified (4)
+- src/types/models.ts — added "Paid" to LoadStatus union
+- src/pages/Drivers.tsx — replaced PagePlaceholder stub
+- src/pages/Loads.tsx — replaced stub; includes Loads table + DispatchBoard component
+- src/pages/Dashboard.tsx — updated mini dispatch board to show real driver/load data
+
+### App State at End of Session
+- Drivers page: fully operational (list, create, edit, drawer, status workflow, documents, notes)
+- Loads page: fully operational (list + dispatch board view, create, edit, drawer, status workflow, RPM calc, notes)
+- Dashboard: mini dispatch board shows real data
+- Brokers, Invoices, Tasks, Documents, Marketing, Analytics, Help: still PagePlaceholder stubs
+- No new IPC handlers needed — all relationships joined client-side
+- No schema migration needed — LoadStatus "Paid" is TypeScript-only
+
+### Known Issues at End of Session
+- TypeScript generic helpers in modals (`num`, `str`) may produce minor TS warnings (not build errors)
+- No seed data — Drivers/Loads pages will show empty state until Chris adds real data
+- Dispatch Board "Needs Load" KPI on Dashboard still counts all Active drivers (not just those without loads)
+- Task completion on Dashboard still visual-only (not persisted)
+
+---
+
+
+## 2026-03-13 — Prompt 4: Leads Module + Task Sort Fix
+
+### Prompt 4 Complete
+- Leads table view built
+- Kanban board built
+- Lead detail panel/form built
+- Search/filter UX added
+- Ready for Prompt 5
+
+### Work Completed
+
+**Leads Module (full CRM pipeline):**
+- `LeadsTable` — sortable columns (Score, Lead, Status, MC #, Phone, Trailer, Auth Age, Follow-Up, Priority, Source), loading skeletons, empty state, hover row actions
+- `LeadsKanban` — 5 status columns (New → Contacted → Interested → Signed → Rejected), card advance button on hover, loading skeletons, no drag-and-drop dependency
+- `LeadsToolbar` — search with clear, status/priority/source/overdue filters, Table ↔ Board view toggle, disabled FMCSA Import placeholder, Add Lead button
+- `LeadModal` — create/edit form with all 14 fields (name, company, MC #, phone, email, city, state, trailer type, authority date, source, status, priority, follow-up date, notes)
+- `LeadDrawer` — slide-in detail panel: contact details, action bar (Edit/Call/→Status/Delete), overdue banner, Notes section (add/delete), Call Log section (type, outcome, duration, summary), collapsible Score Breakdown
+- `LeadScoreBadge` — Hot/Warm/Cold badge computed client-side from 8 weighted factors (0–100)
+- `leadScore.ts` — pure compute function, no DB column, no migration needed
+- `fmcsa.ts` — clean import hook placeholder for future FMCSA API integration
+- `constants.ts` — STATUS_STYLES, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES, LEAD_SOURCES
+- `Leads.tsx` — orchestrator page wiring all components with search/filter/sort state and IPC handlers
+- Call logs stored in existing `notes` table using `entity_type = 'lead_call'` with JSON content — no new table or migration
+- Added `'lead_call'` to `NoteEntityType` union in `models.ts`
+
+**Bug fix — Task sort order regression:**
+- Root cause: `ORDER BY time_of_day ASC` in SQLite sorts lexicographically — `'10:30 AM'` sorts before `'9:00 AM'` because `'1' < '9'`
+- Fix: removed `time_of_day` from all SQL `ORDER BY` clauses in `tasksRepo.ts`; added `timeToMin()` + `sortTasks()` helpers to sort by parsed minutes-since-midnight in JS
+- Same fix applied to `dashboard:stats` `todayTasks` query in `ipcHandlers.ts`
+
+### Files Created
+- src/lib/leadScore.ts
+- src/lib/fmcsa.ts
+- src/components/leads/constants.ts
+- src/components/leads/LeadScoreBadge.tsx
+- src/components/leads/LeadsToolbar.tsx
+- src/components/leads/LeadsTable.tsx
+- src/components/leads/LeadsKanban.tsx
+- src/components/leads/LeadModal.tsx
+- src/components/leads/LeadDrawer.tsx
+- src/pages/Leads.tsx
+
+### Files Modified
+- src/types/models.ts — added `'lead_call'` to NoteEntityType
+- electron/main/repositories/tasksRepo.ts — replaced SQL time sort with JS sort helpers
+- electron/main/ipcHandlers.ts — fixed dashboard:stats todayTasks sort
+
+### App State at End of Session
+- Leads page fully operational: table view, kanban board, create/edit modal, detail drawer
+- Lead scoring computed client-side, no schema changes required
+- Call logs and notes persisted to DB via existing notes table
+- Task sort order correct: 9:00 AM → 10:30 AM → 1:00 PM (chronological)
+- Dashboard, Drivers, Loads, Brokers, Invoices, Tasks pages still on placeholder stubs
+- Dashboard rebuild plan approved but not yet implemented (deferred)
+
+### Known Issues at End of Session
+- Dashboard is still the original minimal scaffold (rebuild planned, not started)
+- Task completion in Dashboard is visual-only (not persisted)
+- FMCSA import is a disabled placeholder
+- All non-Leads CRUD pages remain as PagePlaceholder stubs
+
+---
 
 ## 2026-03-12 — Foundation Complete + Bug Fixes + Grounding Docs
 
