@@ -3,7 +3,7 @@ import { join } from 'path'
 import { initDatabase, getDataDir } from './db'
 import { registerDbHandlers } from './ipcHandlers'
 import { startScheduler, stopScheduler } from './scheduler'
-import { applyPendingRestore } from './backup'
+import { applyPendingRestore, stopPeriodicBackup } from './backup'
 import Store from 'electron-store'
 
 const store = new Store<{
@@ -79,7 +79,7 @@ app.whenReady().then(() => {
   const restored = applyPendingRestore(dbPath, store as any)
   if (restored) console.log('[Main] Database restored from backup')
 
-  initDatabase(customDataPath)
+  initDatabase(customDataPath)         // also starts periodic backup
   registerDbHandlers(ipcMain, store)
   startScheduler(() => { const { getDb } = require('./db'); return getDb() })
 
@@ -92,5 +92,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopScheduler()
+  stopPeriodicBackup()
   if (process.platform !== 'darwin') app.quit()
 })
