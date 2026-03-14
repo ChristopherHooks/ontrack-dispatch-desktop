@@ -116,3 +116,61 @@ export function applyPendingRestore(
     return false
   }
 }
+
+// ---------------------------------------------------------------------------
+// Periodic backup (every 6 hours)
+// ---------------------------------------------------------------------------
+
+let _periodicInterval: ReturnType<typeof setInterval> | null = null
+
+/** Returns 'auto-00', 'auto-06', 'auto-12', or 'auto-18' for the current time slot. */
+function sixHourLabel(): string {
+  const h = new Date().getHours()
+  const slot = Math.floor(h / 6) * 6
+  return 'auto-' + String(slot).padStart(2, '0')
+}
+
+/**
+ * Starts a periodic backup that runs immediately (for the current 6-hour slot)
+ * and then every 6 hours. Filenames:
+ *   YYYY-MM-DD_auto-00.db  (00:00-05:59)
+ *   YYYY-MM-DD_auto-06.db  (06:00-11:59)
+ *   YYYY-MM-DD_auto-12.db  (12:00-17:59)
+ *   YYYY-MM-DD_auto-18.db  (18:00-23:59)
+ * Skips if the slot file already exists (never overwrites old backups).
+ */
+export function startPeriodicBackup(
+  getDb: () => Database.Database,
+  getDataDir: () => string
+): void {
+  if (_periodicInterval) return
+
+  function runSlotBackup() {
+    try {
+      const dataDir = getDataDir()
+      const label    = sixHourLabel()
+      const today    = new Date().toISOString().split('T')[0]
+      const filename = today + '_' + label + '.db'
+      const filePath = join(ensureBackupDir(dataDir), filename)
+      if (existsSync(filePath)) {
+        console.log('[Backup] Slot already backed up:', filename)
+        return
+      }
+      createBackup(getDb(), dataDir, label)
+    } catch (err) {
+      console.error('[Backup] Periodic backup failed:', err)
+    }
+  }
+
+  runSlotBackup()  // immediate run for current slot
+  _periodicInterval = setInterval(runSlotBackup, 6 * 60 * 60 * 1000)
+  console.log('[Backup] Periodic backup started — every 6 hours')
+}
+
+export function stopPeriodicBackup(): void {
+  if (_periodicInterval) {
+    clearInterval(_periodicInterval)
+    _periodicInterval = null
+    console.log('[Backup] Periodic backup stopped')
+  }
+}

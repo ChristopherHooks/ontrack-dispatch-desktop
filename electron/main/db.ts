@@ -3,7 +3,7 @@ import { runMigrations } from './schema/migrations'
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
-import { createBackup } from './backup'
+import { createBackup, startPeriodicBackup } from './backup'
 
 let db: Database.Database | null = null
 let _dataDir: string = ''
@@ -36,7 +36,7 @@ export function initDatabase(customDataPath?: string): void {
   db.pragma('cache_size = -32000')
 
   runMigrations(db)
-  // Auto daily backup (skips if already done today)
-  createBackup(db, _dataDir)
+  createBackup(db, _dataDir)           // once at startup (daily, skips if exists)
+  startPeriodicBackup(getDb, getDataDir) // every 6 hours
   console.log('[DB] Initialized at:', dbPath)
 }
