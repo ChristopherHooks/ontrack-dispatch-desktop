@@ -119,6 +119,10 @@ declare global {
       search: {
         global: (query: string) => Promise<SearchResult[]>
       }
+      dev: {
+        seed:   () => Promise<{ ok: boolean }>
+        reseed: () => Promise<{ ok: boolean }>
+      }
     }
   }
 

@@ -1,5 +1,90 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-14 — Session 9: Seed Data System
+
+### Work Completed
+
+**electron/main/seed.ts (new):**
+- `runSeedIfEmpty(db)` -- guarded by `app_settings.dev_seed_applied = '1'`; wraps all seeds in a transaction
+- `resetAndReseed(db)` -- deletes rows with `id >= 101` from 10 tables, clears guard, re-seeds
+- 8 brokers, 15 drivers (9 Active / 4 On Load / 2 Inactive), 40 loads (all 7 statuses), 50 leads (all 5 statuses), 12 invoices, 10 tasks, 5 SOP documents
+- Loads span realistic lanes: TX-GA, IL-TX, CA-AZ, MO-CO, TX-TN, GA-IL, MEM-CLT, BNA-CMH -- RPM 1.8-3.2
+- Document content stored as single-line TypeScript strings with proper `\n` escape sequences
+
+**Startup (electron/main/index.ts):**
+- `runSeedIfEmpty(getDb())` called after `initDatabase()`, wrapped in `!app.isPackaged`
+
+**Dev IPC:**
+- `dev:seed` and `dev:reseed` handlers + preload exposure + `global.d.ts` typing
+
+### Files Created (1)
+- electron/main/seed.ts
+
+### Files Modified (4)
+- electron/main/index.ts
+- electron/main/ipcHandlers.ts
+- electron/preload/index.ts
+- src/types/global.d.ts
+
+### App State at End of Session
+- All pages populated on first dev launch
+- Build: clean (zero TS errors on both configs)
+- `window.api.dev.reseed()` available in browser console for manual reset
+
+### Technical Notes
+- `\\n` in Python heredocs on this Windows system collapses to actual newline -- use `chr(92) + chr(110)` for literal backslash-n in doc content escaping
+- SQL `NULL` must be lowercase `null` in TypeScript `.run()` calls
+
+---
+
+## 2026-03-14 — Session 8: FMCSA Manual Import Button
+
+### Work Completed
+
+**FMCSA Manual Import — full IPC pipeline:**
+- `electron/main/fmcsaImport.ts` (new) — `FmcsaImportResult` interface + `importFmcsaLeads(db)` function
+  - `fetchFmcsaCandidates()` stub returns [] (TODO: wire real Safer API)
+  - Dedup by `mc_number` via `SELECT id FROM leads WHERE mc_number = ?`
+  - Per-row error handling; early return with error message when 0 candidates
+  - Inserts with `source='FMCSA'`, `status='New'`, `priority='Medium'`
+- `ipcHandlers.ts` — `leads:importFmcsa` handler calls service, then writes `last_fmcsa_import_at` ISO timestamp to electron-store
+- `preload/index.ts` — `leads.importFmcsa: () => ipcRenderer.invoke('leads:importFmcsa')`
+- `models.ts` — `FmcsaImportResult { leadsFound, leadsAdded, duplicatesSkipped, errors[] }`
+- `global.d.ts` — `importFmcsa: () => Promise<FmcsaImportResult>` on `window.api.leads`
+
+**Leads toolbar + page wiring:**
+- Replaced the existing disabled "FMCSA Import" placeholder in `LeadsToolbar.tsx` with active wired button
+- Props added: `onImport`, `importBusy`, `lastImportAt`
+- Button style: `bg-surface-600 border-surface-400` at rest, `hover:border-orange-600/40` — matches app token system
+- Spinner shown during import; last import timestamp shown as native title tooltip
+- `Leads.tsx`: `handleImport()` calls IPC, stores result + timestamp, conditionally reloads table
+- `lastImportAt` loaded on mount from `window.api.settings.get('last_fmcsa_import_at')`
+- Dismissible result banner between header and toolbar: amber = error/stub, green = success
+
+### Files Created (1)
+- electron/main/fmcsaImport.ts
+
+### Files Modified (6)
+- electron/main/ipcHandlers.ts
+- electron/preload/index.ts
+- src/types/models.ts
+- src/types/global.d.ts
+- src/components/leads/LeadsToolbar.tsx
+- src/pages/Leads.tsx
+
+### App State at End of Session
+- FMCSA import button live in Leads toolbar, end-to-end IPC working
+- Stub returns 0 leads with "not yet connected" message — expected behavior
+- `last_fmcsa_import_at` persisted to electron-store and surfaced in UI on next load
+- All prior modules unchanged and operational
+- Build: clean
+
+### Known Issues / Deferred
+- `fetchFmcsaCandidates()` is a stub — no real API call yet
+- Real Safer API integration is next step when credentials/access are available
+
+---
+
 ## 2026-03-14 -- Prompt 7: Tasks Module + Backup Service + Scheduler + Dashboard Bug Fix
 
 ### Work Completed

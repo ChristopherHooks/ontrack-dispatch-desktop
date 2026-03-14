@@ -17,6 +17,30 @@ feature/first-real-task
 
 ## What Was Completed (Most Recent Sessions)
 
+### Session 9 -- Seed Data System (complete)
+
+- `electron/main/seed.ts` (new): idempotent seed with 8 brokers, 15 drivers, 40 loads, 50 leads, 12 invoices, 10 tasks, 5 SOP documents
+- Guard: checks `app_settings.dev_seed_applied = '1'` -- skips if already seeded
+- IDs start at 101 to avoid collision with user-created records (autoincrement from 1)
+- `runSeedIfEmpty(db)` called in `index.ts` after `initDatabase()`, wrapped in `!app.isPackaged` (dev only)
+- `resetAndReseed(db)`: deletes all rows with `id >= 101`, clears guard, re-seeds
+- IPC: `dev:seed` and `dev:reseed` channels registered; exposed as `window.api.dev.seed()` / `.reseed()`
+- Load statuses distributed: Searching (3), Booked (5), Picked Up (5), In Transit (7), Delivered (10), Invoiced (6), Paid (4)
+- RPM range 1.8--3.2 across all loads; lanes: TX-GA, IL-TX, CA-AZ, MO-CO, TX-TN, and more
+- SOP documents stored as markdown using proper TypeScript `\n` escape sequences
+
+### Session 8 -- FMCSA Manual Import Button (complete)
+
+- Added "FMCSA Import" button to Leads toolbar (replaces disabled placeholder)
+- Full IPC pipeline: renderer → preload → ipcHandlers → fmcsaImport.ts
+- `electron/main/fmcsaImport.ts` (new): `FmcsaImportResult` interface + `importFmcsaLeads(db)` with dedup-by-mc_number + row-level error handling; `fetchFmcsaCandidates()` is a stub returning [] until real Safer API is wired
+- IPC channel: `leads:importFmcsa` — writes `last_fmcsa_import_at` to electron-store after each run
+- `FmcsaImportResult` type added to `models.ts` and `global.d.ts`
+- Leads toolbar wired: `onImport`, `importBusy`, `lastImportAt` props; spinner on busy; tooltip shows last import timestamp
+- Result banner in Leads page: dismissible, shows found/added/skipped/errors, amber = stub/error, green = success
+- `last_fmcsa_import_at` loaded on Leads mount from electron-store, updated after each import
+- Button styling matches app theme (surface-600/400 tokens, orange hover border)
+
 ### Prompt 7 -- Tasks Module + Backup Service + Scheduler + Dashboard Bug Fix (complete)
 
 **Tasks Module:**
@@ -72,57 +96,68 @@ feature/first-real-task
 
 ## Current App State
 
+Seed data active in dev builds (guard: `dev_seed_applied`). All pages populated on first launch.
+
 Fully operational pages:
-- Dashboard (live KPIs -- driversNeedingLoads bug fixed)
-- Leads (full CRM)
+- Dashboard (live KPIs)
+- Leads (full CRM + FMCSA import button)
 - Drivers (full profile + documents)
 - Loads + Dispatch Board (full lifecycle)
 - Brokers (full profile + performance)
 - Invoices (full lifecycle + PDF/CSV/email export)
 - Tasks (daily checklist + all tasks + history + full CRUD)
 - Settings (theme, business info, Backup & Restore, Google Drive notes)
+- Documents (markdown SOP library, category filter, viewer/editor)
+- Analytics (KPIs, revenue by month/driver, lane profitability, broker volume)
+- Help (articles, keyboard shortcuts reference, search)
 
-PagePlaceholder stubs (not yet built):
-- Documents, Marketing, Analytics, Help
+Global features:
+- Global search overlay (Ctrl+K)
+- EmptyState component
+- uiStore for transient UI state
+
+PagePlaceholder stubs:
+- Marketing
 
 ---
 
 ## Current Blockers
 
-None. Build is clean (1527 modules, zero errors).
+None. Build is clean.
 
 ---
 
 ## Recommended Next Steps (Priority Order)
 
-1. Seed data / Migration 003 -- sample drivers, loads, brokers, invoices so app feels populated
-2. Documents module -- file management for BOLs, PODs, COIs linked to loads and drivers
-3. Dashboard KPI rebuild -- update mini dispatch board to use new corrected "Needs Load" logic
-4. Analytics page -- revenue charts, load volume, top brokers
-5. FMCSA scraper implementation -- wire up actual Safer API when ready
+1. Marketing module
+2. Wire real FMCSA Safer API into `fetchFmcsaCandidates()` in `electron/main/fmcsaImport.ts`
+3. Wire real FMCSA Safer API into `fetchFmcsaCandidates()` in `electron/main/fmcsaImport.ts`
+4. Email/SMTP integration for invoices (replace mailto:)
 
 ---
 
-## Files Touched in Most Recent Session (Prompt 7)
+## Files Touched in Most Recent Session (Session 9)
 
 ### New files:
-- electron/main/backup.ts
-- electron/main/scheduler.ts
-- src/components/tasks/constants.ts
-- src/components/tasks/TasksToolbar.tsx
-- src/components/tasks/TaskModal.tsx
-- src/components/tasks/TaskDrawer.tsx
-
-### Replaced stubs:
-- src/pages/Tasks.tsx
+- electron/main/seed.ts
 
 ### Modified:
-- electron/main/db.ts -- added getDataDir(), wired createBackup + startPeriodicBackup
-- electron/main/index.ts -- wired scheduler, stopPeriodicBackup, applyPendingRestore
-- electron/main/ipcHandlers.ts -- added backup handlers, completionsForDate, fixed driversNeedingLoads query
-- electron/main/repositories/tasksRepo.ts -- added getCompletionsForDate
-- electron/preload/index.ts -- exposed backups + tasksExtra
-- src/types/global.d.ts -- added BackupEntry type + new API surface
-- src/pages/Settings.tsx -- added Backup & Restore section + Google Drive Sync section
-- docs/HANDOFF.md (this file)
-- docs/SESSION_LOG.md
+- electron/main/index.ts -- import runSeedIfEmpty; call after initDatabase() (dev-only)
+- electron/main/ipcHandlers.ts -- import resetAndReseed; register dev:seed and dev:reseed handlers
+- electron/preload/index.ts -- expose window.api.dev.seed() and .reseed()
+- src/types/global.d.ts -- add dev namespace typed
+
+---
+
+## Files Touched in Session 8
+
+### New files:
+- electron/main/fmcsaImport.ts
+
+### Modified:
+- electron/main/ipcHandlers.ts -- added leads:importFmcsa handler + last_fmcsa_import_at store write
+- electron/preload/index.ts -- exposed leads.importFmcsa
+- src/types/models.ts -- added FmcsaImportResult interface
+- src/types/global.d.ts -- imported FmcsaImportResult, added importFmcsa to window.api.leads
+- src/components/leads/LeadsToolbar.tsx -- wired onImport/importBusy/lastImportAt props, replaced disabled stub button
+- src/pages/Leads.tsx -- added handleImport, importBusy, importResult, lastImportAt state + result banner

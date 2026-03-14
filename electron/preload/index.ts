@@ -139,4 +139,10 @@ contextBridge.exposeInMainWorld('api', {
     global: (query: string) => ipcRenderer.invoke('search:global', query),
   },
 
+  // -- Dev Utilities (non-packaged builds only) --
+  dev: {
+    seed:   () => ipcRenderer.invoke('dev:seed'),
+    reseed: () => ipcRenderer.invoke('dev:reseed'),
+  },
+
 })

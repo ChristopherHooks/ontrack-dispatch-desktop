@@ -19,6 +19,7 @@ import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads } from './fmcsaImport'
+import { runSeedIfEmpty, resetAndReseed } from './seed'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -165,4 +166,8 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
   // -- Global Search --
   ipcMain.handle('search:global', (_e, q: string) => globalSearch(getDb(), q))
+
+  // -- Dev Seed (non-packaged builds only) --
+  ipcMain.handle('dev:seed',      () => { runSeedIfEmpty(getDb()); return { ok: true } })
+  ipcMain.handle('dev:reseed',    () => { resetAndReseed(getDb());  return { ok: true } })
 }
