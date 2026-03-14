@@ -142,7 +142,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Dispatcher Board --
   dispatcher: {
-    board: () => ipcRenderer.invoke('dispatcher:board'),
+    board:          () => ipcRenderer.invoke('dispatcher:board'),
+    availableLoads: () => ipcRenderer.invoke('dispatch:availableLoads'),
+    assignLoad:     (payload: { loadId: number; driverId: number }) => ipcRenderer.invoke('dispatch:assignLoad', payload),
   },
 
   // -- Dev Utilities (non-packaged builds only) --

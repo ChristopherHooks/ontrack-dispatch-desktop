@@ -20,7 +20,7 @@ import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus } from './fmcsaImport'
 import { runSeedIfEmpty, resetAndReseed } from './seed'
-import { getBoardRows } from './dispatcherBoard'
+import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -176,7 +176,10 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('search:global', (_e, q: string) => globalSearch(getDb(), q))
 
   // -- Dispatcher Board --
-  ipcMain.handle('dispatcher:board', () => getBoardRows(getDb()))
+  ipcMain.handle('dispatcher:board',         () => getBoardRows(getDb()))
+  ipcMain.handle('dispatch:availableLoads',   () => getAvailableLoads(getDb()))
+  ipcMain.handle('dispatch:assignLoad', (_e, payload: { loadId: number; driverId: number }) =>
+    assignLoadToDriver(getDb(), payload.loadId, payload.driverId))
 
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',      () => { runSeedIfEmpty(getDb()); return { ok: true } })

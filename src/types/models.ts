@@ -307,3 +307,26 @@ export interface SearchResult {
   subtitle: string
   route:    string
 }
+
+// -- Dispatcher Board: Available Loads --
+export interface AvailableLoad {
+  load_id_pk:  number
+  load_ref:    string | null
+  origin_city:  string | null
+  origin_state: string | null
+  dest_city:    string | null
+  dest_state:   string | null
+  pickup_date:  string | null
+  miles:        number | null
+  rate:         number | null
+  broker_id:    number | null
+  broker_name:  string | null
+  broker_flag:  BrokerFlag | null
+  commodity:    string | null
+  notes:        string | null
+}
+
+export interface AssignLoadResult {
+  ok:    boolean
+  error?: string
+}
