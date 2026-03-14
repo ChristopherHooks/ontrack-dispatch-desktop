@@ -105,4 +105,17 @@ contextBridge.exposeInMainWorld('api', {
     list: (entityType?: string, entityId?: number) => ipcRenderer.invoke('audit:list', entityType, entityId),
   },
 
+  // -- Backups --
+  backups: {
+    list:         () => ipcRenderer.invoke('backups:list'),
+    create:       () => ipcRenderer.invoke('backups:create'),
+    stageRestore: (filePath: string) => ipcRenderer.invoke('backups:stageRestore', filePath),
+    pending:      () => ipcRenderer.invoke('backups:pending'),
+  },
+
+  // -- Tasks extended --
+  tasksExtra: {
+    completionsForDate: (date: string) => ipcRenderer.invoke('tasks:completionsForDate', date),
+  },
+
 })

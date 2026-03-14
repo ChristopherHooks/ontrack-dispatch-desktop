@@ -60,3 +60,7 @@ export function markTaskIncomplete(db: Database.Database, taskId: number, date: 
 export function getTaskCompletions(db: Database.Database, taskId: number): TaskCompletion[] {
   return db.prepare('SELECT * FROM task_completions WHERE task_id = ? ORDER BY completed_date DESC').all(taskId) as TaskCompletion[]
 }
+
+export function getCompletionsForDate(db: Database.Database, date: string): TaskCompletion[] {
+  return db.prepare('SELECT * FROM task_completions WHERE completed_date = ?').all(date) as TaskCompletion[]
+}

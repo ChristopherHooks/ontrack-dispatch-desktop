@@ -1,6 +1,6 @@
 import { IpcMain } from 'electron'
 import Store from 'electron-store'
-import { getDb } from './db'
+import { getDb, getDataDir } from './db'
 import {
   listLeads, getLead, createLead, updateLead, deleteLead,
   listDrivers, getDriver, createDriver, updateDriver, deleteDriver,
@@ -9,11 +9,12 @@ import {
   listBrokers, getBroker, createBroker, updateBroker, deleteBroker,
   listInvoices, getInvoice, createInvoice, updateInvoice,
   listTasks, getTask, createTask, updateTask, deleteTask,
-  markTaskComplete, markTaskIncomplete, getTaskCompletions,
+  markTaskComplete, markTaskIncomplete, getTaskCompletions, getCompletionsForDate,
   listNotes, createNote, deleteNote,
   listUsers, getUser, getUserByEmail, createUser, updateUser,
   listAuditLog,
 } from './repositories'
+import { createBackup, listBackups, stageRestore } from './backup'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -54,7 +55,6 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     return { driversNeedingLoads, loadsInTransit, leadsFollowUp, outstandingInvoices, todayTasks }
   })
 
-  // -- Generic read-only query (dev/debug) --
   ipcMain.handle('db:query', (_e, sql: string, params?: unknown[]) => {
     try {
       const data = getDb().prepare(sql).all(...(params ?? []))
@@ -63,7 +63,6 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
       return { data: null, error: String(err) }
     }
   })
-
   // -- Leads --
   ipcMain.handle('leads:list',   (_e, status?: string) => listLeads(getDb(), status))
   ipcMain.handle('leads:get',    (_e, id: number) => getLead(getDb(), id))
@@ -99,21 +98,22 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('brokers:update', (_e, id: number, dto: unknown) => updateBroker(getDb(), id, dto as any))
   ipcMain.handle('brokers:delete', (_e, id: number) => deleteBroker(getDb(), id))
 
-  // -- Invoices (no delete -- change status to void instead) --
+  // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))
   ipcMain.handle('invoices:get',    (_e, id: number) => getInvoice(getDb(), id))
   ipcMain.handle('invoices:create', (_e, dto: unknown) => createInvoice(getDb(), dto as any))
   ipcMain.handle('invoices:update', (_e, id: number, dto: unknown) => updateInvoice(getDb(), id, dto as any))
 
   // -- Tasks --
-  ipcMain.handle('tasks:list',           (_e, category?: string, dueDate?: string) => listTasks(getDb(), category, dueDate))
-  ipcMain.handle('tasks:get',            (_e, id: number) => getTask(getDb(), id))
-  ipcMain.handle('tasks:create',         (_e, dto: unknown) => createTask(getDb(), dto as any))
-  ipcMain.handle('tasks:update',         (_e, id: number, dto: unknown) => updateTask(getDb(), id, dto as any))
-  ipcMain.handle('tasks:delete',         (_e, id: number) => deleteTask(getDb(), id))
-  ipcMain.handle('tasks:markComplete',   (_e, taskId: number, date: string, userId?: number) => markTaskComplete(getDb(), taskId, date, userId))
-  ipcMain.handle('tasks:markIncomplete', (_e, taskId: number, date: string) => markTaskIncomplete(getDb(), taskId, date))
-  ipcMain.handle('tasks:completions',    (_e, taskId: number) => getTaskCompletions(getDb(), taskId))
+  ipcMain.handle('tasks:list',              (_e, category?: string, dueDate?: string) => listTasks(getDb(), category, dueDate))
+  ipcMain.handle('tasks:get',              (_e, id: number) => getTask(getDb(), id))
+  ipcMain.handle('tasks:create',           (_e, dto: unknown) => createTask(getDb(), dto as any))
+  ipcMain.handle('tasks:update',           (_e, id: number, dto: unknown) => updateTask(getDb(), id, dto as any))
+  ipcMain.handle('tasks:delete',           (_e, id: number) => deleteTask(getDb(), id))
+  ipcMain.handle('tasks:markComplete',     (_e, taskId: number, date: string, userId?: number) => markTaskComplete(getDb(), taskId, date, userId))
+  ipcMain.handle('tasks:markIncomplete',   (_e, taskId: number, date: string) => markTaskIncomplete(getDb(), taskId, date))
+  ipcMain.handle('tasks:completions',      (_e, taskId: number) => getTaskCompletions(getDb(), taskId))
+  ipcMain.handle('tasks:completionsForDate', (_e, date: string) => getCompletionsForDate(getDb(), date))
 
   // -- Notes --
   ipcMain.handle('notes:list',   (_e, entityType: string, entityId: number) => listNotes(getDb(), entityType, entityId))
@@ -129,4 +129,10 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
   // -- Audit Log --
   ipcMain.handle('audit:list', (_e, entityType?: string, entityId?: number) => listAuditLog(getDb(), entityType, entityId))
+
+  // -- Backups --
+  ipcMain.handle('backups:list',         () => listBackups(getDataDir()))
+  ipcMain.handle('backups:create',       () => createBackup(getDb(), getDataDir(), 'manual'))
+  ipcMain.handle('backups:stageRestore', (_e, filePath: string) => stageRestore(filePath, store))
+  ipcMain.handle('backups:pending',      () => { const v = store.get('pendingRestore'); return v ? v : null })
 }

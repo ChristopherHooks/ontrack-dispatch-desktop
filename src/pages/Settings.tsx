@@ -1,9 +1,69 @@
+import { useState, useEffect } from 'react'
 import { useSettingsStore } from '../store/settingsStore'
 import type { Theme } from '../store/settingsStore'
-import { Sun, Moon, Monitor, Database, User, Percent } from 'lucide-react'
+import { Sun, Moon, Monitor, Database, User, HardDrive, AlertTriangle, CheckCircle } from 'lucide-react'
+
+interface BackupEntry {
+  filename: string
+  file_path: string
+  size_bytes: number
+  created_at: string
+}
 
 export function Settings() {
   const { theme, setTheme, companyName, ownerName, ownerEmail, defaultDispatchPct } = useSettingsStore()
+  const [backups, setBackups]         = useState<BackupEntry[]>([])
+  const [creatingBackup, setCreating] = useState(false)
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
+  const [pendingRestore, setPendingRestore] = useState<string | null>(null)
+  const [statusMsg, setStatusMsg]     = useState('')
+
+  useEffect(() => {
+    loadBackups()
+    window.api.backups.pending().then(setPendingRestore).catch(() => {})
+  }, [])
+
+  async function loadBackups() {
+    try {
+      const list = await window.api.backups.list()
+      setBackups(list)
+    } catch {}
+  }
+
+  async function handleCreateBackup() {
+    setCreating(true)
+    setStatusMsg('')
+    try {
+      const entry = await window.api.backups.create()
+      if (entry) {
+        setStatusMsg('Backup created: ' + entry.filename)
+        await loadBackups()
+      } else {
+        setStatusMsg('A backup already exists for today.')
+      }
+    } catch {
+      setStatusMsg('Backup failed.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleStageRestore(filePath: string, filename: string) {
+    const ok = await window.api.backups.stageRestore(filePath)
+    if (ok) {
+      setPendingRestore(filename)
+      setRestoreTarget(null)
+      setStatusMsg('Restore staged. Restart OnTrack to apply.')
+    } else {
+      setStatusMsg('Restore failed: file not found.')
+    }
+  }
+
+  function fmtSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
 
   return (
     <div className='max-w-2xl space-y-8 animate-fade-in'>
@@ -18,11 +78,7 @@ export function Settings() {
         <div>
           <Label>Theme</Label>
           <div className='flex gap-2 mt-2'>
-            {([
-              { value: 'dark' as Theme,   label: 'Dark',   icon: Moon },
-              { value: 'light' as Theme,  label: 'Light',  icon: Sun },
-              { value: 'system' as Theme, label: 'System', icon: Monitor },
-            ] as const).map(({ value, label, icon: Icon }) => (
+            {([{value: 'dark' as Theme, label: 'Dark', icon: Moon},{value: 'light' as Theme, label: 'Light', icon: Sun},{value: 'system' as Theme, label: 'System', icon: Monitor}] as const).map(({ value, label, icon: Icon }) => (
               <ThemeOption
                 key={value}
                 active={theme === value}
@@ -43,7 +99,6 @@ export function Settings() {
           <ReadField label='Email'   value={ownerEmail} />
           <ReadField label='Default Dispatch %' value={String(defaultDispatchPct) + '%'} />
         </div>
-        <p className='text-2xs text-gray-600 mt-3'>Business settings are editable in Phase 1 build.</p>
       </Section>
 
       {/* Data / Storage */}
@@ -60,7 +115,105 @@ export function Settings() {
             <p className='text-2xs text-gray-600 font-mono ml-4'>documents/</p>
             <p className='text-2xs text-gray-600 font-mono ml-4'>backups/  (auto-daily)</p>
           </div>
-          <p className='text-2xs text-gray-600'>Data path configuration available in Phase 1 build.</p>
+        </div>
+      </Section>
+
+      {/* Backup & Restore */}
+      <Section title='Backup & Restore' icon={<HardDrive size={16} />}>
+        <div className='space-y-4'>
+
+          {/* Status messages */}
+          {statusMsg && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-orange-900/20 border border-orange-700/40 text-orange-300 rounded-lg'>
+              <CheckCircle size={13} /> {statusMsg}
+            </div>
+          )}
+
+          {/* Pending restore notice */}
+          {pendingRestore && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-yellow-900/20 border border-yellow-700/40 text-yellow-300 rounded-lg'>
+              <AlertTriangle size={13} />
+              Restore staged: <span className='font-mono'>{pendingRestore}</span> — restart OnTrack to apply.
+            </div>
+          )}
+
+          <div className='flex items-center justify-between'>
+            <div>
+              <p className='text-sm text-gray-300 font-medium'>Backups</p>
+              <p className='text-xs text-gray-500'>{backups.length} backup{backups.length !== 1 ? 's' : ''} available · auto-created daily</p>
+            </div>
+            <button
+              onClick={handleCreateBackup}
+              disabled={creatingBackup}
+              className='text-xs px-3 py-1.5 bg-surface-600 hover:bg-surface-500 border border-surface-400 text-gray-300 rounded-lg transition-colors disabled:opacity-50'
+            >
+              {creatingBackup ? 'Creating...' : 'Create Backup Now'}
+            </button>
+          </div>
+
+          {backups.length === 0 ? (
+            <p className='text-xs text-gray-600 italic'>No backups found in the backups/ folder.</p>
+          ) : (
+            <div className='space-y-1 max-h-64 overflow-y-auto'>
+              {backups.map(b => (
+                <div
+                  key={b.filename}
+                  className='flex items-center gap-3 px-3 py-2.5 bg-surface-600 rounded-lg border border-surface-400'
+                >
+                  <div className='flex-1 min-w-0'>
+                    <p className='text-xs font-mono text-gray-200 truncate'>{b.filename}</p>
+                    <p className='text-2xs text-gray-500'>{fmtSize(b.size_bytes)}</p>
+                  </div>
+                  {restoreTarget === b.file_path ? (
+                    <div className='flex items-center gap-2'>
+                      <span className='text-2xs text-yellow-400'>Confirm restore?</span>
+                      <button
+                        onClick={() => handleStageRestore(b.file_path, b.filename)}
+                        className='text-2xs px-2 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded transition-colors'
+                      >
+                        Yes, stage it
+                      </button>
+                      <button
+                        onClick={() => setRestoreTarget(null)}
+                        className='text-2xs text-gray-500 hover:text-gray-300'
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setRestoreTarget(b.file_path)}
+                      className='text-2xs px-3 py-1 border border-surface-300 text-gray-400 hover:text-yellow-400 hover:border-yellow-600/40 rounded-lg transition-colors'
+                    >
+                      Restore
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* Google Drive sync notes */}
+      <Section title='Google Drive Sync' icon={<Database size={16} />}>
+        <div className='space-y-3 text-sm text-gray-400'>
+          <p>
+            OnTrack is local-first. To sync between two computers, move the
+            <span className='font-mono text-gray-300 mx-1'>OnTrackDashboard/</span>
+            folder into a Google Drive-synced directory, then set the data path here.
+          </p>
+          <div className='bg-yellow-900/10 border border-yellow-700/30 rounded-lg p-3 space-y-1.5'>
+            <p className='text-xs font-semibold text-yellow-400 flex items-center gap-1.5'>
+              <AlertTriangle size={12} /> Sync Limitations
+            </p>
+            <ul className='text-xs text-yellow-300/70 space-y-1 list-disc list-inside'>
+              <li>Never open the app on both computers simultaneously — SQLite WAL files are not multi-writer safe.</li>
+              <li>Google Drive does not lock files. If both computers sync the same DB at the same time, data corruption can occur.</li>
+              <li>Recommended workflow: open on computer A, close fully (including system tray), let Drive sync, then open on computer B.</li>
+              <li>Daily backups are your safety net. Restore via the Backup panel above if a conflict occurs.</li>
+            </ul>
+          </div>
         </div>
       </Section>
 

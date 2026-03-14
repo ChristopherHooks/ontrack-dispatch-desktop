@@ -93,6 +93,15 @@ declare global {
       audit: {
         list: (entityType?: string, entityId?: number) => Promise<AuditLogEntry[]>
       }
+      backups: {
+        list:         () => Promise<BackupEntry[]>
+        create:       () => Promise<BackupEntry | null>
+        stageRestore: (filePath: string) => Promise<boolean>
+        pending:      () => Promise<string | null>
+      }
+      tasksExtra: {
+        completionsForDate: (date: string) => Promise<TaskCompletion[]>
+      }
     }
   }
 
@@ -106,4 +115,5 @@ declare global {
 
 }
 
+export type { BackupEntry }
 export {}

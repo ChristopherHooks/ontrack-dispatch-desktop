@@ -1,16 +1,18 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
-import { initDatabase } from './db'
+import { initDatabase, getDataDir } from './db'
 import { registerDbHandlers } from './ipcHandlers'
+import { startScheduler, stopScheduler } from './scheduler'
+import { applyPendingRestore } from './backup'
 import Store from 'electron-store'
 
-// Persist app settings (theme, data path, etc.)
 const store = new Store<{
   theme: string
   dataPath: string
   windowBounds: { width: number; height: number; x?: number; y?: number }
   sidebarCollapsed: boolean
   userRole: string
+  pendingRestore?: string
 }>({
   defaults: {
     theme: 'dark',
@@ -45,7 +47,6 @@ function createWindow(): void {
     },
   })
 
-  // Save window size/position on close
   mainWindow.on('close', () => {
     if (mainWindow) {
       const b = mainWindow.getBounds()
@@ -53,16 +54,13 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
-  })
+  mainWindow.on('ready-to-show', () => { mainWindow?.show() })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
   })
 
-  // Load dev server or built files
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -71,11 +69,19 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  // Initialize SQLite database
-  initDatabase(store.get('dataPath'))
+  const customDataPath = store.get('dataPath') as string
+  const resolvedDataDir = (customDataPath && customDataPath !== '')
+    ? customDataPath
+    : require('path').join(app.getPath('userData'), 'OnTrackDashboard')
+  const dbPath = require('path').join(resolvedDataDir, 'database.db')
 
-  // Register IPC handlers for DB operations
+  // Apply staged restore BEFORE opening the database
+  const restored = applyPendingRestore(dbPath, store as any)
+  if (restored) console.log('[Main] Database restored from backup')
+
+  initDatabase(customDataPath)
   registerDbHandlers(ipcMain, store)
+  startScheduler(() => { const { getDb } = require('./db'); return getDb() })
 
   createWindow()
 
@@ -85,5 +91,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  stopScheduler()
   if (process.platform !== 'darwin') app.quit()
 })
