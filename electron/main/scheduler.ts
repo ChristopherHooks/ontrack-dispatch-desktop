@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { importFmcsaLeads, writeImportMeta } from './fmcsaImport'
 
 export type JobName = 'fmcsa-scraper' | 'daily-briefing' | 'marketing-queue'
 
@@ -11,12 +12,30 @@ interface JobConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Scaffolded job handlers (no external API calls yet)
+// Module-level factories set by startScheduler
+// ---------------------------------------------------------------------------
+
+let _getDb:  (() => Database.Database) | null = null
+let _getKey: ((key: string) => unknown) | null = null
+
+// ---------------------------------------------------------------------------
+// Job handlers
 // ---------------------------------------------------------------------------
 
 async function runFmcsScraper(): Promise<void> {
-  console.log('[Scheduler] 05:00 FMCSA scraper stub — no API call yet')
-  // TODO: fetch FMCSA Safer API, update driver authority records
+  if (!_getDb || !_getKey) {
+    console.warn('[Scheduler] FMCSA scraper: not yet initialised — skipping')
+    return
+  }
+  const db        = _getDb()
+  const webKey    = _getKey('fmcsa_web_key')    as string | undefined
+  const termsRaw  = _getKey('fmcsa_search_terms') as string | undefined
+  const searchTerms = termsRaw
+    ? termsRaw.split(',').map((t: string) => t.trim()).filter(Boolean)
+    : undefined
+  const result = await importFmcsaLeads(db, webKey, searchTerms)
+  writeImportMeta(db, result, 'scheduled')
+  console.log('[Scheduler] FMCSA import done. Added:', result.leadsAdded, '/ Found:', result.leadsFound)
 }
 
 async function runDailyBriefing(): Promise<void> {
@@ -98,8 +117,13 @@ async function tick(getDb: () => Database.Database): Promise<void> {
 
 let _interval: ReturnType<typeof setInterval> | null = null
 
-export function startScheduler(getDb: () => Database.Database): void {
+export function startScheduler(
+  getDb:  () => Database.Database,
+  getKey: (key: string) => unknown,
+): void {
   if (_interval) return
+  _getDb  = getDb
+  _getKey = getKey
   _interval = setInterval(
     () => tick(getDb).catch(e => console.error('[Scheduler] Uncaught:', e)),
     60_000

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 
 export interface AnalyticsStats {
   leadConversion:    { total: number; signed: number; rate: number }
+  leadsByStatus:     Record<string, number>
   driversSigned:     { thisMonth: number; total: number }
   avgRpm:            { value: number; count: number }
   revenueByDriver:   Array<{ driver_id: number; name: string; revenue: number; loads: number }>
@@ -13,6 +14,12 @@ export interface AnalyticsStats {
 export function getAnalyticsStats(db: Database.Database): AnalyticsStats {
   const leadTotal  = db.prepare("SELECT COUNT(*) AS c FROM leads").get() as { c: number }
   const leadSigned = db.prepare("SELECT COUNT(*) AS c FROM leads WHERE status='Signed'").get() as { c: number }
+
+  const leadStatusRows = db.prepare(
+    "SELECT status, COUNT(*) AS c FROM leads GROUP BY status"
+  ).all() as Array<{ status: string; c: number }>
+  const leadsByStatus: Record<string, number> = {}
+  for (const r of leadStatusRows) leadsByStatus[r.status] = r.c
 
   const driverTotal = db.prepare("SELECT COUNT(*) AS c FROM drivers").get() as { c: number }
   const now = new Date()
@@ -56,6 +63,7 @@ export function getAnalyticsStats(db: Database.Database): AnalyticsStats {
 
   return {
     leadConversion:    { total: leadTotal.c, signed: leadSigned.c, rate: leadTotal.c > 0 ? Math.round(leadSigned.c / leadTotal.c * 100) : 0 },
+    leadsByStatus,
     driversSigned:     { thisMonth: driversThisMonth.c, total: driverTotal.c },
     avgRpm:            { value: Math.round((rpmRow.avg ?? 0) * 100) / 100, count: rpmRow.cnt },
     revenueByDriver,

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSettingsStore } from '../store/settingsStore'
 import type { Theme } from '../store/settingsStore'
-import { Sun, Moon, Monitor, Database, User, HardDrive, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Sun, Moon, Monitor, Database, User, HardDrive, AlertTriangle, CheckCircle, Link } from 'lucide-react'
 
 interface BackupEntry {
   filename: string
@@ -17,10 +17,15 @@ export function Settings() {
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
   const [pendingRestore, setPendingRestore] = useState<string | null>(null)
   const [statusMsg, setStatusMsg]     = useState('')
+  const [fmcsaKey, setFmcsaKey]       = useState('')
+  const [fmcsaTerms, setFmcsaTerms]   = useState('')
+  const [fmcsaSaved, setFmcsaSaved]   = useState(false)
 
   useEffect(() => {
     loadBackups()
     window.api.backups.pending().then(setPendingRestore).catch(() => {})
+    window.api.settings.get('fmcsa_web_key').then(v => { if (v) setFmcsaKey(String(v)) }).catch(() => {})
+    window.api.settings.get('fmcsa_search_terms').then(v => { if (v) setFmcsaTerms(String(v)) }).catch(() => {})
   }, [])
 
   async function loadBackups() {
@@ -57,6 +62,13 @@ export function Settings() {
     } else {
       setStatusMsg('Restore failed: file not found.')
     }
+  }
+
+  async function handleSaveFmcsa() {
+    await window.api.settings.set('fmcsa_web_key', fmcsaKey.trim())
+    await window.api.settings.set('fmcsa_search_terms', fmcsaTerms.trim())
+    setFmcsaSaved(true)
+    setTimeout(() => setFmcsaSaved(false), 2500)
   }
 
   function fmtSize(bytes: number): string {
@@ -192,6 +204,52 @@ export function Settings() {
               ))}
             </div>
           )}
+        </div>
+      </Section>
+
+      {/* Integrations */}
+      <Section title='Integrations' icon={<Link size={16} />}>
+        <div className='space-y-4'>
+          <div>
+            <Label>FMCSA Web Key</Label>
+            <input
+              type='password'
+              value={fmcsaKey}
+              onChange={e => setFmcsaKey(e.target.value)}
+              placeholder='Paste your FMCSA QCMobile web key here'
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+            <p className='text-2xs text-gray-600 mt-1'>
+              Register free at mobile.fmcsa.dot.gov/QCDevsite/home — used by the FMCSA import on the Leads page.
+            </p>
+          </div>
+          <div>
+            <Label>Search Terms (comma-separated)</Label>
+            <input
+              type='text'
+              value={fmcsaTerms}
+              onChange={e => setFmcsaTerms(e.target.value)}
+              placeholder='Texas, Georgia, Illinois, Tennessee, Ohio'
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+            <p className='text-2xs text-gray-600 mt-1'>
+              Each term triggers one API search. State names work well — many carriers include their home state in their name.
+              Leave blank to use the 7 built-in defaults.
+            </p>
+          </div>
+          <div className='flex items-center gap-3'>
+            <button
+              onClick={handleSaveFmcsa}
+              className='text-xs px-4 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+            >
+              Save
+            </button>
+            {fmcsaSaved && (
+              <span className='text-xs text-green-400 flex items-center gap-1'>
+                <CheckCircle size={12} /> Saved
+              </span>
+            )}
+          </div>
         </div>
       </Section>
 

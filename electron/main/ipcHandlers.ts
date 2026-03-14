@@ -18,7 +18,7 @@ import {
 import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
-import { importFmcsaLeads } from './fmcsaImport'
+import { importFmcsaLeads, writeImportMeta, readImportStatus } from './fmcsaImport'
 import { runSeedIfEmpty, resetAndReseed } from './seed'
 import { getBoardRows } from './dispatcherBoard'
 
@@ -83,10 +83,17 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('leads:update',       (_e, id: number, dto: unknown) => updateLead(getDb(), id, dto as any))
   ipcMain.handle('leads:delete',       (_e, id: number) => deleteLead(getDb(), id))
   ipcMain.handle('leads:importFmcsa',  async () => {
-    const result = await importFmcsaLeads(getDb())
+    const webKey    = store.get('fmcsa_web_key') as string | undefined
+    const termsRaw  = store.get('fmcsa_search_terms') as string | undefined
+    const searchTerms = termsRaw
+      ? termsRaw.split(',').map((t: string) => t.trim()).filter(Boolean)
+      : undefined
+    const result = await importFmcsaLeads(getDb(), webKey, searchTerms)
+    writeImportMeta(getDb(), result, 'manual')
     store.set('last_fmcsa_import_at', new Date().toISOString())
     return result
   })
+  ipcMain.handle('leads:importStatus', () => readImportStatus(getDb()))
 
   // -- Drivers --
   ipcMain.handle('drivers:list',   (_e, status?: string) => listDrivers(getDb(), status))

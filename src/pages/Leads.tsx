@@ -1,10 +1,20 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Lead, LeadStatus, FmcsaImportResult } from '../types/models'
+import type { Lead, LeadStatus, FmcsaImportResult, FmcsaImportStatus } from '../types/models'
 import { LeadsToolbar, type LeadFilters } from '../components/leads/LeadsToolbar'
 import { LeadsTable }  from '../components/leads/LeadsTable'
 import { LeadsKanban } from '../components/leads/LeadsKanban'
 import { LeadModal }   from '../components/leads/LeadModal'
 import { LeadDrawer }  from '../components/leads/LeadDrawer'
+
+function fmtAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 2)  return 'just now'
+  if (mins < 60) return mins + 'm ago'
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return hrs + 'h ago'
+  return Math.floor(hrs / 24) + 'd ago'
+}
 
 export function Leads() {
   const [leads,    setLeads]    = useState<Lead[]>([])
@@ -20,6 +30,7 @@ export function Leads() {
   const [importBusy,   setImportBusy]   = useState(false)
   const [importResult, setImportResult] = useState<FmcsaImportResult | null>(null)
   const [lastImportAt, setLastImportAt] = useState<string | null>(null)
+  const [importStatus, setImportStatus] = useState<FmcsaImportStatus | null>(null)
 
   const reload = async () => {
     setLoading(true)
@@ -31,6 +42,7 @@ export function Leads() {
     window.api.settings.get('last_fmcsa_import_at').then(v => {
       if (typeof v === 'string') setLastImportAt(v)
     })
+    window.api.leads.importStatus().then(setImportStatus).catch(() => {})
   }, [])
 
   const handleSort = (key: keyof Lead) => {
@@ -68,6 +80,7 @@ export function Leads() {
       setImportResult(result)
       const ts = await window.api.settings.get('last_fmcsa_import_at')
       if (typeof ts === 'string') setLastImportAt(ts)
+      window.api.leads.importStatus().then(setImportStatus).catch(() => {})
       if (result.leadsAdded > 0) await reload()
     } finally {
       setImportBusy(false)
@@ -109,6 +122,24 @@ export function Leads() {
         <h1 className='text-xl font-semibold text-gray-100'>Leads</h1>
         <p className='text-sm text-gray-500 mt-0.5'>Manage your carrier pipeline</p>
       </div>
+
+      {importStatus?.lastAttemptedAt ? (
+        <div className='flex flex-wrap items-center gap-x-2 text-xs text-gray-600'>
+          <span className='text-gray-500'>FMCSA last run:</span>
+          <span className='text-gray-400'>{fmtAgo(importStatus.lastAttemptedAt)}</span>
+          <span className={importStatus.source === 'scheduled' ? 'text-blue-400/80' : 'text-orange-400/70'}>
+            · {importStatus.source === 'scheduled' ? 'Scheduled' : 'Manual'}
+          </span>
+          <span>· Found {importStatus.leadsFound}</span>
+          <span>· Added <span className='text-gray-400'>{importStatus.leadsAdded}</span></span>
+          <span>· Skipped {importStatus.duplicatesSkipped}</span>
+          {importStatus.lastError && (
+            <span className='text-yellow-600/80'>· {importStatus.lastError.slice(0, 80)}</span>
+          )}
+        </div>
+      ) : (
+        <p className='text-xs text-gray-700'>FMCSA import: never run — click Import FMCSA Leads to start.</p>
+      )}
 
       {importResult && (
         <div className={`rounded-md px-4 py-3 text-sm flex items-start justify-between gap-4

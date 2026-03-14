@@ -3,8 +3,17 @@ import { BarChart3, TrendingUp, Truck, DollarSign, Users, Package } from 'lucide
 import type { AnalyticsStats } from '../types/models'
 import { EmptyState } from '../components/ui/EmptyState'
 
+const PIPELINE_STAGES: Array<{ status: string; label: string; chipColor: string; barColor: string }> = [
+  { status: 'New',        label: 'New',       chipColor: 'text-blue-400',   barColor: 'bg-blue-500'   },
+  { status: 'Contacted',  label: 'Contacted', chipColor: 'text-yellow-400', barColor: 'bg-yellow-500' },
+  { status: 'Interested', label: 'Interested',chipColor: 'text-orange-400', barColor: 'bg-orange-500' },
+  { status: 'Signed',     label: 'Converted', chipColor: 'text-green-400',  barColor: 'bg-green-500'  },
+  { status: 'Rejected',   label: 'Rejected',  chipColor: 'text-gray-500',   barColor: 'bg-gray-600'   },
+]
+
 const EMPTY: AnalyticsStats = {
   leadConversion:    { total: 0, signed: 0, rate: 0 },
+  leadsByStatus:     {},
   driversSigned:     { thisMonth: 0, total: 0 },
   avgRpm:            { value: 0, count: 0 },
   revenueByDriver:   [],
@@ -75,6 +84,35 @@ export function Analytics() {
         <KpiCard icon={<Package size={18}/>} label='Total Revenue' value={fmt$(stats.revenueByDriver.reduce((a,d)=>a+d.revenue,0))}
           sub={'from completed loads'} />
       </div>
+
+      {/* Lead Pipeline */}
+      {stats.leadConversion.total > 0 && (
+        <Section title='Lead Pipeline' icon={<TrendingUp size={15}/>}>
+          <div className='grid grid-cols-5 gap-2 mb-5'>
+            {PIPELINE_STAGES.map(({ status, label, chipColor }) => (
+              <div key={status} className='bg-surface-600 rounded-lg p-2.5 text-center border border-surface-400'>
+                <p className={'text-xl font-bold ' + chipColor}>{stats.leadsByStatus[status] ?? 0}</p>
+                <p className='text-2xs text-gray-500 mt-0.5'>{label}</p>
+              </div>
+            ))}
+          </div>
+          <div className='space-y-2.5'>
+            {PIPELINE_STAGES.map(({ status, label, barColor }) => {
+              const count = stats.leadsByStatus[status] ?? 0
+              const pctVal = stats.leadConversion.total > 0
+                ? Math.round(count / stats.leadConversion.total * 100) : 0
+              return (
+                <div key={status} className='flex items-center gap-3'>
+                  <span className='text-xs text-gray-400 w-20 shrink-0'>{label}</span>
+                  <Bar value={count} max={stats.leadConversion.total} color={barColor} />
+                  <span className='text-xs text-gray-300 w-6 text-right shrink-0'>{count}</span>
+                  <span className='text-2xs text-gray-600 w-8 text-right shrink-0'>{pctVal}%</span>
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
 
       {/* Revenue by Month */}
       {stats.revenueByMonth.length > 0 && (

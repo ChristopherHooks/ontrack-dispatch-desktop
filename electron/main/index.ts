@@ -83,7 +83,10 @@ app.whenReady().then(() => {
   initDatabase(customDataPath)         // also starts periodic backup
   if (!app.isPackaged) runSeedIfEmpty(getDb())  // dev seed (skips if already applied)
   registerDbHandlers(ipcMain, store)
-  startScheduler(() => { const { getDb } = require('./db'); return getDb() })
+  startScheduler(
+    () => { const { getDb } = require('./db'); return getDb() },
+    (key) => store.get(key as any),
+  )
 
   createWindow()
 

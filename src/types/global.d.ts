@@ -1,7 +1,7 @@
 import type {
   Lead, Driver, DriverDocument, Load, Broker, Invoice,
   Task, TaskCompletion, Note, User, AuditLogEntry,
-  SopDocument, AnalyticsStats, SearchResult, FmcsaImportResult, BoardRow,
+  SopDocument, AnalyticsStats, SearchResult, FmcsaImportResult, FmcsaImportStatus, BoardRow,
   CreateLeadDto, UpdateLeadDto,
   CreateDriverDto, UpdateDriverDto,
   CreateDriverDocumentDto, UpdateDriverDocumentDto,
@@ -35,7 +35,8 @@ declare global {
         create:      (dto: CreateLeadDto) => Promise<Lead>
         update:      (id: number, dto: UpdateLeadDto) => Promise<Lead | undefined>
         delete:      (id: number) => Promise<boolean>
-        importFmcsa: () => Promise<FmcsaImportResult>
+        importFmcsa:  () => Promise<FmcsaImportResult>
+        importStatus: () => Promise<FmcsaImportStatus>
       }
       drivers: {
         list:   (status?: string) => Promise<Driver[]>

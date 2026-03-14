@@ -10,7 +10,8 @@ Built for **OnTrack Hauling Solutions** by Chris Hooks.
 | Module | Description |
 |--------|-------------|
 | **Dashboard** | Daily KPIs: drivers needing loads, loads in transit, follow-up leads, outstanding invoices |
-| **Leads** | Carrier CRM with kanban, call logs, lead scoring, and follow-up tracking |
+| **Dispatcher** | Live driver board grouped by status with RPM, route, and broker flag coloring |
+| **Leads** | Carrier CRM with kanban, call logs, lead scoring, follow-up tracking, and FMCSA import |
 | **Drivers** | Driver profiles, CDL/insurance expiry alerts, document management |
 | **Loads** | Full dispatch lifecycle: Searching → Booked → In Transit → Delivered → Paid |
 | **Brokers** | Broker database with flag management, payment terms, performance history |
@@ -118,6 +119,35 @@ Move the `OnTrackDashboard/` folder into a Google Drive directory.
 
 ---
 
+## FMCSA Lead Import
+
+OnTrack can pull carrier prospects directly from the FMCSA SAFER database and add them as leads.
+
+> **No web key yet?** The import runs automatically in **mock mode** when no key is configured — generating 14 synthetic leads so the full pipeline (UI banner, dedup, auto-refresh, timestamp) can be tested without a real API key.
+
+### Setup
+
+1. **Register for a free API key** at [mobile.fmcsa.dot.gov/QCDevsite/home](https://mobile.fmcsa.dot.gov/QCDevsite/home) using your Login.gov account.
+2. After approval, copy your **web key** (a long alphanumeric string).
+3. In OnTrack, go to **Settings → Integrations** and paste the key. Click **Save**.
+4. Optionally update the **Search Terms** — each term triggers one API call. Defaults: `Texas, Georgia, Illinois, Tennessee, Ohio, Colorado, Arizona`.
+
+### Running an Import
+
+- Go to **Leads** → click **Import FMCSA Leads** (top-right toolbar button).
+- A progress banner appears while the import runs.
+- On completion, a summary shows how many leads were found, added, and skipped.
+
+### How It Works
+
+- Searches the FMCSA QCMobile API (`/carriers/name/{term}`) for each search term.
+- Filters for carriers with **active common authority** (`commonAuthorityStatus = A`, `allowedToOperate = Y`).
+- Deduplicates by DOT number within the batch and against existing DB records (stored as `DOT-{dotNumber}` in the `mc_number` field).
+- Adds new carriers as `status = New`, `source = FMCSA`.
+- Safe to re-run — existing records are never duplicated.
+
+---
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -141,6 +171,9 @@ app/
       search.ts           # Global search query
       backup.ts           # Auto + manual backup logic
       scheduler.ts        # Background job ticker
+      dispatcherBoard.ts  # Dispatcher board SQL query
+      fmcsaApi.ts         # FMCSA QCMobile HTTP client
+      fmcsaImport.ts      # FMCSA lead import logic
       repositories/       # Data access layer (one file per entity)
       schema/
         migrations.ts     # All DB migrations

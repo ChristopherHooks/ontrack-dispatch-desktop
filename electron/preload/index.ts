@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('api', {
     update:       (id: number, dto: unknown) => ipcRenderer.invoke('leads:update', id, dto),
     delete:       (id: number) => ipcRenderer.invoke('leads:delete', id),
     importFmcsa:  () => ipcRenderer.invoke('leads:importFmcsa'),
+    importStatus: () => ipcRenderer.invoke('leads:importStatus'),
   },
 
   // -- Drivers --

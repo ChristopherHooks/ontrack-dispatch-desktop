@@ -242,6 +242,7 @@ export type UpdateSopDocumentDto = Partial<CreateSopDocumentDto>
 // -- Analytics --
 export interface AnalyticsStats {
   leadConversion:    { total: number; signed: number; rate: number }
+  leadsByStatus:     Record<string, number>
   driversSigned:     { thisMonth: number; total: number }
   avgRpm:            { value: number; count: number }
   revenueByDriver:   Array<{ driver_id: number; name: string; revenue: number; loads: number }>
@@ -256,6 +257,16 @@ export interface FmcsaImportResult {
   leadsAdded:        number
   duplicatesSkipped: number
   errors:            string[]
+}
+
+export interface FmcsaImportStatus {
+  lastAttemptedAt:   string | null
+  lastSuccessAt:     string | null
+  source:            'manual' | 'scheduled' | null
+  leadsFound:        number
+  leadsAdded:        number
+  duplicatesSkipped: number
+  lastError:         string | null
 }
 
 // -- Dispatcher Board --
