@@ -36,10 +36,14 @@ export function todayDate(): string {
   return new Date().toISOString().split('T')[0]
 }
 
+const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+
 /** True if a task is relevant for today's checklist */
-export function isTaskForToday(dueDate: string | null, recurring: 0 | 1): boolean {
+export function isTaskForToday(dueDate: string | null, _recurring: 0 | 1): boolean {
   if (!dueDate) return false
   if (dueDate === 'Daily') return true
-  if (recurring === 1) return true
+  // Day-of-week recurring: 'Monday', 'Tuesday', etc.
+  if (DOW.includes(dueDate)) return dueDate === DOW[new Date().getDay()]
+  // Specific date
   return dueDate === todayDate()
 }

@@ -132,8 +132,11 @@ declare global {
         recommendLoads: (payload: { driverId?: number }) => Promise<ScannerRecommendation[]>
       }
       dev: {
-        seed:   () => Promise<{ ok: boolean }>
-        reseed: () => Promise<{ ok: boolean }>
+        seed:          () => Promise<{ ok: boolean }>
+        reseed:        () => Promise<{ ok: boolean }>
+        seedMissing:   () => Promise<{ ok: boolean }>
+        seedTasksOnly: () => Promise<{ ok: boolean }>
+        clearSeedData: () => Promise<{ ok: boolean }>
       }
     }
   }

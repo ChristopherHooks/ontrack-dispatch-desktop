@@ -156,8 +156,11 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Dev Utilities (non-packaged builds only) --
   dev: {
-    seed:   () => ipcRenderer.invoke('dev:seed'),
-    reseed: () => ipcRenderer.invoke('dev:reseed'),
+    seed:          () => ipcRenderer.invoke('dev:seed'),
+    reseed:        () => ipcRenderer.invoke('dev:reseed'),
+    seedMissing:   () => ipcRenderer.invoke('dev:seedMissing'),
+    seedTasksOnly: () => ipcRenderer.invoke('dev:seedTasksOnly'),
+    clearSeedData: () => ipcRenderer.invoke('dev:clearSeedData'),
   },
 
 })

@@ -20,7 +20,7 @@ import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus } from './fmcsaImport'
 import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
-import { runSeedIfEmpty, resetAndReseed } from './seed'
+import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
 import { getDashboardStats } from './dashboard'
@@ -168,6 +168,9 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     getRecommendations(getDb(), payload?.driverId))
 
   // -- Dev Seed (non-packaged builds only) --
-  ipcMain.handle('dev:seed',      () => { runSeedIfEmpty(getDb()); return { ok: true } })
-  ipcMain.handle('dev:reseed',    () => { resetAndReseed(getDb());  return { ok: true } })
+  ipcMain.handle('dev:seed',          () => { runSeedIfEmpty(getDb());      return { ok: true } })
+  ipcMain.handle('dev:reseed',        () => { resetAndReseed(getDb());      return { ok: true } })
+  ipcMain.handle('dev:seedMissing',   () => { seedMissingItems(getDb());    return { ok: true } })
+  ipcMain.handle('dev:seedTasksOnly', () => { seedTasksAndDocsOnly(getDb()); return { ok: true } })
+  ipcMain.handle('dev:clearSeedData', () => { clearNonTaskSeedData(getDb()); return { ok: true } })
 }

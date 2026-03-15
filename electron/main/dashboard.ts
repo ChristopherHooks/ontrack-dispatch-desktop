@@ -50,9 +50,11 @@ export function getDashboardStats(db: Database.Database): DashboardStats {
     "SELECT COUNT(*) AS c FROM invoices WHERE status IN ('Draft','Sent','Overdue')"
   ).get() as { c: number }
 
+  const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const todayDow = DOW[new Date().getDay()]
   const todayTasksRaw = db.prepare(
-    "SELECT * FROM tasks WHERE due_date = date('now') OR due_date = 'Daily'"
-  ).all() as Task[]
+    "SELECT * FROM tasks WHERE due_date = date('now') OR due_date = 'Daily' OR due_date = ?"
+  ).all(todayDow) as Task[]
 
   const todayTasks = [...todayTasksRaw].sort(
     (a, b) => parseTimeOfDay(a.time_of_day) - parseTimeOfDay(b.time_of_day)

@@ -22,6 +22,7 @@ export function Settings() {
   const [fmcsaSaved, setFmcsaSaved]   = useState(false)
   const [seedBusy,   setSeedBusy]     = useState(false)
   const [seedMsg,    setSeedMsg]      = useState('')
+  const [clearBusy,  setClearBusy]    = useState(false)
 
   useEffect(() => {
     loadBackups()
@@ -70,12 +71,26 @@ export function Settings() {
     setSeedBusy(true)
     setSeedMsg('')
     try {
-      await window.api.dev.seed()
-      setSeedMsg('Sample data loaded — refresh the page or navigate away and back to see it.')
+      await window.api.dev.seedTasksOnly() // tasks 101-118 + docs 101-108, INSERT OR IGNORE
+      setSeedMsg('Task templates loaded — navigate to Tasks to see them.')
     } catch {
       setSeedMsg('Seed failed. Check the console for details.')
     } finally {
       setSeedBusy(false)
+    }
+  }
+
+  async function handleClearSeedData() {
+    if (!window.confirm('Remove all sample brokers, drivers, loads, leads, and invoices? Tasks and documents will not be affected.')) return
+    setClearBusy(true)
+    setSeedMsg('')
+    try {
+      await window.api.dev.clearSeedData()
+      setSeedMsg('Sample business data removed. Tasks and documents are untouched.')
+    } catch {
+      setSeedMsg('Clear failed. Check the console for details.')
+    } finally {
+      setClearBusy(false)
     }
   }
 
@@ -293,22 +308,41 @@ export function Settings() {
       {/* Sample Data */}
       <Section title='Sample Data' icon={<FlaskConical size={16} />}>
         <div className='space-y-3'>
-          <p className='text-sm text-gray-400'>
-            Load sample brokers, drivers, loads, tasks, and documents to explore the app.
-            Safe to run on an empty database — skips any rows that already exist.
-          </p>
           {seedMsg && (
             <div className='flex items-center gap-2 text-xs px-3 py-2 bg-orange-900/20 border border-orange-700/40 text-orange-300 rounded-lg'>
               <CheckCircle size={13} /> {seedMsg}
             </div>
           )}
-          <button
-            onClick={handleSeedData}
-            disabled={seedBusy}
-            className='text-xs px-4 py-1.5 bg-surface-600 hover:bg-surface-500 border border-surface-400 text-gray-300 rounded-lg transition-colors disabled:opacity-50'
-          >
-            {seedBusy ? 'Loading…' : 'Load Sample Data'}
-          </button>
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Load Task Templates</p>
+              <p className='text-xs text-gray-500'>
+                Adds the built-in daily and weekly task checklist (18 tasks) and SOP documents.
+                Safe to run at any time — skips rows that already exist.
+              </p>
+              <button
+                onClick={handleSeedData}
+                disabled={seedBusy || clearBusy}
+                className='text-xs px-3 py-1.5 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-600/40 text-orange-300 rounded-lg transition-colors disabled:opacity-50'
+              >
+                {seedBusy ? 'Loading…' : 'Load Task Templates'}
+              </button>
+            </div>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Remove Sample Business Data</p>
+              <p className='text-xs text-gray-500'>
+                Deletes sample brokers, drivers, loads, leads, and invoices (id ≥ 101).
+                Tasks and documents are not affected.
+              </p>
+              <button
+                onClick={handleClearSeedData}
+                disabled={seedBusy || clearBusy}
+                className='text-xs px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50'
+              >
+                {clearBusy ? 'Removing…' : 'Remove Sample Data'}
+              </button>
+            </div>
+          </div>
         </div>
       </Section>
 
