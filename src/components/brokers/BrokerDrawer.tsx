@@ -3,6 +3,7 @@ import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight } from 'lucide-react'
 import type { Broker, BrokerFlag, Load, Note } from '../../types/models'
 import { FLAG_STYLES, BROKER_FLAGS } from './constants'
 import { LOAD_STATUS_STYLES } from '../loads/constants'
+import { openSaferMc } from '../../lib/saferUrl'
 
 interface Props {
   broker: Broker
@@ -72,7 +73,11 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                 <span className={`text-2xs px-2 py-0.5 rounded-full border ${FLAG_STYLES[broker.flag]}`}>{broker.flag}</span>
               )}
             </div>
-            {broker.mc_number && <p className='text-sm text-gray-500 font-mono'>{broker.mc_number}</p>}
+            {broker.mc_number && (
+              <button onClick={e => openSaferMc(broker.mc_number, e)}
+                className='text-sm text-gray-500 font-mono hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                title='View on FMCSA SAFER'>{broker.mc_number}</button>
+            )}
           </div>
           <button onClick={onClose} className='p-1.5 rounded-lg hover:bg-surface-600 text-gray-500 hover:text-gray-300 ml-3 shrink-0'><X size={16} /></button>
         </div>

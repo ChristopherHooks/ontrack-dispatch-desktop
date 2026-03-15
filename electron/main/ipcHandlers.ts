@@ -1,4 +1,4 @@
-import { IpcMain, dialog, app } from 'electron'
+import { IpcMain, dialog, app, shell } from 'electron'
 import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
 import {
@@ -14,13 +14,15 @@ import {
   listUsers, getUser, getUserByEmail, createUser, updateUser,
   listAuditLog,
   listDocuments, getDocument, createDocument, updateDocument, deleteDocument, searchDocuments,
+  listMarketingGroups, createMarketingGroup, updateMarketingGroup, markGroupPosted, deleteMarketingGroup,
+  listPostLog, createPostLog, updatePostLog, deletePostLog, getRecentlyUsedTemplateIds, getTemplateUsageCounts,
 } from './repositories'
 import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus, backfillLeadData } from './fmcsaImport'
 import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
-import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData } from './seed'
+import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData, reseedDocuments } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
 import { getDashboardStats } from './dashboard'
@@ -169,10 +171,32 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('scanner:recommendLoads', (_e, payload: { driverId?: number }) =>
     getRecommendations(getDb(), payload?.driverId))
 
+  // -- Marketing --
+  ipcMain.handle('marketing:groups:list',       () => listMarketingGroups(getDb()))
+  ipcMain.handle('marketing:groups:create',     (_e, name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) =>
+    createMarketingGroup(getDb(), name, url, platform, notes, truckTypeTags, regionTags))
+  ipcMain.handle('marketing:groups:update',     (_e, id: number, updates: Parameters<typeof updateMarketingGroup>[2]) =>
+    updateMarketingGroup(getDb(), id, updates))
+  ipcMain.handle('marketing:groups:markPosted', (_e, id: number, date: string) => markGroupPosted(getDb(), id, date))
+  ipcMain.handle('marketing:groups:delete',     (_e, id: number) => deleteMarketingGroup(getDb(), id))
+
+  ipcMain.handle('marketing:post:list',         (_e, limit?: number) => listPostLog(getDb(), limit))
+  ipcMain.handle('marketing:post:create',       (_e, templateId: string, category: string, truckType: string | null, usedDate: string, groupsPostedTo: string[], posted: boolean, repliesCount: number, leadsGenerated: number, notes: string | null) =>
+    createPostLog(getDb(), templateId, category, truckType, usedDate, groupsPostedTo, posted, repliesCount, leadsGenerated, notes))
+  ipcMain.handle('marketing:post:update',       (_e, id: number, updates: Parameters<typeof updatePostLog>[2]) =>
+    updatePostLog(getDb(), id, updates))
+  ipcMain.handle('marketing:post:delete',       (_e, id: number) => deletePostLog(getDb(), id))
+  ipcMain.handle('marketing:post:recentIds',    (_e, days?: number) => getRecentlyUsedTemplateIds(getDb(), days))
+  ipcMain.handle('marketing:post:usageCounts',  () => getTemplateUsageCounts(getDb()))
+
+  // -- Shell utilities --
+  ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
+
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',          () => { runSeedIfEmpty(getDb());      return { ok: true } })
   ipcMain.handle('dev:reseed',        () => { resetAndReseed(getDb());      return { ok: true } })
   ipcMain.handle('dev:seedMissing',   () => { seedMissingItems(getDb());    return { ok: true } })
   ipcMain.handle('dev:seedTasksOnly', () => { seedTasksAndDocsOnly(getDb()); return { ok: true } })
   ipcMain.handle('dev:clearSeedData', () => { clearNonTaskSeedData(getDb()); return { ok: true } })
+  ipcMain.handle('dev:reseedDocs',    () => { reseedDocuments(getDb());      return { ok: true } })
 }

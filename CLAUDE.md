@@ -70,6 +70,11 @@ Every task follows three phases:
 - Prefer the smallest safe fix
 - Repo files are authoritative and chats are disposable.
 
+### Content and Copy Rules — Never Violate
+- **No emojis** — ever, in any generated text, post templates, documents, UI copy, or code comments
+- Marketing post templates must sound natural and human — no bullet lists with symbols, no hype language
+- Post templates must have enough variety that the same post does not repeat within a 90-day window
+
 ---
 
 ## Quick Tech Reference

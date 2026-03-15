@@ -297,10 +297,73 @@ const migration007: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 008 -- Add marketing_groups table
+//
+// Stores Facebook/social group rotation for the Marketing tab.
+// Tracks when each group was last posted to, so the dispatcher knows
+// which groups are "due" for a post today.
+// ---------------------------------------------------------------------------
+
+const migration008: Migration = {
+  version: 8,
+  description: 'Add marketing_groups table for social posting rotation tracker',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS marketing_groups (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  name TEXT NOT NULL,' +
+      '  url TEXT,' +
+      '  platform TEXT NOT NULL DEFAULT \'Facebook\',' +
+      '  last_posted_at TEXT,' +   // YYYY-MM-DD
+      '  notes TEXT,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (8)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 009 -- Expand marketing: post log table + group tag/active columns
+//
+// marketing_post_log: one row per posting action, drives anti-repetition and
+// outcome tracking (replies, leads generated).
+// marketing_groups gains truck_type_tags, region_tags, and active flag for
+// smarter group suggestions.
+// ---------------------------------------------------------------------------
+
+const migration009: Migration = {
+  version: 9,
+  description: 'Add marketing_post_log table; add truck_type_tags, region_tags, active to marketing_groups',
+  up: (db) => {
+    addColumnIfMissing(db, 'marketing_groups', 'truck_type_tags', "TEXT NOT NULL DEFAULT '[]'")
+    addColumnIfMissing(db, 'marketing_groups', 'region_tags',     "TEXT NOT NULL DEFAULT '[]'")
+    addColumnIfMissing(db, 'marketing_groups', 'active',          'INTEGER NOT NULL DEFAULT 1')
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS marketing_post_log (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  template_id TEXT NOT NULL,' +
+      '  category TEXT NOT NULL,' +
+      '  truck_type TEXT,' +
+      '  used_date TEXT NOT NULL,' +
+      '  groups_posted_to TEXT NOT NULL DEFAULT \'[]\'' + ',' +
+      '  posted INTEGER NOT NULL DEFAULT 0,' +
+      '  replies_count INTEGER NOT NULL DEFAULT 0,' +
+      '  leads_generated INTEGER NOT NULL DEFAULT 0,' +
+      '  notes TEXT,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_post_log_date ON marketing_post_log(used_date);' +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (9)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

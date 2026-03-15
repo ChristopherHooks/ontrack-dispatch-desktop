@@ -1,6 +1,7 @@
 import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, AlertTriangle } from 'lucide-react'
 import type { Driver } from '../../types/models'
 import { DRIVER_STATUS_STYLES } from './constants'
+import { openSaferMc } from '../../lib/saferUrl'
 
 interface Props {
   drivers: Driver[]; loading: boolean
@@ -54,7 +55,13 @@ export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSel
               <td className='pr-3 py-2.5'>
                 <span className={`text-2xs px-2 py-0.5 rounded-full border ${DRIVER_STATUS_STYLES[d.status]}`}>{d.status}</span>
               </td>
-              <td className='pr-3 py-2.5 text-gray-500 font-mono text-xs'>{d.mc_number ?? '—'}</td>
+              <td className='pr-3 py-2.5 font-mono text-xs'>
+                {d.mc_number
+                  ? <button onClick={e => openSaferMc(d.mc_number, e)}
+                        className='text-gray-500 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                        title='View on FMCSA SAFER'>{d.mc_number}</button>
+                  : <span className='text-gray-700'>—</span>}
+              </td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs whitespace-nowrap'>{[d.truck_type, d.trailer_type].filter(Boolean).join(' / ') || '—'}</td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs'>{d.home_base ?? '—'}</td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs'>{d.min_rpm != null ? `$${d.min_rpm.toFixed(2)}` : '—'}</td>

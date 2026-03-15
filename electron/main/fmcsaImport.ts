@@ -1,5 +1,11 @@
 import type Database from 'better-sqlite3'
 import { searchCarriersByName, getCarrierSafer, getCarrierDockets } from './fmcsaApi'
+
+// Days since a date string (YYYY-MM-DD). Returns null if date is missing.
+function daysSince(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
+}
 import type { ApiCarrier } from './fmcsaApi'
 
 export interface FmcsaImportResult {
@@ -20,14 +26,28 @@ export interface FmcsaImportStatus {
 }
 
 /**
- * Default search terms. Each term becomes one API call to /carriers/name/{term}.
- * State names work well because many carriers include their home state in their
- * company name (e.g. 'Texas Freight LLC', 'Georgia Transport Inc').
+ * Default search terms. Each term becomes one paginated set of API calls to
+ * /carriers/name/{term} (up to 3 pages × 50 results = 150 per term).
+ * State names work well because many owner-operators name their company after
+ * their home state (e.g. 'Texas Freight LLC', 'Georgia Transport Inc').
+ *
+ * Terms are ordered by freight volume. The top 8 states by freight tonnage
+ * account for the majority of small-carrier new authorities.
  * Override via Settings > Integrations > Search Terms.
  */
 export const DEFAULT_SEARCH_TERMS = [
-  'Texas', 'Georgia', 'Illinois', 'Tennessee', 'Ohio', 'Colorado', 'Arizona',
+  // High-volume freight corridor states (by annual freight tonnage)
+  'Texas', 'Georgia', 'Illinois', 'Tennessee', 'Ohio',
+  'Florida', 'Indiana', 'Pennsylvania',
 ]
+
+/**
+ * Authority age window for "ideal" leads — 30 to 180 days since MC grant.
+ * New authorities in this window are still figuring out dispatch and are
+ * the most receptive to outreach. Older carriers are already set in their ways.
+ */
+export const AUTHORITY_MIN_DAYS = 30
+export const AUTHORITY_MAX_DAYS = 180
 
 /**
  * Priority based on authority age and fleet size.
@@ -191,9 +211,10 @@ export async function backfillLeadData(db: Database.Database): Promise<BackfillR
 // Main entry point called by IPC handler for manual import
 // ---------------------------------------------------------------------------
 export async function importFmcsaLeads(
-  db:          Database.Database,
-  webKey?:     string,
-  searchTerms: string[] = DEFAULT_SEARCH_TERMS,
+  db:                  Database.Database,
+  webKey?:             string,
+  searchTerms:         string[] = DEFAULT_SEARCH_TERMS,
+  onlyNewAuthorities = true,   // when true, skip carriers outside 30–180 day window
 ): Promise<FmcsaImportResult> {
   if (!webKey) {
     console.warn('[FMCSA] Import attempted with no web key — aborting.')
@@ -295,6 +316,18 @@ export async function importFmcsaLeads(
         // Skip carriers with no MC docket — they have no operating authority
         // and cannot be dispatched for hire. Also filters out private carriers.
         if (!mcNumber) { duplicatesSkipped++; continue }
+
+        // Skip carriers outside the 30–180 day new-authority window when
+        // onlyNewAuthorities is set. Carriers with no authority date are kept
+        // (we cannot confirm their age, so we give them the benefit of the doubt).
+        if (onlyNewAuthorities && authorityDate !== null) {
+          const age = daysSince(authorityDate)
+          if (age !== null && (age < AUTHORITY_MIN_DAYS || age > AUTHORITY_MAX_DAYS)) {
+            console.log('[FMCSA] Skipping DOT ' + dotStr + ' — authority age ' + age + ' days (outside 30–180 window)')
+            duplicatesSkipped++
+            continue
+          }
+        }
 
         const phone    = rawPhone ? (formatPhone(rawPhone) || null) : null
         const priority = computePriority(authorityDate, fleetSize)

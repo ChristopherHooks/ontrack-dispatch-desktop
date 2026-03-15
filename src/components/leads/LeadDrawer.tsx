@@ -5,6 +5,7 @@ import type { Lead, LeadStatus, Note } from '../../types/models'
 import { LeadScoreBadge } from './LeadScoreBadge'
 import { computeLeadScore } from '../../lib/leadScore'
 import { STATUS_STYLES, PRIORITY_STYLES, STATUSES } from './constants'
+import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
 
 interface Props {
   lead:           Lead
@@ -156,8 +157,28 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
                 <Row icon={<Truck size={12} />} label='Fleet Size'
                   value={lead.fleet_size + ' truck' + (lead.fleet_size !== 1 ? 's' : '')} />
               )}
-              {lead.mc_number    && <Row icon={<Tag size={12} />} label='MC #' value={lead.mc_number} mono />}
-              {lead.dot_number   && <Row icon={<Tag size={12} />} label='DOT #' value={lead.dot_number} mono />}
+              {lead.mc_number && (
+                <div className='flex items-start gap-2.5'>
+                  <span className='text-gray-600 mt-0.5 shrink-0'><Tag size={12} /></span>
+                  <div>
+                    <p className='text-2xs text-gray-600'>MC #</p>
+                    <button onClick={e => openSaferMc(lead.mc_number, e)}
+                      className='text-sm font-mono text-gray-300 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                      title='View on FMCSA SAFER'>{lead.mc_number}</button>
+                  </div>
+                </div>
+              )}
+              {lead.dot_number && (
+                <div className='flex items-start gap-2.5'>
+                  <span className='text-gray-600 mt-0.5 shrink-0'><Tag size={12} /></span>
+                  <div>
+                    <p className='text-2xs text-gray-600'>DOT #</p>
+                    <button onClick={e => openSaferDot(lead.dot_number!, e)}
+                      className='text-sm font-mono text-gray-300 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                      title='View on FMCSA SAFER'>{lead.dot_number}</button>
+                  </div>
+                </div>
+              )}
               <Row icon={<Calendar size={12} />} label='Authority Age' value={authAge(lead.authority_date)} />
               {lead.source       && <Row icon={<Tag size={12} />} label='Source' value={lead.source} />}
               {lead.follow_up_date && <Row icon={<Calendar size={12} />} label='Follow-Up' value={fmtDate(lead.follow_up_date)} />}

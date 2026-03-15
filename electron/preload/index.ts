@@ -156,6 +156,32 @@ contextBridge.exposeInMainWorld('api', {
     recommendLoads: (payload: { driverId?: number }) => ipcRenderer.invoke('scanner:recommendLoads', payload),
   },
 
+  // -- Marketing --
+  marketing: {
+    groups: {
+      list:       () => ipcRenderer.invoke('marketing:groups:list'),
+      create:     (name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) =>
+                    ipcRenderer.invoke('marketing:groups:create', name, url, platform, notes, truckTypeTags, regionTags),
+      update:     (id: number, updates: object) => ipcRenderer.invoke('marketing:groups:update', id, updates),
+      markPosted: (id: number, date: string) => ipcRenderer.invoke('marketing:groups:markPosted', id, date),
+      delete:     (id: number) => ipcRenderer.invoke('marketing:groups:delete', id),
+    },
+    post: {
+      list:        (limit?: number) => ipcRenderer.invoke('marketing:post:list', limit),
+      create:      (templateId: string, category: string, truckType: string | null, usedDate: string, groupsPostedTo: string[], posted: boolean, repliesCount: number, leadsGenerated: number, notes: string | null) =>
+                     ipcRenderer.invoke('marketing:post:create', templateId, category, truckType, usedDate, groupsPostedTo, posted, repliesCount, leadsGenerated, notes),
+      update:      (id: number, updates: object) => ipcRenderer.invoke('marketing:post:update', id, updates),
+      delete:      (id: number) => ipcRenderer.invoke('marketing:post:delete', id),
+      recentIds:   (days?: number) => ipcRenderer.invoke('marketing:post:recentIds', days),
+      usageCounts: () => ipcRenderer.invoke('marketing:post:usageCounts'),
+    },
+  },
+
+  // -- Shell utilities --
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  },
+
   // -- Dev Utilities (non-packaged builds only) --
   dev: {
     seed:          () => ipcRenderer.invoke('dev:seed'),
@@ -163,6 +189,7 @@ contextBridge.exposeInMainWorld('api', {
     seedMissing:   () => ipcRenderer.invoke('dev:seedMissing'),
     seedTasksOnly: () => ipcRenderer.invoke('dev:seedTasksOnly'),
     clearSeedData: () => ipcRenderer.invoke('dev:clearSeedData'),
+    reseedDocs:    () => ipcRenderer.invoke('dev:reseedDocs'),
   },
 
 })

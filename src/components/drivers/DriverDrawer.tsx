@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Phone, Edit2, Trash2, Plus, AlertTriangle } from 'lucide-react'
 import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
+import { openSaferMc } from '../../lib/saferUrl'
 
 interface Props {
   driver: Driver; onClose: () => void; onEdit: (d: Driver) => void
@@ -114,7 +115,14 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title='Carrier Info'/>
             <div className='grid grid-cols-2 gap-3'>
-              <Row label='MC #' value={driver.mc_number??'—'} mono/>
+              {driver.mc_number
+                ? <div>
+                    <p className='text-2xs text-gray-600'>MC #</p>
+                    <button onClick={e => openSaferMc(driver.mc_number, e)}
+                      className='text-sm mt-0.5 font-mono text-gray-300 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                      title='View on FMCSA SAFER'>{driver.mc_number}</button>
+                  </div>
+                : <Row label='MC #' value='—' mono/>}
               <Row label='DOT #' value={driver.dot_number??'—'} mono/>
               <Row label='CDL #' value={driver.cdl_number??'—'} mono/>
               <div>

@@ -127,23 +127,44 @@ function httpGet(url: string): Promise<Record<string, unknown>> {
 
 /**
  * Search carriers by name keyword (e.g. 'Texas', 'Georgia Trucking').
- * Returns carrier objects; content may be empty if no matches.
- * Max 50 results per request (API hard cap).
+ * Paginates automatically up to maxPages pages (50 results each).
+ * Stops early if a page returns fewer than 50 results (end of results).
+ * Max 50 per page is a hard API cap; maxPages controls total depth.
  */
 export async function searchCarriersByName(
-  webKey: string,
-  name:   string,
-  size    = 50
+  webKey:    string,
+  name:      string,
+  maxPages = 3,        // 3 pages = up to 150 results per search term
 ): Promise<ApiCarrier[]> {
-  const url = BASE_URL + '/carriers/name/' + encodeURIComponent(name) +
-              '?webKey=' + encodeURIComponent(webKey) + '&start=0&size=' + size
-  console.log('[FMCSA] Searching carriers for term:', name)
-  const data = await httpGet(url) as { content?: { carrier: ApiCarrier }[] }
-  if (!Array.isArray(data?.content)) {
-    console.warn('[FMCSA] Unexpected response shape for term ' + name + ':', JSON.stringify(data).slice(0, 200))
-    return []
+  const PAGE_SIZE = 50
+  const all: ApiCarrier[] = []
+
+  for (let page = 0; page < maxPages; page++) {
+    const start = page * PAGE_SIZE
+    const url = BASE_URL + '/carriers/name/' + encodeURIComponent(name) +
+                '?webKey=' + encodeURIComponent(webKey) +
+                '&start=' + start + '&size=' + PAGE_SIZE
+
+    console.log('[FMCSA] Searching carriers for term:', name, '| page', page + 1, '(start=' + start + ')')
+    const data = await httpGet(url) as { content?: { carrier: ApiCarrier }[] }
+
+    if (!Array.isArray(data?.content)) {
+      console.warn('[FMCSA] Unexpected response shape for term ' + name + ' page ' + (page + 1) + ':', JSON.stringify(data).slice(0, 200))
+      break
+    }
+
+    const page_results = data.content.map(r => r.carrier).filter(Boolean)
+    all.push(...page_results)
+
+    // Fewer than a full page means we've hit the end — no point fetching more
+    if (page_results.length < PAGE_SIZE) break
+
+    // Brief pause between pages — be polite to the government server
+    if (page + 1 < maxPages) await new Promise(r => setTimeout(r, 200))
   }
-  return data.content.map(r => r.carrier).filter(Boolean)
+
+  console.log('[FMCSA] Total results for term "' + name + '":', all.length)
+  return all
 }
 
 /**

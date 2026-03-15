@@ -1,6 +1,7 @@
 import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, Trash2 } from 'lucide-react'
 import type { Broker } from '../../types/models'
 import { FLAG_STYLES } from './constants'
+import { openSaferMc } from '../../lib/saferUrl'
 
 interface Props {
   brokers: Broker[]; loading: boolean
@@ -58,7 +59,13 @@ export function BrokersTable({ brokers, loading, sortKey, sortDir, onSort, onSel
                 <tr key={b.id} onClick={() => onSelect(b)}
                   className='group border-b border-surface-600 hover:bg-surface-700/50 cursor-pointer transition-colors'>
                   <td className='px-3 py-2.5 font-medium text-gray-200'>{b.name}</td>
-                  <td className='px-3 py-2.5 font-mono text-gray-400 text-2xs'>{b.mc_number ?? '---'}</td>
+                  <td className='px-3 py-2.5 font-mono text-2xs'>
+                    {b.mc_number
+                      ? <button onClick={e => openSaferMc(b.mc_number, e)}
+                          className='text-gray-400 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                          title='View on FMCSA SAFER'>{b.mc_number}</button>
+                      : <span className='text-gray-700'>---</span>}
+                  </td>
                   <td className='px-3 py-2.5 text-gray-400'>{b.phone ?? '---'}</td>
                   <td className='px-3 py-2.5 text-gray-400 truncate max-w-[176px]'>{b.email ?? '---'}</td>
                   <td className='px-3 py-2.5 text-gray-300'>{b.payment_terms ? `Net ${b.payment_terms}` : '---'}</td>

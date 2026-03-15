@@ -1,5 +1,98 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-14 — Session 13: Document Library Expansion + Marketing Template Overhaul
+
+### Work Completed
+
+**Document Library — reseedDocuments():**
+- `seed.ts`: added `reseedDocuments(db)` — uses INSERT OR REPLACE so it overwrites existing docs 101-108 and adds new docs 109-120
+- 20 total documents covering the full business operation at a depth where a novice could follow them
+- Docs 101-108 fully rewritten (from short stubs to 400-600 word SOPs): Load Booking SOP, Driver Onboarding Checklist, Invoice Submission Process, Broker Packet Requirements, Driver Safety Compliance, Facebook Driver Search SOP, Warm Lead Follow-Up Script, FMCSA Lead Review Checklist
+- New docs 109-120: What Is Freight Dispatch (Reference), Trucking Industry Glossary (Reference), How to Find Loads — Load Board Guide (Reference), Rate Negotiation Guide (SOP), Cold Call Script — First Driver Contact (SOP), Daily Dispatch Routine (SOP), Breakdown and Emergency Procedures (SOP), How to Vet a New Broker (SOP), Explaining Your Dispatch Fee (Training), Reading a Rate Confirmation (Training), Driver Communication Standards (Policy), New Driver Pitch — Converting Leads to Signed (SOP)
+- IPC: `dev:reseedDocs` → `reseedDocuments(getDb())`
+- Preload: `window.api.dev.reseedDocs()`
+- Settings: "Rebuild Document Library" green button with busy/success state
+
+**Marketing Templates — complete rewrite:**
+- `src/lib/postTemplates.ts` fully rewritten
+- 78 templates total (up from 45) — 2.5 months of unique daily posts before repeat
+- 5 new truck-type categories: Dry Van (8), Reefer (7), Flatbed (8), Step Deck (6), Hotshot (6)
+- Existing 6 categories retained and rewritten: Driver Recruitment (10), Value Prop (8), Engagement (8), New Authority (7), Trust (5), Freight Market (5)
+- All 78 templates: no emojis, no bullet lists with symbols, natural first-person conversational tone
+- `CATEGORY_COLORS` expanded with colors for all 5 new truck types
+- `Marketing.tsx` `CATEGORY_FILTER_OPTIONS` updated — truck types appear first in filter row
+
+**Project Standards:**
+- `CLAUDE.md`: added "Content and Copy Rules — Never Violate" section; no-emoji rule is now a permanent project constraint alongside Git rules
+
+### Files Modified (7)
+- electron/main/seed.ts
+- electron/main/ipcHandlers.ts
+- electron/preload/index.ts
+- src/pages/Settings.tsx
+- src/lib/postTemplates.ts
+- src/pages/Marketing.tsx
+- CLAUDE.md
+
+### App State at End of Session
+- Documents page: 20 fully-written operational documents after running Rebuild Document Library
+- Marketing tab: 78 templates across 11 categories, no emojis, truck-type filters live
+- All other modules unchanged and operational
+- Build: clean
+
+---
+
+## 2026-03-14 — Session 12: Auth Sort Fix + Fleet Size + Priority + Invoice Delete + Marketing Tab
+
+### Work Completed
+
+**Auth age sort fix (Leads.tsx):**
+- Ascending "Auth Age" sort now means newest (least aged) first — special-cased `authority_date` sort to invert comparison direction so 9mo < 11mo < 1yr in ascending order
+
+**Fleet size + priority:**
+- Migration 007: `fleet_size INTEGER` added to leads table
+- `fmcsaApi.ts`: SAFER scraper extracts Power Units via regex
+- `fmcsaImport.ts`: `computePriority(authorityDate, fleetSize)` — High = 30-180 days AND 1-3 trucks; Medium = one condition; Low = neither; INSERT includes fleet_size and computed priority
+- `leadsRepo.ts`: `createLead` and `updateLead` both include fleet_size in SQL
+- `models.ts`: `fleet_size` on Lead interface; `CreateLeadDto` omits only dot_number (fleet_size is editable)
+- `LeadModal.tsx`: Fleet Size number input
+- `LeadsTable.tsx`: fleet size displayed under lead name
+- `LeadDrawer.tsx`: Fleet Size row in Contact section
+
+**Backfill (Settings):**
+- `backfillLeadData(db)` in `fmcsaImport.ts`: Phase 1 instant SQL re-prioritize all FMCSA leads, Phase 2 SAFER scrape for leads missing fleet_size (150ms delay)
+- "Re-enrich & Re-prioritize" button in Settings > Integrations
+
+**Invoice delete:**
+- `deleteInvoice` added to `invoicesRepo.ts`
+- `InvoiceDrawer.tsx`: Trash2 icon with two-step confirm (matching LeadDrawer pattern)
+- `Invoices.tsx`: `handleDelete` wired, closes drawer on success
+
+**Marketing tab (new page):**
+- `src/lib/postTemplates.ts`: 45 templates, 6 categories, date-seeded rotation, renderTemplate, CATEGORY_COLORS
+- `src/pages/Marketing.tsx`: Today's Post card, category filters, prev/next cycling, copy, Add to Today's Tasks, Group Rotation tracker
+- `electron/main/repositories/marketingRepo.ts`: listMarketingGroups, createMarketingGroup, markGroupPosted, deleteMarketingGroup
+- Migration 008: marketing_groups table
+- IPC + preload: full marketing.groups API
+
+### Files Modified/Created (18)
+- src/pages/Leads.tsx, src/lib/postTemplates.ts, src/pages/Marketing.tsx (new)
+- electron/main/fmcsaApi.ts, electron/main/fmcsaImport.ts
+- electron/main/schema/migrations.ts, electron/main/repositories/leadsRepo.ts
+- electron/main/repositories/invoicesRepo.ts, electron/main/repositories/marketingRepo.ts (new)
+- electron/main/repositories/index.ts, electron/main/ipcHandlers.ts
+- electron/preload/index.ts, src/types/models.ts
+- src/components/leads/LeadModal.tsx, LeadsTable.tsx, LeadDrawer.tsx
+- src/components/invoices/InvoiceDrawer.tsx, src/pages/Invoices.tsx, src/pages/Settings.tsx
+
+### App State at End of Session
+- Leads: auth age sort correct; fleet size displayed and editable; backfill available in Settings
+- Invoices: delete with two-step confirm working
+- Marketing: fully operational — daily templates, group tracker, task integration
+- Build: clean
+
+---
+
 ## 2026-03-14 — Session 11: Seed Cleanup + Sample Data Controls
 
 ### Work Completed

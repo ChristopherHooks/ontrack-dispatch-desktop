@@ -22,9 +22,11 @@ export function Settings() {
   const [fmcsaSaved, setFmcsaSaved]   = useState(false)
   const [backfillBusy, setBackfillBusy] = useState(false)
   const [backfillMsg,  setBackfillMsg]  = useState<{ text: string; ok: boolean } | null>(null)
-  const [seedBusy,   setSeedBusy]     = useState(false)
-  const [seedMsg,    setSeedMsg]      = useState('')
-  const [clearBusy,  setClearBusy]    = useState(false)
+  const [seedBusy,       setSeedBusy]       = useState(false)
+  const [seedMsg,        setSeedMsg]        = useState('')
+  const [clearBusy,      setClearBusy]      = useState(false)
+  const [docReseedBusy,  setDocReseedBusy]  = useState(false)
+  const [docReseedMsg,   setDocReseedMsg]   = useState('')
 
   useEffect(() => {
     loadBackups()
@@ -79,6 +81,19 @@ export function Settings() {
       setSeedMsg('Seed failed. Check the console for details.')
     } finally {
       setSeedBusy(false)
+    }
+  }
+
+  async function handleReseedDocs() {
+    setDocReseedBusy(true)
+    setDocReseedMsg('')
+    try {
+      await (window.api.dev as any).reseedDocs()
+      setDocReseedMsg('Document library rebuilt — 20 documents updated in Documents.')
+    } catch {
+      setDocReseedMsg('Failed. Check the console for details.')
+    } finally {
+      setDocReseedBusy(false)
     }
   }
 
@@ -356,6 +371,11 @@ export function Settings() {
               <CheckCircle size={13} /> {seedMsg}
             </div>
           )}
+          {docReseedMsg && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-green-900/20 border border-green-700/40 text-green-300 rounded-lg'>
+              <CheckCircle size={13} /> {docReseedMsg}
+            </div>
+          )}
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
             <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
               <p className='text-xs font-semibold text-gray-300'>Load Task Templates</p>
@@ -369,6 +389,20 @@ export function Settings() {
                 className='text-xs px-3 py-1.5 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-600/40 text-orange-300 rounded-lg transition-colors disabled:opacity-50'
               >
                 {seedBusy ? 'Loading…' : 'Load Task Templates'}
+              </button>
+            </div>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Rebuild Document Library</p>
+              <p className='text-xs text-gray-500'>
+                Writes all 20 expanded SOPs, scripts, training docs, and reference guides to the Documents page.
+                Overwrites existing documents 101-108 and adds new ones. Safe to run anytime.
+              </p>
+              <button
+                onClick={handleReseedDocs}
+                disabled={docReseedBusy}
+                className='text-xs px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-300 rounded-lg transition-colors disabled:opacity-50'
+              >
+                {docReseedBusy ? 'Rebuilding...' : 'Rebuild Document Library'}
               </button>
             </div>
             <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>

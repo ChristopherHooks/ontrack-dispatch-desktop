@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone } from 'lucide-react'
 import type { Driver, Load, Lead } from '../types/models'
 import { computeLeadScore } from '../lib/leadScore'
+import { openSaferMc, openSaferDot } from '../lib/saferUrl'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 
@@ -246,7 +247,13 @@ function TopLeadRow({ rank, lead }: { rank: number; lead: ScoredLead }) {
           {lead._dueToday && !lead._overdue && <span className='text-2xs text-orange-400 shrink-0'>● today</span>}
         </div>
         <div className='flex items-center gap-2 mt-0.5'>
-          {identifier && <span className='text-2xs font-mono text-gray-600'>{identifier}</span>}
+          {identifier && (
+            <button
+              onClick={e => lead.mc_number ? openSaferMc(lead.mc_number, e) : openSaferDot(lead.dot_number!, e)}
+              className='text-2xs font-mono text-gray-600 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+              title='View on FMCSA SAFER'
+            >{identifier}</button>
+          )}
           {location   && <span className='text-2xs text-gray-600'>{location}</span>}
         </div>
       </div>

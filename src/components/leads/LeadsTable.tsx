@@ -2,6 +2,7 @@ import { ChevronUp, ChevronDown, Phone, Edit2, Trash2, Calendar } from 'lucide-r
 import type { Lead } from '../../types/models'
 import { LeadScoreBadge } from './LeadScoreBadge'
 import { STATUS_STYLES, PRIORITY_STYLES } from './constants'
+import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
 
 type SortKey = keyof Lead
 type SortDir = 'asc' | 'desc'
@@ -102,9 +103,13 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                 </td>
                 <td className='pr-3 py-2.5'>
                   {lead.mc_number
-                    ? <span className='text-xs font-mono text-gray-400'>{lead.mc_number}</span>
+                    ? <button onClick={e => openSaferMc(lead.mc_number, e)}
+                          className='text-xs font-mono text-gray-400 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                          title='View on FMCSA SAFER'>{lead.mc_number}</button>
                     : lead.dot_number
-                      ? <span className='text-xs font-mono text-gray-500'>DOT-{lead.dot_number}</span>
+                      ? <button onClick={e => openSaferDot(lead.dot_number!, e)}
+                            className='text-xs font-mono text-gray-500 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
+                            title='View on FMCSA SAFER'>DOT-{lead.dot_number}</button>
                       : <span className='text-xs text-gray-700'>—</span>}
                 </td>
                 <td className='pr-3 py-2.5'>
