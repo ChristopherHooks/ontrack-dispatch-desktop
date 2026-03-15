@@ -1,5 +1,105 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-14 — Session 11: Seed Cleanup + Sample Data Controls
+
+### Work Completed
+
+**seed.ts — three new exported functions:**
+- `seedTasksAndDocsOnly(db)` — wraps existing internal `seedTasks()` + `seedDocuments()` in a transaction; INSERT OR IGNORE covers all 18 tasks and 8 documents; never touches brokers/drivers/loads/leads/invoices
+- `clearNonTaskSeedData(db)` — deletes id >= 101 from notes, driver_documents, invoices, loads, leads, drivers, brokers (in dependency order); leaves tasks, task_completions, and documents completely untouched
+- `seedMissingItems(db)` (from Session 10) — still present; covers tasks 111-118 + docs 106-108
+
+**IPC (ipcHandlers.ts):**
+- `dev:seedTasksOnly` → `seedTasksAndDocsOnly(getDb())`
+- `dev:clearSeedData` → `clearNonTaskSeedData(getDb())`
+
+**Preload + Types:**
+- `window.api.dev.seedTasksOnly()` and `.clearSeedData()` exposed and typed
+
+**Settings page — Sample Data section redesigned:**
+- Two-card side-by-side grid layout
+- "Load Task Templates" (orange) — calls `seedTasksOnly`; description clearly scoped to tasks and SOPs only
+- "Remove Sample Data" (red) — calls `clearSeedData` with `window.confirm` guard; description says tasks + documents are not affected
+- `clearBusy` state added; both buttons disabled while either operation is in flight
+- `handleSeedData` now calls only `seedTasksOnly` (not the old `seed()` + `seedMissing()` chain)
+
+### Files Modified (5)
+- electron/main/seed.ts
+- electron/main/ipcHandlers.ts
+- electron/preload/index.ts
+- src/types/global.d.ts
+- src/pages/Settings.tsx
+
+### App State at End of Session
+- "Load Task Templates" button: seeds tasks 101-118 + docs 101-108, safe to repeat, never inserts fake drivers/loads
+- "Remove Sample Data" button: strips all seed business data with confirmation dialog
+- Build: clean (tsc --noEmit + electron-vite build, 3 green bundles)
+
+---
+
+## 2026-03-14 — Session 10: CSV Import + v2-Readiness + Recurring Tasks + F12
+
+### Work Completed
+
+**CSV/Paste Lead Import:**
+- `electron/main/csvLeadImport.ts` (new): RFC-4180 CSV parser; HEADER_MAP with space-separated aliases (`'driver name'`, `'company name'`, `'trailer type'`); auto header-row detection (scans first 5 lines, picks first with ≥2 mapped tokens); dedup by mc_number; INSERT OR IGNORE
+- IPC: `leads:importCsv` (opens file dialog) + `leads:importPaste` (receives raw text)
+- `PasteImportModal.tsx` (new): textarea with live row count; calls `window.api.leads.importPaste()`
+- Leads toolbar: "Paste Data" + "Import CSV" buttons
+- Leads page: result banners (green/amber), dismissible
+
+**v2-Readiness (Migration 005):**
+- `migrations.ts`: migration 005 adds `updated_at` to `notes` and `driver_documents` (addColumnIfMissing pattern)
+- `dashboard.ts` (new): extracted `getDashboardStats()` service from ipcHandlers
+- `db:query` IPC gated behind `!app.isPackaged`
+- `syncAdminUserFromStore()` in db.ts: reads ownerName/ownerEmail from electron-store, updates users row 1
+
+**Recurring Tasks + isTaskForToday fix:**
+- seed.ts: tasks 111-115 (daily Marketing), tasks 116-118 (Monday/Wednesday/Friday); docs 106-108 (Facebook SOP, Warm Lead Script, FMCSA Checklist)
+- `constants.ts`: removed `if (recurring === 1) return true` bug; added DOW array + day-of-week comparison
+- `dashboard.ts`: SQL `WHERE due_date = date('now') OR due_date = 'Daily' OR due_date = ?` with todayDow param
+
+**F12 DevTools:**
+- `index.ts`: `before-input-event` listener → `mainWindow.webContents.toggleDevTools()` on F12
+
+**`seedMissingItems(db)` (bypass guard for already-seeded DBs):**
+- Inserts tasks 111-118 + docs 106-108 via INSERT OR IGNORE; no guard check
+
+### Files Created (3)
+- electron/main/csvLeadImport.ts
+- electron/main/dashboard.ts
+- src/components/leads/PasteImportModal.tsx
+
+### Files Modified (10)
+- electron/main/seed.ts
+- electron/main/ipcHandlers.ts
+- electron/main/index.ts
+- electron/main/db.ts
+- electron/main/schema/migrations.ts
+- electron/preload/index.ts
+- src/types/global.d.ts
+- src/types/models.ts
+- src/components/tasks/constants.ts
+- src/components/leads/LeadsToolbar.tsx
+- src/pages/Leads.tsx
+- src/pages/Settings.tsx
+- src/store/settingsStore.ts
+
+### App State at End of Session
+- CSV import: working end-to-end with real Leads.csv files
+- Paste import: working for tab-separated spreadsheet data
+- 18 recurring tasks seeded (5 daily, 3 weekly, 10 one-time/dated)
+- Today view correctly shows only tasks due today (daily + day-of-week match)
+- F12 opens DevTools
+- Build: clean
+
+### Technical Notes
+- `String.fromCharCode()` required for `\r` and `\n` in Python-written TS files on Windows
+- HEADER_MAP keys must be lowercase-normalised (trim + toLowerCase)
+- `isTaskForToday` — `recurring` flag is display-only; `due_date` is the scheduling field
+
+---
+
 ## 2026-03-14 — Session 9: Seed Data System
 
 ### Work Completed

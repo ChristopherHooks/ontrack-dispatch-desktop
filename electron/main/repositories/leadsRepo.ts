@@ -15,11 +15,11 @@ export function getLead(db: Database.Database, id: number): Lead | undefined {
 export function createLead(db: Database.Database, dto: CreateLeadDto): Lead {
   const r = db.prepare(
     'INSERT INTO leads (name, company, mc_number, phone, email, city, state, ' +
-    'trailer_type, authority_date, source, status, priority, follow_up_date, notes) ' +
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'trailer_type, authority_date, fleet_size, source, status, priority, follow_up_date, notes) ' +
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(dto.name, dto.company ?? null, dto.mc_number ?? null, dto.phone ?? null,
     dto.email ?? null, dto.city ?? null, dto.state ?? null, dto.trailer_type ?? null,
-    dto.authority_date ?? null, dto.source ?? null, dto.status, dto.priority,
+    dto.authority_date ?? null, dto.fleet_size ?? null, dto.source ?? null, dto.status, dto.priority,
     dto.follow_up_date ?? null, dto.notes ?? null)
   return db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid as number) as Lead
 }
@@ -31,10 +31,10 @@ export function updateLead(db: Database.Database, id: number, dto: UpdateLeadDto
   const m = { ...existing, ...dto }
   db.prepare(
     'UPDATE leads SET name=?, company=?, mc_number=?, phone=?, email=?, city=?, state=?,' +
-    'trailer_type=?, authority_date=?, source=?, status=?, priority=?,' +
+    'trailer_type=?, authority_date=?, fleet_size=?, source=?, status=?, priority=?,' +
     'follow_up_date=?, notes=?, updated_at=? WHERE id=?'
   ).run(m.name, m.company, m.mc_number, m.phone, m.email, m.city, m.state,
-    m.trailer_type, m.authority_date, m.source, m.status, m.priority,
+    m.trailer_type, m.authority_date, m.fleet_size ?? null, m.source, m.status, m.priority,
     m.follow_up_date, m.notes, now, id)
   return getLead(db, id)
 }

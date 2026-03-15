@@ -26,10 +26,11 @@ contextBridge.exposeInMainWorld('api', {
     create:       (dto: unknown) => ipcRenderer.invoke('leads:create', dto),
     update:       (id: number, dto: unknown) => ipcRenderer.invoke('leads:update', id, dto),
     delete:       (id: number) => ipcRenderer.invoke('leads:delete', id),
-    importFmcsa:  () => ipcRenderer.invoke('leads:importFmcsa'),
-    importStatus: () => ipcRenderer.invoke('leads:importStatus'),
-    importCsv:    () => ipcRenderer.invoke('leads:importCsv'),
-    importPaste:  (text: string) => ipcRenderer.invoke('leads:importPaste', text),
+    importFmcsa:      () => ipcRenderer.invoke('leads:importFmcsa'),
+    importStatus:     () => ipcRenderer.invoke('leads:importStatus'),
+    importCsv:        () => ipcRenderer.invoke('leads:importCsv'),
+    importPaste:      (text: string) => ipcRenderer.invoke('leads:importPaste', text),
+    backfillLeadData: () => ipcRenderer.invoke('leads:backfillLeadData'),
   },
 
   // -- Drivers --
@@ -74,6 +75,7 @@ contextBridge.exposeInMainWorld('api', {
     get:    (id: number) => ipcRenderer.invoke('invoices:get', id),
     create: (dto: unknown) => ipcRenderer.invoke('invoices:create', dto),
     update: (id: number, dto: unknown) => ipcRenderer.invoke('invoices:update', id, dto),
+    delete: (id: number) => ipcRenderer.invoke('invoices:delete', id),
   },
 
   // -- Tasks --

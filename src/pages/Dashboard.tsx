@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Truck, Package, Users, FileText, CheckSquare, Clock } from 'lucide-react'
-import type { Driver, Load } from '../types/models'
+import { useNavigate } from 'react-router-dom'
+import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone } from 'lucide-react'
+import type { Driver, Load, Lead } from '../types/models'
+import { computeLeadScore } from '../lib/leadScore'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 
@@ -13,29 +15,65 @@ interface Stats {
 }
 interface Task { id: number; title: string; status: string; time_of_day: string | null; priority: string }
 
+// Lead enriched with pre-computed score fields for the Top Leads panel
+interface ScoredLead extends Lead {
+  _score:    number
+  _grade:    'Hot' | 'Warm' | 'Cold'
+  _overdue:  boolean
+  _dueToday: boolean
+}
+
 const EMPTY_STATS: Stats = {
   driversNeedingLoads: { c: 0 }, loadsInTransit: { c: 0 },
   leadsFollowUp: { c: 0 }, outstandingInvoices: { c: 0 }, todayTasks: [],
 }
 
 export function Dashboard() {
-  const [stats,   setStats]   = useState<Stats>(EMPTY_STATS)
-  const [drivers, setDrivers] = useState<Driver[]>([])
-  const [loads,   setLoads]   = useState<Load[]>([])
-  const [loading, setLoading] = useState(true)
+  const [stats,        setStats]        = useState<Stats>(EMPTY_STATS)
+  const [drivers,      setDrivers]      = useState<Driver[]>([])
+  const [loads,        setLoads]        = useState<Load[]>([])
+  const [leads,        setLeads]        = useState<Lead[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [leadsLoading, setLeadsLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
-    window.api.dashboard.stats().then(s => { setStats(s as Stats); setLoading(false) }).catch(() => setLoading(false))
-    Promise.all([window.api.drivers.list(), window.api.loads.list()]).then(([d, l]) => { setDrivers(d); setLoads(l) })
+    window.api.dashboard.stats()
+      .then(s => { setStats(s as Stats); setLoading(false) })
+      .catch(() => setLoading(false))
+    Promise.all([window.api.drivers.list(), window.api.loads.list()])
+      .then(([d, l]) => { setDrivers(d); setLoads(l) })
+    window.api.leads.list()
+      .then(l => { setLeads(l); setLeadsLoading(false) })
+      .catch(() => setLeadsLoading(false))
   }, [])
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const today    = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const todayIso = new Date().toISOString().split('T')[0]
 
+  // ── Top 10 leads ranked by score + follow-up urgency ──────────────────────
+  const topLeads: ScoredLead[] = leads
+    .filter(l => l.status !== 'Signed' && l.status !== 'Rejected')
+    .map(l => {
+      const { total, grade } = computeLeadScore(l)
+      const overdue  = Boolean(l.follow_up_date && l.follow_up_date < todayIso)
+      const dueToday = Boolean(l.follow_up_date && l.follow_up_date === todayIso)
+      return { ...l, _score: total, _grade: grade, _overdue: overdue, _dueToday: dueToday }
+    })
+    .sort((a, b) => {
+      // Boost overdue +20, due today +12, then sort by raw score
+      const boostA = a._overdue ? 20 : a._dueToday ? 12 : 0
+      const boostB = b._overdue ? 20 : b._dueToday ? 12 : 0
+      return (b._score + boostB) - (a._score + boostA)
+    })
+    .slice(0, 10)
+
+  // ── Dispatch board helpers ─────────────────────────────────────────────────
   const activeLoads = loads.filter(l => ['Booked', 'Picked Up', 'In Transit'].includes(l.status))
   const loadByDriver: Record<number, Load> = {}
   activeLoads.forEach(l => { if (l.driver_id != null) loadByDriver[l.driver_id] = l })
 
-  const boardDrivers = [...drivers].sort((a,b) => {
+  const boardDrivers = [...drivers].sort((a, b) => {
     const hasLoadA = a.id in loadByDriver ? 1 : 0
     const hasLoadB = b.id in loadByDriver ? 1 : 0
     if (a.status === 'Active' && b.status !== 'Active') return -1
@@ -52,13 +90,13 @@ export function Dashboard() {
 
       {/* KPI Cards */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-        <KpiCard label='Drivers Needing Loads' value={loading?'—':String(stats.driversNeedingLoads.c)} icon={<Truck size={18}/>} accent={stats.driversNeedingLoads.c>0}/>
-        <KpiCard label='Loads In Transit' value={loading?'—':String(stats.loadsInTransit.c)} icon={<Package size={18}/>}/>
-        <KpiCard label='Leads Awaiting Follow-Up' value={loading?'—':String(stats.leadsFollowUp.c)} icon={<Users size={18}/>} accent={stats.leadsFollowUp.c>0}/>
-        <KpiCard label='Outstanding Invoices' value={loading?'—':String(stats.outstandingInvoices.c)} icon={<FileText size={18}/>} accent={stats.outstandingInvoices.c>0}/>
+        <KpiCard label='Drivers Needing Loads'    value={loading?'—':String(stats.driversNeedingLoads.c)} icon={<Truck size={18}/>}    accent={stats.driversNeedingLoads.c>0}/>
+        <KpiCard label='Loads In Transit'          value={loading?'—':String(stats.loadsInTransit.c)}      icon={<Package size={18}/>}  />
+        <KpiCard label='Leads Awaiting Follow-Up'  value={loading?'—':String(stats.leadsFollowUp.c)}       icon={<Users size={18}/>}    accent={stats.leadsFollowUp.c>0}/>
+        <KpiCard label='Outstanding Invoices'      value={loading?'—':String(stats.outstandingInvoices.c)} icon={<FileText size={18}/>} accent={stats.outstandingInvoices.c>0}/>
       </div>
 
-      {/* Body grid */}
+      {/* Body grid — Tasks + Dispatch Board */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         {/* Today's Tasks */}
         <div className='lg:col-span-2 bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
@@ -113,14 +151,45 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Top 10 Leads Today */}
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
+        <div className='flex items-center justify-between mb-4'>
+          <div className='flex items-center gap-2'>
+            <Star size={16} className='text-orange-500' />
+            <h2 className='text-sm font-semibold text-gray-200'>Top Leads Today</h2>
+            <span className='text-2xs text-gray-600'>· scored by data completeness + follow-up urgency</span>
+          </div>
+          <button
+            onClick={() => navigate('/leads')}
+            className='text-2xs text-orange-500 hover:text-orange-400 transition-colors'
+          >
+            View all →
+          </button>
+        </div>
+
+        {leadsLoading ? (
+          <p className='text-sm text-gray-600'>Loading leads...</p>
+        ) : topLeads.length === 0 ? (
+          <p className='text-sm text-gray-600'>No active leads. Run an FMCSA import to populate your pipeline.</p>
+        ) : (
+          <div className='divide-y divide-surface-600'>
+            {topLeads.map((lead, i) => (
+              <TopLeadRow key={lead.id} rank={i + 1} lead={lead} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-function KpiCard({ label, value, icon, accent=false }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function KpiCard({ label, value, icon, accent = false }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
   return (
-    <div className={['bg-surface-700 rounded-xl border p-4 shadow-card hover:shadow-card-hover transition-shadow', accent?'border-orange-600/40':'border-surface-400'].join(' ')}>
-      <div className={['mb-2', accent?'text-orange-500':'text-gray-500'].join(' ')}>{icon}</div>
+    <div className={['bg-surface-700 rounded-xl border p-4 shadow-card hover:shadow-card-hover transition-shadow', accent ? 'border-orange-600/40' : 'border-surface-400'].join(' ')}>
+      <div className={['mb-2', accent ? 'text-orange-500' : 'text-gray-500'].join(' ')}>{icon}</div>
       <p className='text-2xl font-bold text-gray-100'>{value}</p>
       <p className='text-xs text-gray-500 mt-1 leading-tight'>{label}</p>
     </div>
@@ -131,12 +200,65 @@ function TaskRow({ task }: { task: Task }) {
   const [done, setDone] = useState(task.status === 'Done')
   return (
     <li className='flex items-center gap-3 group'>
-      <button onClick={()=>setDone(!done)} className={['w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors', done?'bg-orange-600 border-orange-600':'border-surface-300 hover:border-orange-500'].join(' ')}>
-        {done&&<span className='text-white text-2xs'>✓</span>}
+      <button onClick={() => setDone(!done)} className={['w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors', done ? 'bg-orange-600 border-orange-600' : 'border-surface-300 hover:border-orange-500'].join(' ')}>
+        {done && <span className='text-white text-2xs'>✓</span>}
       </button>
-      <span className={['text-sm flex-1', done?'line-through text-gray-600':'text-gray-300'].join(' ')}>{task.title}</span>
-      {task.time_of_day&&<div className='flex items-center gap-1 text-2xs text-gray-500'><Clock size={10}/>{task.time_of_day}</div>}
-      <span className={['text-2xs px-1.5 py-0.5 rounded-full', task.priority==='High'?'bg-red-900/30 text-red-400':task.priority==='Medium'?'bg-yellow-900/30 text-yellow-500':'bg-surface-600 text-gray-500'].join(' ')}>{task.priority}</span>
+      <span className={['text-sm flex-1', done ? 'line-through text-gray-600' : 'text-gray-300'].join(' ')}>{task.title}</span>
+      {task.time_of_day && <div className='flex items-center gap-1 text-2xs text-gray-500'><Clock size={10} />{task.time_of_day}</div>}
+      <span className={['text-2xs px-1.5 py-0.5 rounded-full', task.priority === 'High' ? 'bg-red-900/30 text-red-400' : task.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' : 'bg-surface-600 text-gray-500'].join(' ')}>{task.priority}</span>
     </li>
+  )
+}
+
+function TopLeadRow({ rank, lead }: { rank: number; lead: ScoredLead }) {
+  const gradeCls =
+    lead._grade === 'Hot'  ? 'bg-orange-900/40 text-orange-400 border-orange-700/40' :
+    lead._grade === 'Warm' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-700/30' :
+                             'bg-surface-600 text-gray-500 border-surface-500'
+
+  const statusCls: Record<string, string> = {
+    New:        'text-blue-400',
+    Contacted:  'text-yellow-500',
+    Interested: 'text-green-400',
+    Signed:     'text-orange-400',
+    Rejected:   'text-gray-600',
+  }
+
+  const identifier = lead.mc_number ?? (lead.dot_number ? 'DOT-' + lead.dot_number : null)
+  const location   = [lead.city, lead.state].filter(Boolean).join(', ')
+
+  return (
+    <div className='flex items-center gap-3 py-2.5'>
+      {/* Rank */}
+      <span className='text-2xs text-gray-700 w-4 text-right shrink-0'>{rank}</span>
+
+      {/* Score badge */}
+      <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border min-w-[28px] text-center shrink-0 ${gradeCls}`}>
+        {lead._score}
+      </span>
+
+      {/* Name + meta */}
+      <div className='flex-1 min-w-0'>
+        <div className='flex items-center gap-1.5 flex-wrap'>
+          <p className='text-xs font-medium text-gray-200 truncate'>{lead.name}</p>
+          <span className={`text-2xs shrink-0 ${statusCls[lead.status] ?? 'text-gray-500'}`}>{lead.status}</span>
+          {lead._overdue  && <span className='text-2xs text-red-400 shrink-0'>● overdue</span>}
+          {lead._dueToday && !lead._overdue && <span className='text-2xs text-orange-400 shrink-0'>● today</span>}
+        </div>
+        <div className='flex items-center gap-2 mt-0.5'>
+          {identifier && <span className='text-2xs font-mono text-gray-600'>{identifier}</span>}
+          {location   && <span className='text-2xs text-gray-600'>{location}</span>}
+        </div>
+      </div>
+
+      {/* Phone */}
+      {lead.phone
+        ? <a href={`tel:${lead.phone}`}
+             className='flex items-center gap-1 text-2xs text-gray-500 hover:text-orange-400 transition-colors shrink-0'>
+            <Phone size={10} />{lead.phone}
+          </a>
+        : <span className='text-2xs text-gray-700 shrink-0'>no phone</span>
+      }
+    </div>
   )
 }

@@ -152,7 +152,12 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
               {lead.email && <Row icon={<Mail size={12} />} label='Email' value={lead.email} />}
               {location   && <Row icon={<MapPin size={12} />} label='Location' value={location} />}
               {lead.trailer_type && <Row icon={<Truck size={12} />} label='Trailer' value={lead.trailer_type} />}
-              {lead.mc_number    && <Row icon={<Tag size={12} />} label='MC Number' value={lead.mc_number} mono />}
+              {lead.fleet_size != null && (
+                <Row icon={<Truck size={12} />} label='Fleet Size'
+                  value={lead.fleet_size + ' truck' + (lead.fleet_size !== 1 ? 's' : '')} />
+              )}
+              {lead.mc_number    && <Row icon={<Tag size={12} />} label='MC #' value={lead.mc_number} mono />}
+              {lead.dot_number   && <Row icon={<Tag size={12} />} label='DOT #' value={lead.dot_number} mono />}
               <Row icon={<Calendar size={12} />} label='Authority Age' value={authAge(lead.authority_date)} />
               {lead.source       && <Row icon={<Tag size={12} />} label='Source' value={lead.source} />}
               {lead.follow_up_date && <Row icon={<Calendar size={12} />} label='Follow-Up' value={fmtDate(lead.follow_up_date)} />}

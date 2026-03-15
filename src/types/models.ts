@@ -44,12 +44,14 @@ export interface Lead {
   name: string
   company: string | null
   mc_number: string | null
+  dot_number: string | null   // FMCSA USDOT number (set on FMCSA-imported leads)
   phone: string | null
   email: string | null
   city: string | null
   state: string | null
   trailer_type: string | null
   authority_date: string | null
+  fleet_size: number | null     // Power Units from SAFER (FMCSA-imported leads only)
   source: string | null
   status: LeadStatus
   priority: LeadPriority
@@ -58,7 +60,9 @@ export interface Lead {
   created_at: string
   updated_at: string
 }
-export type CreateLeadDto = Omit<Lead, "id" | "created_at" | "updated_at">
+// dot_number is set automatically during FMCSA import; not part of the manual-create form
+// fleet_size is editable so dispatchers can fill it in when SAFER doesn't have the data
+export type CreateLeadDto = Omit<Lead, "id" | "created_at" | "updated_at" | "dot_number">
 export type UpdateLeadDto = Partial<CreateLeadDto>
 export interface Driver {
   id: number

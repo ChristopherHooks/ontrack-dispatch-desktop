@@ -17,6 +17,26 @@ feature/first-real-task
 
 ## What Was Completed (Most Recent Sessions)
 
+### Session 11 -- Seed Cleanup + Sample Data Controls (complete)
+
+- `seed.ts`: Added `seedTasksAndDocsOnly(db)` — calls internal `seedTasks` + `seedDocuments` via INSERT OR IGNORE; never touches business data tables
+- `seed.ts`: Added `clearNonTaskSeedData(db)` — deletes id >= 101 from brokers, drivers, loads, leads, invoices, notes, driver_documents; leaves tasks + documents untouched
+- IPC: `dev:seedTasksOnly` and `dev:clearSeedData` handlers registered in `ipcHandlers.ts`
+- Preload: `window.api.dev.seedTasksOnly()` and `.clearSeedData()` exposed
+- `global.d.ts`: Both methods typed
+- Settings "Sample Data" section redesigned: two-card layout
+  - **"Load Task Templates"** (orange) — calls `seedTasksOnly`; only seeds tasks 101-118 + docs 101-108
+  - **"Remove Sample Data"** (red, with confirm dialog) — calls `clearSeedData`; strips fake business data
+
+### Session 10 -- CSV/Paste Import + v2-Readiness + Recurring Tasks + F12 DevTools (complete)
+
+- **CSV/Paste Lead Import**: `csvLeadImport.ts` with HEADER_MAP (including space-separated aliases), auto header-row detection (scans first 5 lines), RFC-4180 parser; IPC handlers `leads:importCsv` + `leads:importPaste`; `PasteImportModal` component; result banner in Leads page
+- **v2-Readiness (Migration 005)**: Added `updated_at` to `notes` and `driver_documents` tables; extracted `getDashboardStats()` into `electron/main/dashboard.ts`; `db:query` IPC gated behind `!app.isPackaged`; `syncAdminUserFromStore()` in db.ts
+- **Recurring Tasks (18 total)**: `seed.ts` expanded to tasks 101-118; tasks 111-115 are daily Marketing tasks (Facebook sweep, algorithm training, driver post sweep, response monitoring, final sweep); tasks 116-118 are weekly (Monday FMCSA review, Wednesday warm lead follow-up, Friday driver conversation review); documents 106-108 are matching SOP/reference docs
+- **`isTaskForToday` fix**: Removed incorrect `if (recurring === 1) return true`; added day-of-week matching via `DOW.includes(dueDate)` check; dashboard SQL updated to match
+- **F12 DevTools**: `before-input-event` listener in `index.ts` wires F12 to `toggleDevTools()`
+- **`seedMissingItems(db)`**: Bypasses dev_seed_applied guard; inserts tasks 111-118 + docs 106-108 via INSERT OR IGNORE (for already-seeded databases)
+
 ### Session 9 -- Seed Data System (complete)
 
 - `electron/main/seed.ts` (new): idempotent seed with 8 brokers, 15 drivers, 40 loads, 50 leads, 12 invoices, 10 tasks, 5 SOP documents
@@ -96,18 +116,18 @@ feature/first-real-task
 
 ## Current App State
 
-Seed data active in dev builds (guard: `dev_seed_applied`). All pages populated on first launch.
+Task templates seeded via "Load Task Templates" button (Settings). Fake business data (brokers/drivers/loads/leads/invoices) can be cleared via "Remove Sample Data" button.
 
 Fully operational pages:
-- Dashboard (live KPIs)
-- Leads (full CRM + FMCSA import button)
+- Dashboard (live KPIs + day-of-week task matching)
+- Leads (full CRM + FMCSA import + CSV/paste import)
 - Drivers (full profile + documents)
 - Loads + Dispatch Board (full lifecycle)
 - Brokers (full profile + performance)
 - Invoices (full lifecycle + PDF/CSV/email export)
-- Tasks (daily checklist + all tasks + history + full CRUD)
-- Settings (theme, business info, Backup & Restore, Google Drive notes)
-- Documents (markdown SOP library, category filter, viewer/editor)
+- Tasks (daily checklist + all tasks + history + full CRUD; 18 seeded task templates including day-of-week recurring)
+- Settings (theme, business info, Backup & Restore, Google Drive notes, task templates + seed cleanup)
+- Documents (markdown SOP library, category filter, viewer/editor; 8 seeded SOPs)
 - Analytics (KPIs, revenue by month/driver, lane profitability, broker volume)
 - Help (articles, keyboard shortcuts reference, search)
 
@@ -115,6 +135,7 @@ Global features:
 - Global search overlay (Ctrl+K)
 - EmptyState component
 - uiStore for transient UI state
+- F12 toggles DevTools
 
 PagePlaceholder stubs:
 - Marketing
@@ -123,29 +144,40 @@ PagePlaceholder stubs:
 
 ## Current Blockers
 
-None. Build is clean.
+None. Build is clean (tsc --noEmit + electron-vite build both pass).
 
 ---
 
 ## Recommended Next Steps (Priority Order)
 
-1. Marketing module
+1. Marketing module (only remaining PagePlaceholder stub)
 2. Wire real FMCSA Safer API into `fetchFmcsaCandidates()` in `electron/main/fmcsaImport.ts`
-3. Wire real FMCSA Safer API into `fetchFmcsaCandidates()` in `electron/main/fmcsaImport.ts`
-4. Email/SMTP integration for invoices (replace mailto:)
+3. Email/SMTP integration for invoices (replace mailto:)
 
 ---
 
-## Files Touched in Most Recent Session (Session 9)
+## Files Touched in Most Recent Sessions (10 + 11)
 
 ### New files:
 - electron/main/seed.ts
+- electron/main/dashboard.ts
+- electron/main/csvLeadImport.ts
+- src/components/leads/PasteImportModal.tsx
 
-### Modified:
-- electron/main/index.ts -- import runSeedIfEmpty; call after initDatabase() (dev-only)
-- electron/main/ipcHandlers.ts -- import resetAndReseed; register dev:seed and dev:reseed handlers
-- electron/preload/index.ts -- expose window.api.dev.seed() and .reseed()
-- src/types/global.d.ts -- add dev namespace typed
+### Modified (Sessions 10-11):
+- electron/main/seed.ts -- tasks 111-118, docs 106-108, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData
+- electron/main/ipcHandlers.ts -- dev:seedMissing, dev:seedTasksOnly, dev:clearSeedData handlers; dashboard extracted; db:query gated
+- electron/main/index.ts -- F12 DevTools shortcut
+- electron/main/db.ts -- syncAdminUserFromStore
+- electron/main/schema/migrations.ts -- migration 005 (updated_at on notes + driver_documents)
+- electron/preload/index.ts -- dev.seedMissing, dev.seedTasksOnly, dev.clearSeedData; leads.importCsv, leads.importPaste
+- src/types/global.d.ts -- all new IPC methods typed
+- src/types/models.ts -- CsvImportResult interface
+- src/components/tasks/constants.ts -- isTaskForToday day-of-week fix
+- src/components/leads/LeadsToolbar.tsx -- CSV/paste import buttons
+- src/pages/Leads.tsx -- CSV/paste import state + result banners
+- src/pages/Settings.tsx -- two-card sample data section; handleSeedData + handleClearSeedData
+- src/store/settingsStore.ts -- companyName, ownerName, ownerEmail, defaultDispatchPct
 
 ---
 

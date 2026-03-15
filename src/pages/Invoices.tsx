@@ -71,6 +71,12 @@ export function Invoices() {
     setSelected(saved)
   }
 
+  const handleDelete = async (inv: Invoice) => {
+    await window.api.invoices.delete(inv.id)
+    setInvoices(p => p.filter(i => i.id !== inv.id))
+    setSelected(null)
+  }
+
   const handleStatusChange = async (inv: Invoice, status: InvoiceStatus) => {
     const updates: Partial<Invoice> = { status }
     if (status === 'Sent' && !inv.sent_date) updates.sent_date = new Date().toISOString().split('T')[0]
@@ -109,6 +115,7 @@ export function Invoices() {
           onClose={() => setSelected(null)}
           onEdit={openEdit}
           onStatusChange={handleStatusChange}
+          onDelete={handleDelete}
         />
       )}
       {modal && (

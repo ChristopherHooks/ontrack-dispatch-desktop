@@ -77,10 +77,10 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
             <th className='pl-4 pr-3 pt-3 pb-2.5 text-left text-2xs font-medium text-gray-500 w-14'>Score</th>
             <Th col='name' label='Lead' cls='min-w-[160px]' />
             <Th col='status' label='Status' />
-            <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3 whitespace-nowrap'>MC #</th>
+            <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3 whitespace-nowrap'>MC / DOT</th>
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>Phone</th>
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>Trailer</th>
-            <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3 whitespace-nowrap'>Auth Age</th>
+            <Th col='authority_date' label='Auth Age' />
             <Th col='follow_up_date' label='Follow-Up' />
             <Th col='priority' label='Priority' />
             <Th col='source' label='Source' />
@@ -93,11 +93,20 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                 <td className='pr-3 py-2.5'>
                   <p className='text-sm font-medium text-gray-100 truncate max-w-[180px]'>{lead.name}</p>
                   {lead.company && <p className='text-2xs text-gray-500 truncate'>{lead.company}</p>}
+                  {lead.fleet_size != null && (
+                    <p className='text-2xs text-gray-600'>{lead.fleet_size} truck{lead.fleet_size !== 1 ? 's' : ''}</p>
+                  )}
                 </td>
                 <td className='pr-3 py-2.5'>
                   <span className={`text-2xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[lead.status]}`}>{lead.status}</span>
                 </td>
-                <td className='pr-3 py-2.5'><span className='text-xs font-mono text-gray-400'>{lead.mc_number ?? '—'}</span></td>
+                <td className='pr-3 py-2.5'>
+                  {lead.mc_number
+                    ? <span className='text-xs font-mono text-gray-400'>{lead.mc_number}</span>
+                    : lead.dot_number
+                      ? <span className='text-xs font-mono text-gray-500'>DOT-{lead.dot_number}</span>
+                      : <span className='text-xs text-gray-700'>—</span>}
+                </td>
                 <td className='pr-3 py-2.5'>
                   {lead.phone
                     ? <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className='flex items-center gap-1 text-xs text-gray-400 hover:text-orange-400'><Phone size={10} />{lead.phone}</a>

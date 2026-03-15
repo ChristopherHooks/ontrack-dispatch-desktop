@@ -20,6 +20,8 @@ export function Settings() {
   const [fmcsaKey, setFmcsaKey]       = useState('')
   const [fmcsaTerms, setFmcsaTerms]   = useState('')
   const [fmcsaSaved, setFmcsaSaved]   = useState(false)
+  const [backfillBusy, setBackfillBusy] = useState(false)
+  const [backfillMsg,  setBackfillMsg]  = useState<{ text: string; ok: boolean } | null>(null)
   const [seedBusy,   setSeedBusy]     = useState(false)
   const [seedMsg,    setSeedMsg]      = useState('')
   const [clearBusy,  setClearBusy]    = useState(false)
@@ -99,6 +101,24 @@ export function Settings() {
     await window.api.settings.set('fmcsa_search_terms', fmcsaTerms.trim())
     setFmcsaSaved(true)
     setTimeout(() => setFmcsaSaved(false), 2500)
+  }
+
+  async function handleBackfill() {
+    setBackfillBusy(true)
+    setBackfillMsg(null)
+    try {
+      const r = await (window.api.leads as any).backfillLeadData()
+      const hasErrors = r.errors && r.errors.length > 0
+      setBackfillMsg({
+        ok: !hasErrors,
+        text: `Re-prioritized ${r.reprioritized} leads · enriched ${r.enriched} with fleet size` +
+              (hasErrors ? ` · ${r.errors.length} error(s)` : ''),
+      })
+    } catch (e) {
+      setBackfillMsg({ ok: false, text: 'Backfill failed: ' + String(e) })
+    } finally {
+      setBackfillBusy(false)
+    }
   }
 
   function fmtSize(bytes: number): string {
@@ -279,6 +299,29 @@ export function Settings() {
                 <CheckCircle size={12} /> Saved
               </span>
             )}
+          </div>
+
+          {/* Re-enrich existing leads */}
+          <div className='border-t border-surface-500 pt-4'>
+            <p className='text-xs font-medium text-gray-400 mb-1'>Re-enrich Existing Leads</p>
+            <p className='text-2xs text-gray-600 mb-3'>
+              Scrapes SAFER for any leads missing fleet size, then re-prioritizes all FMCSA leads
+              using your current rules (30–180 day authority + 1–3 trucks = High).
+            </p>
+            <div className='flex items-center gap-3'>
+              <button
+                onClick={handleBackfill}
+                disabled={backfillBusy}
+                className='text-xs px-4 py-1.5 bg-surface-500 hover:bg-surface-400 text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+              >
+                {backfillBusy ? 'Running…' : 'Re-enrich & Re-prioritize'}
+              </button>
+              {backfillMsg && (
+                <span className={`text-xs flex items-center gap-1 ${backfillMsg.ok ? 'text-green-400' : 'text-orange-400'}`}>
+                  <CheckCircle size={12} /> {backfillMsg.text}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </Section>

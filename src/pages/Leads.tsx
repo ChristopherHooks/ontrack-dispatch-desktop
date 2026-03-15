@@ -130,6 +130,19 @@ export function Leads() {
     if (filters.source)   r = r.filter(l => l.source   === filters.source)
     if (filters.overdue)  r = r.filter(l => l.follow_up_date != null && l.follow_up_date < today)
     return [...r].sort((a, b) => {
+      // Authority date: sort by age (ascending = youngest/least-aged first = most recent date first).
+      // Nulls always go last regardless of direction.
+      if (sortKey === 'authority_date') {
+        const av = a.authority_date ?? ''
+        const bv = b.authority_date ?? ''
+        if (!av && !bv) return 0
+        if (!av) return 1
+        if (!bv) return -1
+        // Invert date comparison so "ascending age" = newest date first
+        return sortDir === 'asc'
+          ? bv.localeCompare(av)
+          : av.localeCompare(bv)
+      }
       const av = a[sortKey] ?? ''
       const bv = b[sortKey] ?? ''
       return sortDir === 'asc'

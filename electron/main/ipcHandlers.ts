@@ -7,7 +7,7 @@ import {
   listDriverDocuments, getDriverDocument, createDriverDocument, updateDriverDocument, deleteDriverDocument,
   listLoads, getLoad, createLoad, updateLoad, deleteLoad,
   listBrokers, getBroker, createBroker, updateBroker, deleteBroker,
-  listInvoices, getInvoice, createInvoice, updateInvoice,
+  listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice,
   listTasks, getTask, createTask, updateTask, deleteTask,
   markTaskComplete, markTaskIncomplete, getTaskCompletions, getCompletionsForDate,
   listNotes, createNote, deleteNote,
@@ -18,7 +18,7 @@ import {
 import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
-import { importFmcsaLeads, writeImportMeta, readImportStatus } from './fmcsaImport'
+import { importFmcsaLeads, writeImportMeta, readImportStatus, backfillLeadData } from './fmcsaImport'
 import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
 import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
@@ -64,7 +64,8 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     store.set('last_fmcsa_import_at', new Date().toISOString())
     return result
   })
-  ipcMain.handle('leads:importStatus', () => readImportStatus(getDb()))
+  ipcMain.handle('leads:importStatus',   () => readImportStatus(getDb()))
+  ipcMain.handle('leads:backfillLeadData', () => backfillLeadData(getDb()))
   ipcMain.handle('leads:importCsv', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title:       'Import Leads from CSV',
@@ -110,6 +111,7 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('invoices:get',    (_e, id: number) => getInvoice(getDb(), id))
   ipcMain.handle('invoices:create', (_e, dto: unknown) => createInvoice(getDb(), dto as any))
   ipcMain.handle('invoices:update', (_e, id: number, dto: unknown) => updateInvoice(getDb(), id, dto as any))
+  ipcMain.handle('invoices:delete', (_e, id: number) => deleteInvoice(getDb(), id))
 
   // -- Tasks --
   ipcMain.handle('tasks:list',            (_e, cat?: string, due?: string) => listTasks(getDb(), cat, due))

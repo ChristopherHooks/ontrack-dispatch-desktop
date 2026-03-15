@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Edit2, Plus, Printer, Mail, CheckCircle, Send, AlertCircle, Download } from 'lucide-react'
+import { X, Edit2, Plus, Printer, Mail, CheckCircle, Send, AlertCircle, Download, Trash2 } from 'lucide-react'
 import type { Invoice, InvoiceStatus, Driver, Load, Broker, Note } from '../../types/models'
 import { INVOICE_STATUS_STYLES } from './constants'
 
@@ -11,6 +11,7 @@ interface Props {
   onClose: () => void
   onEdit: (inv: Invoice) => void
   onStatusChange: (inv: Invoice, status: InvoiceStatus) => void
+  onDelete: (inv: Invoice) => void
 }
 
 const fmt = (d: string | null) => { if (!d) return '---'; const [y,m,day] = d.split('-'); return `${m}/${day}/${y}` }
@@ -74,12 +75,13 @@ function exportCsv(inv: Invoice, driver: Driver | undefined) {
   URL.revokeObjectURL(url)
 }
 
-export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdit, onStatusChange }: Props) {
+export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdit, onStatusChange, onDelete }: Props) {
   const [notes, setNotes] = useState<Note[]>([])
   const [noteText, setNoteText] = useState('')
   const [addNote, setAddNote] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
   const [emailTo, setEmailTo] = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
 
   const driver = drivers.find(d => d.id === invoice.driver_id)
   const load = loads.find(l => l.id === invoice.load_id)
@@ -148,6 +150,14 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
               <button onClick={() => onStatusChange(invoice, 'Overdue')} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-red-800 hover:bg-red-700 text-white rounded-lg transition-colors'><AlertCircle size={11} />Flag Overdue</button>
             )}
             <div className='flex-1' />
+            {!confirmDel
+              ? <button onClick={() => setConfirmDel(true)} className='p-1.5 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-colors' title='Delete invoice'><Trash2 size={13} /></button>
+              : <div className='flex items-center gap-1'>
+                  <span className='text-2xs text-red-400'>Delete?</span>
+                  <button onClick={() => onDelete(invoice)} className='text-2xs px-2 py-0.5 rounded bg-red-900/40 text-red-400 hover:bg-red-900/60'>Yes</button>
+                  <button onClick={() => setConfirmDel(false)} className='text-2xs px-2 py-0.5 rounded bg-surface-600 text-gray-400'>No</button>
+                </div>
+            }
             <button onClick={() => printInvoice(invoice, driver, load, broker)} title='Print / Save as PDF'
               className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Printer size={11} />Print PDF</button>
             <button onClick={() => exportCsv(invoice, driver)} title='Export CSV'

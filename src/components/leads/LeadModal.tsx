@@ -8,7 +8,8 @@ interface Props { lead: Lead | null; onSave: (l: Lead) => void; onClose: () => v
 const BLANK: CreateLeadDto = {
   name: '', company: null, mc_number: null, phone: null, email: null,
   city: null, state: null, trailer_type: null, authority_date: null,
-  source: null, status: 'New', priority: 'Medium', follow_up_date: null, notes: null,
+  fleet_size: null, source: null, status: 'New', priority: 'Medium',
+  follow_up_date: null, notes: null,
 }
 
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
@@ -102,6 +103,14 @@ export function LeadModal({ lead, onSave, onClose }: Props) {
                   <option value=''>Select type…</option>
                   {TRAILER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+              </Field>
+              <Field label='Fleet Size (# of Trucks)' icon={<Truck size={10} />}>
+                <input
+                  className={inp} type='number' min={1} max={9999}
+                  value={form.fleet_size ?? ''}
+                  onChange={e => setForm(p => ({ ...p, fleet_size: e.target.value ? parseInt(e.target.value, 10) : null }))}
+                  placeholder='e.g. 2'
+                />
               </Field>
               <Field label='Authority Date' icon={<Calendar size={10} />}>
                 <input className={inp} type='date' value={form.authority_date ?? ''} onChange={e => set('authority_date', e.target.value)} />

@@ -249,10 +249,58 @@ const migration005: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 006 -- Add dot_number to leads; backfill FMCSA-imported records
+//
+// Problem: the FMCSA importer was storing "DOT-XXXXXXX" in mc_number because
+// the QC name-search API only returns dotNumber, not MC numbers.
+// This migration:
+//   1. Adds dot_number TEXT column to leads
+//   2. Moves the numeric part of any "DOT-XXXXXXX" value out of mc_number and
+//      into dot_number (so existing FMCSA leads are re-mapped correctly)
+//   3. Clears mc_number for those rows (it was never a real MC number)
+// Future imports write the real MC number into mc_number and the DOT into
+// dot_number as separate, properly-labelled fields.
+// ---------------------------------------------------------------------------
+
+const migration006: Migration = {
+  version: 6,
+  description: 'Add dot_number to leads; backfill FMCSA DOT values from mc_number',
+  up: (db) => {
+    addColumnIfMissing(db, 'leads', 'dot_number', 'TEXT')
+    db.exec(
+      // Backfill: strip the "DOT-" prefix and write into dot_number
+      "UPDATE leads SET dot_number = SUBSTR(mc_number, 5)" +
+      "  WHERE source = 'FMCSA' AND mc_number LIKE 'DOT-%';" +
+      // Clear mc_number for these rows — it was never a real MC number
+      "UPDATE leads SET mc_number = NULL" +
+      "  WHERE source = 'FMCSA' AND mc_number LIKE 'DOT-%';" +
+      "CREATE INDEX IF NOT EXISTS idx_leads_dot_number ON leads(dot_number);" +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (6)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 007 -- Add fleet_size to leads
+//
+// Stores the number of Power Units reported on SAFER (scraped during FMCSA
+// import). Used by computePriority() to identify small fleets (1–3 trucks).
+// ---------------------------------------------------------------------------
+
+const migration007: Migration = {
+  version: 7,
+  description: 'Add fleet_size column to leads for FMCSA Power Units data',
+  up: (db) => {
+    addColumnIfMissing(db, 'leads', 'fleet_size', 'INTEGER')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (7)")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

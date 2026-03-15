@@ -26,3 +26,6 @@ export function updateInvoice(db: Database.Database, id: number, dto: UpdateInvo
     .run(m.invoice_number, m.load_id, m.driver_id, m.week_ending, m.driver_gross, m.dispatch_pct, m.dispatch_fee, m.sent_date, m.paid_date, m.status, m.notes, now, id)
   return getInvoice(db, id)
 }
+export function deleteInvoice(db: Database.Database, id: number): boolean {
+  return db.prepare('DELETE FROM invoices WHERE id = ?').run(id).changes > 0
+}
