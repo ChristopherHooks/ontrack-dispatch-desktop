@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Lead, LeadStatus, FmcsaImportResult, FmcsaImportStatus } from '../types/models'
+import type { Lead, LeadStatus, CsvImportResult, FmcsaImportResult, FmcsaImportStatus } from '../types/models'
 import { LeadsToolbar, type LeadFilters } from '../components/leads/LeadsToolbar'
 import { LeadsTable }  from '../components/leads/LeadsTable'
 import { LeadsKanban } from '../components/leads/LeadsKanban'
-import { LeadModal }   from '../components/leads/LeadModal'
-import { LeadDrawer }  from '../components/leads/LeadDrawer'
+import { LeadModal }        from '../components/leads/LeadModal'
+import { LeadDrawer }       from '../components/leads/LeadDrawer'
+import { PasteImportModal } from '../components/leads/PasteImportModal'
 
 function fmtAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -27,10 +28,13 @@ export function Leads() {
   const [selected,     setSelected]     = useState<Lead | null>(null)
   const [editLead,     setEditLead]     = useState<Lead | null>(null)
   const [modal,        setModal]        = useState(false)
-  const [importBusy,   setImportBusy]   = useState(false)
-  const [importResult, setImportResult] = useState<FmcsaImportResult | null>(null)
-  const [lastImportAt, setLastImportAt] = useState<string | null>(null)
-  const [importStatus, setImportStatus] = useState<FmcsaImportStatus | null>(null)
+  const [importBusy,      setImportBusy]      = useState(false)
+  const [importResult,    setImportResult]    = useState<FmcsaImportResult | null>(null)
+  const [lastImportAt,    setLastImportAt]    = useState<string | null>(null)
+  const [importStatus,    setImportStatus]    = useState<FmcsaImportStatus | null>(null)
+  const [csvImportBusy,   setCsvImportBusy]   = useState(false)
+  const [csvImportResult, setCsvImportResult] = useState<CsvImportResult | null>(null)
+  const [showPasteModal,  setShowPasteModal]  = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -85,6 +89,24 @@ export function Leads() {
     } finally {
       setImportBusy(false)
     }
+  }
+
+  const handleImportCsv = async () => {
+    setCsvImportBusy(true)
+    setCsvImportResult(null)
+    try {
+      const result = await window.api.leads.importCsv()
+      if (result === null) return  // user cancelled the file picker
+      setCsvImportResult(result)
+      if (result.inserted > 0) await reload()
+    } finally {
+      setCsvImportBusy(false)
+    }
+  }
+
+  const handlePasteResult = async (result: CsvImportResult) => {
+    setCsvImportResult(result)
+    if (result.inserted > 0) await reload()
   }
 
   const openEdit = (lead: Lead) => { setEditLead(lead); setModal(true) }
@@ -165,6 +187,37 @@ export function Leads() {
         </div>
       )}
 
+      {csvImportResult && (
+        <div className={`rounded-md px-4 py-3 text-sm flex items-start justify-between gap-4
+          ${csvImportResult.errors.length > 0
+            ? 'bg-yellow-900/40 border border-yellow-700/50 text-yellow-200'
+            : 'bg-green-900/40 border border-green-700/50 text-green-200'}`}
+        >
+          <div className='space-y-1'>
+            <p className='font-medium text-xs uppercase tracking-wide opacity-60 mb-1'>CSV Import Result</p>
+            <div className='flex gap-4 font-medium'>
+              <span>Rows read: {csvImportResult.totalRows}</span>
+              <span>Inserted: {csvImportResult.inserted}</span>
+              <span>Duplicates: {csvImportResult.duplicatesSkipped}</span>
+              {csvImportResult.invalidSkipped > 0 && (
+                <span>Invalid: {csvImportResult.invalidSkipped}</span>
+              )}
+            </div>
+            {csvImportResult.errors.slice(0, 5).map((e, i) => (
+              <p key={i} className='text-xs opacity-80'>{e}</p>
+            ))}
+            {csvImportResult.errors.length > 5 && (
+              <p className='text-xs opacity-60'>…and {csvImportResult.errors.length - 5} more issues</p>
+            )}
+          </div>
+          <button
+            onClick={() => setCsvImportResult(null)}
+            className='opacity-60 hover:opacity-100 transition-opacity text-lg leading-none'
+            aria-label='Dismiss'
+          >×</button>
+        </div>
+      )}
+
       <LeadsToolbar
         search={search}     onSearch={setSearch}
         filters={filters}   onFilters={setFilters}
@@ -174,6 +227,9 @@ export function Leads() {
         onImport={handleImport}
         importBusy={importBusy}
         lastImportAt={lastImportAt}
+        onImportCsv={handleImportCsv}
+        csvImportBusy={csvImportBusy}
+        onPaste={() => setShowPasteModal(true)}
       />
 
       {view === 'table'
@@ -207,6 +263,13 @@ export function Leads() {
           lead={editLead}
           onClose={() => { setModal(false); setEditLead(null) }}
           onSave={handleSave}
+        />
+      )}
+
+      {showPasteModal && (
+        <PasteImportModal
+          onClose={() => setShowPasteModal(false)}
+          onResult={handlePasteResult}
         />
       )}
     </div>

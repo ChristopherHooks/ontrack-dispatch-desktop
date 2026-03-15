@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
     delete:       (id: number) => ipcRenderer.invoke('leads:delete', id),
     importFmcsa:  () => ipcRenderer.invoke('leads:importFmcsa'),
     importStatus: () => ipcRenderer.invoke('leads:importStatus'),
+    importCsv:    () => ipcRenderer.invoke('leads:importCsv'),
+    importPaste:  (text: string) => ipcRenderer.invoke('leads:importPaste', text),
   },
 
   // -- Drivers --

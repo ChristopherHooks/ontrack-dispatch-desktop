@@ -252,6 +252,15 @@ export interface AnalyticsStats {
   revenueByMonth:    Array<{ month: string; revenue: number; loads: number }>
 }
 
+// -- CSV Lead Import --
+export interface CsvImportResult {
+  totalRows:         number
+  inserted:          number
+  duplicatesSkipped: number
+  invalidSkipped:    number
+  errors:            string[]
+}
+
 // -- FMCSA Import --
 export interface FmcsaImportResult {
   leadsFound:        number

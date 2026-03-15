@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { initDatabase, getDataDir, getDb } from './db'
 import { registerDbHandlers } from './ipcHandlers'
-import { runSeedIfEmpty } from './seed'
 import { startScheduler, stopScheduler } from './scheduler'
 import { applyPendingRestore, stopPeriodicBackup } from './backup'
 import Store from 'electron-store'
@@ -81,7 +80,6 @@ app.whenReady().then(() => {
   if (restored) console.log('[Main] Database restored from backup')
 
   initDatabase(customDataPath)         // also starts periodic backup
-  if (!app.isPackaged) runSeedIfEmpty(getDb())  // dev seed (skips if already applied)
   registerDbHandlers(ipcMain, store)
   startScheduler(
     () => { const { getDb } = require('./db'); return getDb() },

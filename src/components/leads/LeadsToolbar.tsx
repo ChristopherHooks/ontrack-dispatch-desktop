@@ -10,17 +10,20 @@ export interface LeadFilters {
 }
 
 interface Props {
-  search:       string
-  onSearch:     (v: string) => void
-  filters:      LeadFilters
-  onFilters:    (f: LeadFilters) => void
-  view:         'table' | 'kanban'
-  onView:       (v: 'table' | 'kanban') => void
-  total:        number
-  onAdd:        () => void
-  onImport:     () => void
-  importBusy:   boolean
-  lastImportAt: string | null
+  search:          string
+  onSearch:        (v: string) => void
+  filters:         LeadFilters
+  onFilters:       (f: LeadFilters) => void
+  view:            'table' | 'kanban'
+  onView:          (v: 'table' | 'kanban') => void
+  total:           number
+  onAdd:           () => void
+  onImport:        () => void
+  importBusy:      boolean
+  lastImportAt:    string | null
+  onImportCsv:     () => void
+  csvImportBusy:   boolean
+  onPaste:         () => void
 }
 
 const selCls =
@@ -30,6 +33,8 @@ const selCls =
 export function LeadsToolbar({
   search, onSearch, filters, onFilters, view, onView, total, onAdd,
   onImport, importBusy, lastImportAt,
+  onImportCsv, csvImportBusy,
+  onPaste,
 }: Props) {
   const hasFilters =
     filters.status !== '' || filters.priority !== '' ||
@@ -90,6 +95,28 @@ export function LeadsToolbar({
             <Columns size={12} /> Board
           </button>
         </div>
+
+        {/* Paste from spreadsheet */}
+        <button
+          onClick={onPaste}
+          title='Paste rows from Excel or Google Sheets'
+          className='flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-surface-400 bg-surface-600 hover:bg-surface-500 hover:border-orange-600/40 text-gray-300 transition-colors'
+        >
+          <Upload size={12} /> Paste Data
+        </button>
+
+        {/* CSV import */}
+        <button
+          onClick={onImportCsv}
+          disabled={csvImportBusy}
+          title='Import leads from a CSV file'
+          className='flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-surface-400 bg-surface-600 hover:bg-surface-500 hover:border-orange-600/40 text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+        >
+          {csvImportBusy
+            ? <><svg className='animate-spin h-3 w-3' viewBox='0 0 24 24' fill='none'><circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' /><path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8v8z' /></svg> Importing…</>
+            : <><Upload size={12} /> Import CSV</>
+          }
+        </button>
 
         {/* FMCSA import */}
         <button

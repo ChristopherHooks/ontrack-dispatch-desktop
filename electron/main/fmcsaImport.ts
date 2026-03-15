@@ -80,48 +80,6 @@ export function readImportStatus(db: Database.Database): FmcsaImportStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Mock carriers — used automatically when no FMCSA web key is configured.
-// Returned two per search term (14 total across 7 default terms).
-// All have commonAuthorityStatus='A' and allowedToOperate='Y' so they pass
-// the same filter gate as real carriers.
-// ---------------------------------------------------------------------------
-const MOCK_POOL: ApiCarrier[] = [
-  // Texas
-  { dotNumber: 3901001, legalName: 'LONE STAR FREIGHT LLC',       dbaName: null,           phyCity: 'Houston',          phyState: 'TX', telephone: '7135550101', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901002, legalName: 'TEXAS IRON TRANSPORT INC',    dbaName: null,           phyCity: 'Dallas',           phyState: 'TX', telephone: '2145550202', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  // Georgia
-  { dotNumber: 3901003, legalName: 'PEACH STATE LOGISTICS INC',   dbaName: null,           phyCity: 'Atlanta',          phyState: 'GA', telephone: '4045550301', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901004, legalName: 'GEORGIA FLATBED EXPRESS LLC', dbaName: 'GFE Transport', phyCity: 'Savannah',        phyState: 'GA', telephone: '9125550402', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  // Illinois
-  { dotNumber: 3901005, legalName: 'PRAIRIE WIND FREIGHT LLC',    dbaName: null,           phyCity: 'Chicago',          phyState: 'IL', telephone: '3125550501', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901006, legalName: 'ILLINOIS CENTRAL TRANSPORT',  dbaName: null,           phyCity: 'Peoria',           phyState: 'IL', telephone: '3095550602', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  // Tennessee
-  { dotNumber: 3901007, legalName: 'VOLUNTEER TRUCKING INC',      dbaName: null,           phyCity: 'Nashville',        phyState: 'TN', telephone: '6155550701', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901008, legalName: 'MUSIC CITY FREIGHT LLC',      dbaName: null,           phyCity: 'Memphis',          phyState: 'TN', telephone: '9015550802', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  // Ohio
-  { dotNumber: 3901009, legalName: 'BUCKEYE HAULING LLC',         dbaName: null,           phyCity: 'Columbus',         phyState: 'OH', telephone: '6145550901', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901010, legalName: 'GREAT LAKES FREIGHT INC',     dbaName: 'GL Freight',   phyCity: 'Cleveland',        phyState: 'OH', telephone: '2165551002', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  // Colorado
-  { dotNumber: 3901011, legalName: 'ROCKY MOUNTAIN EXPRESS INC',  dbaName: null,           phyCity: 'Denver',           phyState: 'CO', telephone: '3035551101', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901012, legalName: 'FRONT RANGE FREIGHT LLC',     dbaName: null,           phyCity: 'Colorado Springs', phyState: 'CO', telephone: '7195551202', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  // Arizona
-  { dotNumber: 3901013, legalName: 'DESERT ROAD TRANSPORT LLC',   dbaName: null,           phyCity: 'Phoenix',          phyState: 'AZ', telephone: '6025551301', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-  { dotNumber: 3901014, legalName: 'SOUTHWEST HAUL EXPRESS LLC',  dbaName: null,           phyCity: 'Tucson',           phyState: 'AZ', telephone: '5205551402', commonAuthorityStatus: 'A', allowedToOperate: 'Y' },
-]
-
-/**
- * Returns 2 mock carriers for the given search term.
- * Terms are matched against DEFAULT_SEARCH_TERMS to select a unique slice so
- * each term yields different carriers and the dedup gate still exercises correctly.
- * Unknown terms fall back to the first two entries.
- */
-function getMockCarriers(term: string): ApiCarrier[] {
-  const idx   = DEFAULT_SEARCH_TERMS.indexOf(term)
-  const start = (idx < 0 ? 0 : idx) * 2
-  return MOCK_POOL.slice(start, start + 2)
-}
-
-// ---------------------------------------------------------------------------
 // Main entry point called by IPC handler for manual import
 // ---------------------------------------------------------------------------
 export async function importFmcsaLeads(
@@ -129,13 +87,16 @@ export async function importFmcsaLeads(
   webKey?:     string,
   searchTerms: string[] = DEFAULT_SEARCH_TERMS,
 ): Promise<FmcsaImportResult> {
+  if (!webKey) {
+    console.warn('[FMCSA] Import attempted with no web key — aborting.')
+    return {
+      leadsFound: 0, leadsAdded: 0, duplicatesSkipped: 0,
+      errors: ['No FMCSA web key configured. Add your key in Settings > Integrations.'],
+    }
+  }
+
   const errors: string[] = []
   let leadsFound = 0, leadsAdded = 0, duplicatesSkipped = 0
-  const useMock = !webKey
-  if (useMock) {
-    console.log('[FMCSA] *** MOCK MODE *** No web key configured. Returning synthetic leads.')
-    console.log('[FMCSA] To switch to real data, add your FMCSA web key in Settings > Integrations.')
-  }
 
   // Track DOT numbers seen this run to avoid intra-batch duplicates
   const seenDot = new Set<string>()
@@ -151,9 +112,7 @@ export async function importFmcsaLeads(
   for (const term of searchTerms) {
     try {
       console.log('[FMCSA] Searching for term:', term)
-      const carriers: ApiCarrier[] = useMock
-        ? getMockCarriers(term)
-        : await searchCarriersByName(webKey!, term)
+      const carriers: ApiCarrier[] = await searchCarriersByName(webKey, term)
       leadsFound += carriers.length
       console.log('[FMCSA] Found', carriers.length, 'carriers for term:', term)
 

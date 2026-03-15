@@ -1,4 +1,4 @@
-import { IpcMain } from 'electron'
+import { IpcMain, dialog } from 'electron'
 import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
 import {
@@ -19,6 +19,7 @@ import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus } from './fmcsaImport'
+import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
 import { runSeedIfEmpty, resetAndReseed } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
@@ -95,6 +96,17 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     return result
   })
   ipcMain.handle('leads:importStatus', () => readImportStatus(getDb()))
+  ipcMain.handle('leads:importCsv', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title:       'Import Leads from CSV',
+      buttonLabel: 'Import',
+      filters:     [{ name: 'CSV Files', extensions: ['csv', 'txt'] }],
+      properties:  ['openFile'],
+    })
+    if (canceled || filePaths.length === 0) return null
+    return importLeadsFromCsv(getDb(), filePaths[0])
+  })
+  ipcMain.handle('leads:importPaste', (_e, text: string) => importLeadsFromText(getDb(), text))
 
   // -- Drivers --
   ipcMain.handle('drivers:list',   (_e, status?: string) => listDrivers(getDb(), status))
