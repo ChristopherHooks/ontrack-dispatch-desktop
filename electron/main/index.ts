@@ -62,6 +62,13 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => { mainWindow?.show() })
 
+  // F12 toggles DevTools (always available — useful in both dev and prod for support)
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F12') {
+      mainWindow?.webContents.toggleDevTools()
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }

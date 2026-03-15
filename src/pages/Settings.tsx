@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSettingsStore } from '../store/settingsStore'
 import type { Theme } from '../store/settingsStore'
-import { Sun, Moon, Monitor, Database, User, HardDrive, AlertTriangle, CheckCircle, Link } from 'lucide-react'
+import { Sun, Moon, Monitor, Database, User, HardDrive, AlertTriangle, CheckCircle, Link, FlaskConical } from 'lucide-react'
 
 interface BackupEntry {
   filename: string
@@ -20,6 +20,8 @@ export function Settings() {
   const [fmcsaKey, setFmcsaKey]       = useState('')
   const [fmcsaTerms, setFmcsaTerms]   = useState('')
   const [fmcsaSaved, setFmcsaSaved]   = useState(false)
+  const [seedBusy,   setSeedBusy]     = useState(false)
+  const [seedMsg,    setSeedMsg]      = useState('')
 
   useEffect(() => {
     loadBackups()
@@ -61,6 +63,19 @@ export function Settings() {
       setStatusMsg('Restore staged. Restart OnTrack to apply.')
     } else {
       setStatusMsg('Restore failed: file not found.')
+    }
+  }
+
+  async function handleSeedData() {
+    setSeedBusy(true)
+    setSeedMsg('')
+    try {
+      await window.api.dev.seed()
+      setSeedMsg('Sample data loaded — refresh the page or navigate away and back to see it.')
+    } catch {
+      setSeedMsg('Seed failed. Check the console for details.')
+    } finally {
+      setSeedBusy(false)
     }
   }
 
@@ -272,6 +287,28 @@ export function Settings() {
               <li>Daily backups are your safety net. Restore via the Backup panel above if a conflict occurs.</li>
             </ul>
           </div>
+        </div>
+      </Section>
+
+      {/* Sample Data */}
+      <Section title='Sample Data' icon={<FlaskConical size={16} />}>
+        <div className='space-y-3'>
+          <p className='text-sm text-gray-400'>
+            Load sample brokers, drivers, loads, tasks, and documents to explore the app.
+            Safe to run on an empty database — skips any rows that already exist.
+          </p>
+          {seedMsg && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-orange-900/20 border border-orange-700/40 text-orange-300 rounded-lg'>
+              <CheckCircle size={13} /> {seedMsg}
+            </div>
+          )}
+          <button
+            onClick={handleSeedData}
+            disabled={seedBusy}
+            className='text-xs px-4 py-1.5 bg-surface-600 hover:bg-surface-500 border border-surface-400 text-gray-300 rounded-lg transition-colors disabled:opacity-50'
+          >
+            {seedBusy ? 'Loading…' : 'Load Sample Data'}
+          </button>
         </div>
       </Section>
 
