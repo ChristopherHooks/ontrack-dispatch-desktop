@@ -7,12 +7,18 @@ import { applyPendingRestore, stopPeriodicBackup } from './backup'
 import Store from 'electron-store'
 
 const store = new Store<{
+  // Machine-local (never synced to cloud)
   theme: string
   dataPath: string
   windowBounds: { width: number; height: number; x?: number; y?: number }
   sidebarCollapsed: boolean
   userRole: string
   pendingRestore?: string
+  // Business identity (persisted here so syncAdminUserFromStore can read them)
+  companyName?: string
+  ownerName?: string
+  ownerEmail?: string
+  defaultDispatchPct?: number
 }>({
   defaults: {
     theme: 'dark',
@@ -79,7 +85,7 @@ app.whenReady().then(() => {
   const restored = applyPendingRestore(dbPath, store as any)
   if (restored) console.log('[Main] Database restored from backup')
 
-  initDatabase(customDataPath)         // also starts periodic backup
+  initDatabase(customDataPath, store as any)  // also starts periodic backup; syncs admin user from store
   registerDbHandlers(ipcMain, store)
   startScheduler(
     () => { const { getDb } = require('./db'); return getDb() },

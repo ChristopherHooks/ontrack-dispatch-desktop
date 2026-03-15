@@ -1,4 +1,4 @@
-import { IpcMain, dialog } from 'electron'
+import { IpcMain, dialog, app } from 'electron'
 import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
 import {
@@ -23,6 +23,7 @@ import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
 import { runSeedIfEmpty, resetAndReseed } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
+import { getDashboardStats } from './dashboard'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -32,51 +33,19 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('settings:getAll', () => store.store)
 
   // -- Dashboard --
-  ipcMain.handle('dashboard:stats', () => {
-    const db = getDb()
-    const driversNeedingLoads = db.prepare(
-      "SELECT COUNT(*) AS c FROM drivers d"
-      + " WHERE d.status = 'Active'"
-      + " AND NOT EXISTS ("
-      + "   SELECT 1 FROM loads l"
-      + "   WHERE l.driver_id = d.id"
-      + "   AND l.status IN ('Booked', 'Picked Up', 'In Transit')"
-      + ")"
-    ).get()
-    const loadsInTransit = db.prepare(
-      "SELECT COUNT(*) AS c FROM loads WHERE status = 'In Transit'"
-    ).get()
-    const leadsFollowUp = db.prepare(
-      "SELECT COUNT(*) AS c FROM leads WHERE follow_up_date <= date('now') AND status NOT IN ('Signed','Rejected')"
-    ).get()
-    const outstandingInvoices = db.prepare(
-      "SELECT COUNT(*) AS c FROM invoices WHERE status IN ('Draft','Sent','Overdue')"
-    ).get()
-    const todayTasksRaw = db.prepare(
-      "SELECT * FROM tasks WHERE due_date = date('now') OR due_date = 'Daily'"
-    ).all() as any[]
-    const tMin = (s: string | null): number => {
-      if (!s) return 9999
-      const m = s.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
-      if (!m) return 9999
-      let h = parseInt(m[1])
-      const pm = m[3].toUpperCase() === 'PM'
-      if (pm && h !== 12) h += 12
-      else if (!pm && h === 12) h = 0
-      return h * 60 + parseInt(m[2])
-    }
-    const todayTasks = todayTasksRaw.sort((a, b) => tMin(a.time_of_day) - tMin(b.time_of_day))
-    return { driversNeedingLoads, loadsInTransit, leadsFollowUp, outstandingInvoices, todayTasks }
-  })
+  ipcMain.handle('dashboard:stats', () => getDashboardStats(getDb()))
 
-  ipcMain.handle('db:query', (_e, sql: string, params?: unknown[]) => {
-    try {
-      const data = getDb().prepare(sql).all(...(params ?? []))
-      return { data, error: null }
-    } catch (err) {
-      return { data: null, error: String(err) }
-    }
-  })
+  // -- Generic DB query (dev/debug only — disabled in packaged builds) --
+  if (!app.isPackaged) {
+    ipcMain.handle('db:query', (_e, sql: string, params?: unknown[]) => {
+      try {
+        const data = getDb().prepare(sql).all(...(params ?? []))
+        return { data, error: null }
+      } catch (err) {
+        return { data: null, error: String(err) }
+      }
+    })
+  }
 
   // -- Leads --
   ipcMain.handle('leads:list',         (_e, status?: string) => listLeads(getDb(), status))

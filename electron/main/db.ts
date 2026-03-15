@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import Store from 'electron-store'
 import { runMigrations } from './schema/migrations'
 import { app } from 'electron'
 import { join } from 'path'
@@ -17,7 +18,31 @@ export function getDataDir(): string {
   return _dataDir
 }
 
-export function initDatabase(customDataPath?: string): void {
+// ---------------------------------------------------------------------------
+// Sync admin user (id=1) from electron-store settings.
+// In v1 this is a no-op when store keys are not yet configured — the migration
+// seed row remains as-is. When the Settings page later persists ownerName /
+// ownerEmail, those values will win on the next launch. In v2 (new-company
+// onboarding) the first-run setup flow writes these keys before initDatabase
+// runs, so the admin user is created with the correct identity immediately.
+// ---------------------------------------------------------------------------
+function syncAdminUserFromStore(database: Database.Database, store: Store<Record<string, unknown>>): void {
+  const name  = store.get('ownerName')  as string | undefined
+  const email = store.get('ownerEmail') as string | undefined
+  if (!name && !email) return  // nothing configured yet — leave migration default
+
+  const existing = database.prepare('SELECT id FROM users WHERE id = 1').get()
+  if (!existing) {
+    database.prepare(
+      "INSERT OR IGNORE INTO users (id, name, email, role) VALUES (1, ?, ?, 'Admin')"
+    ).run(name ?? 'Admin', email ?? 'admin@local')
+  } else {
+    if (name)  database.prepare('UPDATE users SET name  = ? WHERE id = 1').run(name)
+    if (email) database.prepare('UPDATE users SET email = ? WHERE id = 1').run(email)
+  }
+}
+
+export function initDatabase(customDataPath?: string, store?: Store<Record<string, unknown>>): void {
   _dataDir = (customDataPath && customDataPath !== '')
     ? customDataPath
     : join(app.getPath('userData'), 'OnTrackDashboard')
@@ -36,6 +61,7 @@ export function initDatabase(customDataPath?: string): void {
   db.pragma('cache_size = -32000')
 
   runMigrations(db)
+  if (store) syncAdminUserFromStore(db, store)
   createBackup(db, _dataDir)           // once at startup (daily, skips if exists)
   startPeriodicBackup(getDb, getDataDir) // every 6 hours
   console.log('[DB] Initialized at:', dbPath)

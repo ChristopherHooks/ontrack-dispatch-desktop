@@ -234,10 +234,25 @@ const migration004: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 005 -- Add updated_at to notes and driver_documents
+// Required for future cloud sync / conflict resolution (last-write-wins).
+// ---------------------------------------------------------------------------
+
+const migration005: Migration = {
+  version: 5,
+  description: 'Add updated_at to notes and driver_documents for sync readiness',
+  up: (db) => {
+    addColumnIfMissing(db, 'notes',            'updated_at', "TEXT NOT NULL DEFAULT ''")
+    addColumnIfMissing(db, 'driver_documents', 'updated_at', "TEXT NOT NULL DEFAULT ''")
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (5)")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions
