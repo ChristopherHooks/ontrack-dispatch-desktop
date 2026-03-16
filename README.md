@@ -11,16 +11,17 @@ Built for **OnTrack Hauling Solutions** by Chris Hooks.
 |--------|-------------|
 | **Dashboard** | Daily KPIs: drivers needing loads, loads in transit, follow-up leads, outstanding invoices |
 | **Dispatcher** | Live driver board grouped by status with RPM, route, and broker flag coloring |
-| **Leads** | Carrier CRM with kanban, call logs, lead scoring, follow-up tracking, and FMCSA import |
+| **Leads** | Carrier CRM: kanban, call logs, lead scoring, FMCSA import, CSV/paste import, SAFER links |
 | **Drivers** | Driver profiles, CDL/insurance expiry alerts, document management |
-| **Loads** | Full dispatch lifecycle: Searching → Booked → In Transit → Delivered → Paid |
+| **Loads** | Full 7-stage dispatch lifecycle: Searching → Booked → In Transit → Delivered → Paid |
 | **Brokers** | Broker database with flag management, payment terms, performance history |
 | **Invoices** | Generate, send, and track dispatch invoices with CSV/print export |
-| **Tasks** | Daily dispatch checklist with recurring tasks and completion history |
-| **Documents** | Markdown SOP library with category management and inline viewer/editor |
+| **Tasks** | Daily dispatch checklist with recurring tasks and per-date completion history |
+| **Marketing** | Daily post workflow: suggested post, anti-repetition, variation generator, group rotation, image prompts |
+| **Documents** | Markdown SOP library: 20 comprehensive docs, category filter, folder scanning |
 | **Analytics** | Revenue, RPM, lead conversion, lane profitability, broker performance |
-| **Help** | Searchable SOPs, workflow walkthroughs, and keyboard shortcuts |
-| **Settings** | Theme, business info, backup/restore, Google Drive sync notes |
+| **Help** | Searchable SOPs, workflow walkthroughs, keyboard shortcuts, industry terms index |
+| **Settings** | Theme, business info, backup/restore, FMCSA integration, Google Drive sync notes |
 
 ---
 
@@ -93,11 +94,11 @@ All data is stored locally:
   database.db          # SQLite database (WAL mode)
   backups/             # Auto-daily + manual backups
     YYYY-MM-DD.db
-  documents/           # (reserved for future file attachments)
+  documents/           # Scanned operational documents
 ```
 
 ### Backup & Restore
-- **Auto backup**: created on launch (once per day)
+- **Auto backup**: created on launch (once per day) and every 6 hours
 - **Manual backup**: Settings → Backup & Restore → Create Backup Now
 - **Restore**: click Restore on any backup; restart app to apply
 
@@ -109,42 +110,56 @@ Move the `OnTrackDashboard/` folder into a Google Drive directory.
 
 ## Database Schema
 
-3 migrations applied automatically on startup:
+9 migrations applied automatically on startup:
 
 | Migration | Description |
 |-----------|-------------|
 | 001 | Initial schema: leads, drivers, brokers, loads, invoices, tasks, documents, users |
-| 002 | driver_documents, task_completions, notes, app_settings, backups, audit_log |
+| 002 | driver_documents, task_completions, notes, app_settings, backups, audit_log; new columns |
 | 003 | content + updated_at columns for documents table |
+| 004 | current_location column for drivers |
+| 005 | updated_at on notes and driver_documents |
+| 006 | dot_number column on leads; backfill FMCSA DOT values from mc_number |
+| 007 | fleet_size column on leads (Power Units from FMCSA SAFER) |
+| 008 | marketing_groups table (group rotation tracker) |
+| 009 | marketing_post_log table; truck_type_tags, region_tags, active columns on marketing_groups |
 
 ---
 
 ## FMCSA Lead Import
 
-OnTrack can pull carrier prospects directly from the FMCSA SAFER database and add them as leads.
-
-> **No web key yet?** The import runs automatically in **mock mode** when no key is configured — generating 14 synthetic leads so the full pipeline (UI banner, dedup, auto-refresh, timestamp) can be tested without a real API key.
+OnTrack pulls carrier prospects directly from the FMCSA SAFER database and adds them as leads.
 
 ### Setup
 
-1. **Register for a free API key** at [mobile.fmcsa.dot.gov/QCDevsite/home](https://mobile.fmcsa.dot.gov/QCDevsite/home) using your Login.gov account.
+1. Register for a free API key at [mobile.fmcsa.dot.gov/QCDevsite/home](https://mobile.fmcsa.dot.gov/QCDevsite/home) using your Login.gov account.
 2. After approval, copy your **web key** (a long alphanumeric string).
-3. In OnTrack, go to **Settings → Integrations** and paste the key. Click **Save**.
-4. Optionally update the **Search Terms** — each term triggers one API call. Defaults: `Texas, Georgia, Illinois, Tennessee, Ohio, Colorado, Arizona`.
+3. In OnTrack, go to **Settings → Integrations** and paste the key. Click Save.
+4. Optionally update the **Search Terms** — each term runs a paginated API search. Default terms target the top 8 US freight-volume states: `Texas, Georgia, Illinois, Tennessee, Ohio, Florida, Indiana, Pennsylvania`.
 
 ### Running an Import
 
-- Go to **Leads** → click **Import FMCSA Leads** (top-right toolbar button).
-- A progress banner appears while the import runs.
-- On completion, a summary shows how many leads were found, added, and skipped.
+- Go to **Leads** → click **Import FMCSA Leads** in the toolbar.
+- A progress banner appears while the import runs (typically 2-5 minutes for 8 search terms).
+- Summary shows how many leads were found, added, and skipped.
 
 ### How It Works
 
-- Searches the FMCSA QCMobile API (`/carriers/name/{term}`) for each search term.
-- Filters for carriers with **active common authority** (`commonAuthorityStatus = A`, `allowedToOperate = Y`).
-- Deduplicates by DOT number within the batch and against existing DB records (stored as `DOT-{dotNumber}` in the `mc_number` field).
-- Adds new carriers as `status = New`, `source = FMCSA`.
-- Safe to re-run — existing records are never duplicated.
+1. Searches the FMCSA QCMobile API (`/carriers/name/{term}`) for each search term, fetching up to **3 pages × 50 results = 150 carriers per term**.
+2. Filters for carriers with **active common authority** (`commonAuthorityStatus = A`, `allowedToOperate = Y`).
+3. For each qualifying carrier, fetches the public SAFER snapshot page to retrieve phone number, MCS-150 date, and fleet size (Power Units).
+4. Fetches the MC docket number — carriers without an MC docket are skipped (no operating authority for hire).
+5. **Authority age filter**: carriers with a known authority date outside the 30–180 day window are skipped. Carriers with no date are kept.
+6. Deduplicates by DOT number against existing DB records. Safe to re-run.
+7. Assigns priority: **High** = 30-180 days old AND 1-3 trucks; **Medium** = one condition met; **Low** = neither.
+
+### Clickable SAFER Links
+
+MC# and DOT# fields across the app (Leads, Drivers, Brokers, Dashboard) are clickable links. Clicking one opens the FMCSA SAFER carrier snapshot page for that carrier in your system browser.
+
+### CSV / Paste Import
+
+Leads can also be imported from a CSV file (File → Import CSV in Leads toolbar) or pasted directly from Excel/Google Sheets (Tab-separated). The importer auto-detects column headers and deduplicates by MC number.
 
 ---
 
@@ -155,6 +170,7 @@ OnTrack can pull carrier prospects directly from the FMCSA SAFER database and ad
 | `Ctrl+K` | Open global search |
 | `Esc` | Close overlay / modal / drawer |
 | `?` | Open Help center |
+| `F12` | Toggle DevTools (dev builds only) |
 
 ---
 
@@ -165,32 +181,41 @@ app/
   electron/
     main/
       index.ts            # Electron main process
-      db.ts               # SQLite init, migrations, WAL
-      ipcHandlers.ts      # All IPC handler registration
+      db.ts               # SQLite init, migrations, WAL, backup
+      ipcHandlers.ts      # All IPC handler registration (~50 channels)
       analytics.ts        # Analytics aggregation queries
-      search.ts           # Global search query
       backup.ts           # Auto + manual backup logic
-      scheduler.ts        # Background job ticker
+      dashboard.ts        # Dashboard KPI query
       dispatcherBoard.ts  # Dispatcher board SQL query
-      fmcsaApi.ts         # FMCSA QCMobile HTTP client
-      fmcsaImport.ts      # FMCSA lead import logic
+      fmcsaApi.ts         # FMCSA QCMobile HTTP client + SAFER scraper
+      fmcsaImport.ts      # FMCSA lead import pipeline
+      csvLeadImport.ts    # CSV/TSV lead import with header detection
+      loadScanner.ts      # Load recommendation engine
+      scheduler.ts        # Background job ticker
+      search.ts           # Global search query
+      seed.ts             # Dev seed data (guarded, ids start at 101)
       repositories/       # Data access layer (one file per entity)
       schema/
-        migrations.ts     # All DB migrations
+        migrations.ts     # All 9 DB migrations
     preload/
-      index.ts            # contextBridge IPC API
+      index.ts            # contextBridge IPC API (window.api)
   src/
-    pages/                # One page component per route
+    pages/                # One page component per route (12 pages)
     components/
       layout/             # AppShell, Sidebar, TopBar
       ui/                 # GlobalSearch, EmptyState
       brokers/ drivers/ leads/ loads/ invoices/ tasks/
+    lib/
+      postTemplates.ts    # 78 marketing post templates
+      marketingUtils.ts   # Anti-repetition, variations, image prompts
+      saferUrl.ts         # FMCSA SAFER URL builder
     store/
       settingsStore.ts    # Theme, sidebar, business settings
+      authStore.ts        # User session + role permissions
       uiStore.ts          # Transient UI state (global search)
     types/
       models.ts           # All domain types
-      global.d.ts         # window.api type declarations
+      global.d.ts         # window.api TypeScript declarations
     data/
       helpArticles.ts     # Static help content
 ```
@@ -199,5 +224,5 @@ app/
 
 ## Owner
 
-**Chris Hooks** — dispatch@ontrackhaulingsolutions.com  
+**Chris Hooks** — dispatch@ontrackhaulingsolutions.com
 OnTrack Hauling Solutions

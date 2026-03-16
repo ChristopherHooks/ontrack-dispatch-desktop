@@ -36,9 +36,20 @@ export interface FmcsaImportStatus {
  * Override via Settings > Integrations > Search Terms.
  */
 export const DEFAULT_SEARCH_TERMS = [
-  // High-volume freight corridor states (by annual freight tonnage)
-  'Texas', 'Georgia', 'Illinois', 'Tennessee', 'Ohio',
-  'Florida', 'Indiana', 'Pennsylvania',
+  // User's primary operating states
+  'Oklahoma', 'Arkansas', 'Alabama',
+  // Core SE / Southcentral freight corridor
+  'Texas', 'Tennessee', 'Georgia', 'Mississippi', 'Louisiana',
+  // Midwest connections into the corridor
+  'Missouri', 'Illinois', 'Indiana', 'Kentucky',
+  // Extended SE and Mid-Atlantic
+  'Ohio', 'North Carolina', 'South Carolina', 'Virginia', 'Florida',
+  // Central plains and mountain corridor (TX/OK connections)
+  'Kansas', 'Nebraska', 'Colorado',
+  // Upper Midwest (high freight tonnage)
+  'Michigan', 'Wisconsin', 'Iowa', 'Minnesota',
+  // Northeast high-volume
+  'Pennsylvania', 'New Jersey',
 ]
 
 /**
@@ -215,6 +226,7 @@ export async function importFmcsaLeads(
   webKey?:             string,
   searchTerms:         string[] = DEFAULT_SEARCH_TERMS,
   onlyNewAuthorities = true,   // when true, skip carriers outside 30–180 day window
+  targetLeads        = 30,     // stop adding once this many new leads are inserted
 ): Promise<FmcsaImportResult> {
   if (!webKey) {
     console.warn('[FMCSA] Import attempted with no web key — aborting.')
@@ -226,6 +238,15 @@ export async function importFmcsaLeads(
 
   const errors: string[] = []
   let leadsFound = 0, leadsAdded = 0, duplicatesSkipped = 0
+
+  // Carriers that passed enrichment but were outside the strict 30-180 day window.
+  // Used as a no-HTTP-call fallback if the strict pass yields 0 new leads.
+  type FallbackCarrier = {
+    name: string; city: string; state: string; dotStr: string
+    mcNumber: string; authorityDate: string | null; fleetSize: number | null
+    rawPhone: string | null
+  }
+  const fallbackCarriers: FallbackCarrier[] = []
 
   // Track DOT numbers seen this run to avoid intra-batch duplicates
   const seenDot = new Set<string>()
@@ -240,9 +261,13 @@ export async function importFmcsaLeads(
     ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
 
-  console.log('[FMCSA] Starting import with', searchTerms.length, 'search terms')
+  console.log('[FMCSA] Starting import with', searchTerms.length, 'search terms (target:', targetLeads, 'new leads)')
+
+  let reachedTarget = false
 
   for (const term of searchTerms) {
+    if (reachedTarget) break
+
     try {
       console.log('[FMCSA] Searching for term:', term)
       const carriers: ApiCarrier[] = await searchCarriersByName(webKey, term)
@@ -269,49 +294,48 @@ export async function importFmcsaLeads(
         const now   = new Date().toISOString()
 
         // ── Enrichment pass ────────────────────────────────────────────────
-        // Only called for genuinely new carriers (~20 per run after dedup).
-        // Fetches: MC/docket number + mcs150Date (authority date) + better phone.
+        // Uses allSettled so a SAFER scrape failure does not block the dockets
+        // lookup. Previously, Promise.all would throw if either call failed,
+        // leaving mcNumber = null and silently dropping valid carriers.
         let mcNumber:      string | null = null
         let authorityDate: string | null = null
         let fleetSize:     number | null = null
         // Start with the name-search telephone; enrich below if possible
         let rawPhone: string | null = c.telephone
 
-        try {
-          // getCarrierSafer scrapes the public SAFER snapshot page (same source
-          // the legacy Python scraper used) — the QC API does not reliably carry
-          // phone, authority date, or fleet size for most carriers.
-          // getCarrierDockets fetches the MC/docket number (already working).
-          const [safer, dockets] = await Promise.all([
-            getCarrierSafer(c.dotNumber),
-            getCarrierDockets(webKey, c.dotNumber),
-          ])
+        const [saferResult, docketsResult] = await Promise.allSettled([
+          getCarrierSafer(c.dotNumber),
+          getCarrierDockets(webKey, c.dotNumber),
+        ])
 
+        if (saferResult.status === 'fulfilled') {
+          const safer = saferResult.value
           // Phone from SAFER
           if (safer.phone) rawPhone = safer.phone
-
           // Authority date from SAFER MCS-150 Form Date ("MM/DD/YYYY" → "YYYY-MM-DD")
           if (safer.mcs150Date) authorityDate = parseMcs150Date(safer.mcs150Date)
-
           // Fleet size (Power Units) from SAFER
           if (safer.fleetSize !== null) fleetSize = safer.fleetSize
-
-          // First MC docket number becomes the MC# field
-          const mcDocket = dockets.find(d => d.prefix === 'MC')
-          if (mcDocket) mcNumber = 'MC-' + mcDocket.docketNumber
-
-          console.log(
-            '[FMCSA] Enriched DOT', dotStr,
-            '| MC:', mcNumber ?? 'none',
-            '| Phone:', rawPhone ?? 'none',
-            '| AuthDate:', authorityDate ?? 'none',
-            '| FleetSize:', fleetSize ?? 'unknown',
-          )
-        } catch (enrichErr) {
-          // Non-fatal — insert with whatever data we have from the search pass
-          const msg = enrichErr instanceof Error ? enrichErr.message : String(enrichErr)
-          console.warn('[FMCSA] Enrichment failed for DOT ' + dotStr + ' (non-fatal):', msg)
+        } else {
+          console.warn('[FMCSA] SAFER scrape failed for DOT ' + dotStr + ' (non-fatal):',
+            saferResult.reason instanceof Error ? saferResult.reason.message : String(saferResult.reason))
         }
+
+        if (docketsResult.status === 'fulfilled') {
+          const mcDocket = docketsResult.value.find(d => d.prefix === 'MC')
+          if (mcDocket) mcNumber = 'MC-' + mcDocket.docketNumber
+        } else {
+          console.warn('[FMCSA] Dockets lookup failed for DOT ' + dotStr + ' (non-fatal):',
+            docketsResult.reason instanceof Error ? docketsResult.reason.message : String(docketsResult.reason))
+        }
+
+        console.log(
+          '[FMCSA] Enriched DOT', dotStr,
+          '| MC:', mcNumber ?? 'none',
+          '| Phone:', rawPhone ?? 'none',
+          '| AuthDate:', authorityDate ?? 'none',
+          '| FleetSize:', fleetSize ?? 'unknown',
+        )
 
         // Skip carriers with no MC docket — they have no operating authority
         // and cannot be dispatched for hire. Also filters out private carriers.
@@ -320,10 +344,15 @@ export async function importFmcsaLeads(
         // Skip carriers outside the 30–180 day new-authority window when
         // onlyNewAuthorities is set. Carriers with no authority date are kept
         // (we cannot confirm their age, so we give them the benefit of the doubt).
+        // Carriers that fail the strict window but are within 0-365 days are cached
+        // for a fallback pass that runs only if the strict pass yields 0 new leads.
         if (onlyNewAuthorities && authorityDate !== null) {
           const age = daysSince(authorityDate)
           if (age !== null && (age < AUTHORITY_MIN_DAYS || age > AUTHORITY_MAX_DAYS)) {
             console.log('[FMCSA] Skipping DOT ' + dotStr + ' — authority age ' + age + ' days (outside 30–180 window)')
+            if (age >= 0 && age <= 365) {
+              fallbackCarriers.push({ name, city, state, dotStr, mcNumber, authorityDate, fleetSize, rawPhone })
+            }
             duplicatesSkipped++
             continue
           }
@@ -343,12 +372,40 @@ export async function importFmcsaLeads(
           'FMCSA', 'Imported from FMCSA SAFER database.', now
         )
         leadsAdded++
+
+        // Stop once the target is met — no need to exhaust all search terms
+        if (leadsAdded >= targetLeads) {
+          console.log('[FMCSA] Target of ' + targetLeads + ' new leads reached — stopping import.')
+          reachedTarget = true
+          break
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[FMCSA] Error for term "' + term + '":', msg)
       errors.push('Search "' + term + '": ' + msg)
     }
+  }
+
+  // ── Fallback pass ──────────────────────────────────────────────────────────
+  // If the strict 30-180 day window produced nothing, insert carriers already
+  // enriched this run that fall within the wider 0-365 day window.
+  // No additional HTTP calls are made — enrichment data was already fetched above.
+  if (leadsAdded === 0 && onlyNewAuthorities && fallbackCarriers.length > 0) {
+    console.log('[FMCSA] 0 leads in 30-180 day window — fallback to 0-365 day window (' + fallbackCarriers.length + ' candidates)')
+    const now = new Date().toISOString()
+    for (const fb of fallbackCarriers) {
+      if (leadsAdded >= targetLeads) break
+      const phone    = fb.rawPhone ? (formatPhone(fb.rawPhone) || null) : null
+      const priority = computePriority(fb.authorityDate, fb.fleetSize)
+      ins.run(
+        fb.name, null, phone, fb.city, fb.state,
+        fb.dotStr, fb.mcNumber, fb.authorityDate, fb.fleetSize,
+        'New', priority, 'FMCSA', 'Imported from FMCSA SAFER database.', now
+      )
+      leadsAdded++
+    }
+    if (leadsAdded > 0) console.log('[FMCSA] Fallback pass added ' + leadsAdded + ' leads (0-365 day window)')
   }
 
   console.log('[FMCSA] Import complete. Found:', leadsFound, 'Added:', leadsAdded, 'Skipped:', duplicatesSkipped)

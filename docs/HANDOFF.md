@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-03-14
+2026-03-15
 
 ## Current Branch
 
@@ -16,6 +16,47 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 14 -- Marketing Rebuild + FMCSA Improvements + SAFER Links + Docs Sweep + Glossary (complete)
+
+**Marketing tab -- full daily execution system (Marketing.tsx complete rewrite):**
+- Daily checklist: 5 tasks in localStorage keyed by date, auto-resets each day
+- Suggested post card: anti-repetition scoring (14-day rolling window + use count), offset cycling, skip
+- Variation generator: swaps opening line (OPENING_VARIANTS) and CTA (CTA_VARIANTS) for all 11 categories
+- Image prompt for every post: copy-ready AI image generation prompt matched to category
+- Mark as Used: creates marketing_post_log entry; LogForm captures groups, replies, leads, notes
+- Post history tab: lists all logged posts from DB
+- Groups tab: inline edit, truck_type_tags, active toggle, last posted display
+- Template library tab: all 78 templates with use count and recency indicator
+- Migration 009: marketing_post_log table + truck_type_tags, region_tags, active on marketing_groups
+- marketingRepo.ts rewritten: updateMarketingGroup, listPostLog, createPostLog, updatePostLog, deletePostLog, getRecentlyUsedTemplateIds, getTemplateUsageCounts
+
+**Bug fixes (user self-fixed in marketingUtils.ts):**
+- OPENING_VARIANTS expanded from 5 to all 11 categories -- no-variant case no longer falls back silently
+- isCtaLine check removed -- CTA always replaced unconditionally, fixing "variation only changes opening line"
+
+**FMCSA SAFER hyperlinks:**
+- src/lib/saferUrl.ts: builds SAFER CompanySnapshot URL for MC# and DOT# lookups
+- Wired into Leads, Drivers, Brokers, Dashboard -- clicking MC# or DOT# opens SAFER in system browser
+
+**FMCSA scraper improvements:**
+- fmcsaApi.ts: pagination via start offset (3 pages x 50 = 150 per term), 200ms delay between pages
+- fmcsaImport.ts: onlyNewAuthorities filter skips carriers outside 30-180 day authority age window
+- DEFAULT_SEARCH_TERMS updated to 8 high-volume freight corridor states (TX, GA, IL, TN, OH, FL, IN, PA)
+- AUTHORITY_MIN_DAYS and AUTHORITY_MAX_DAYS exported as constants
+
+**Industry terms glossary (new feature):**
+- src/data/industryTerms.ts: 60+ terms across 6 categories (Documents, Equipment, Regulatory, Dispatch, Rates & Freight, Business)
+- Help page: added Articles / Glossary tab switcher; Glossary tab has search, category filter, alphabetical term cards
+
+**Documentation sweep (all docs updated to current state):**
+- docs/ROADMAP.md: complete rewrite -- all Phase 1+2 marked complete, Phase 3 partially done
+- docs/PROJECT_MAP.md: full directory tree, IPC namespace table, key rules
+- docs/FEATURE_REGISTRY.md: all 21 features documented, statuses current
+- docs/ARCHITECTURE.md: full IPC channel table (~50 channels), full directory tree
+- docs/DATA_ARCHITECTURE.md: 15 tables, all 9 migrations described, all repo files listed
+- docs/DECISIONS.md: DEC-009 through DEC-013 added
+- README.md: FMCSA section updated, marketing added to features table
 
 ### Session 13 -- Document Library Expansion + Marketing Template Overhaul (complete)
 
@@ -156,17 +197,17 @@ All pages fully operational. No PagePlaceholder stubs remaining.
 
 Fully operational pages:
 - Dashboard (live KPIs + day-of-week task matching)
-- Leads (full CRM + FMCSA import + CSV/paste import + fleet size + backfill)
-- Drivers (full profile + documents)
+- Leads (full CRM + FMCSA import + CSV/paste import + fleet size + backfill + SAFER links)
+- Drivers (full profile + documents + SAFER links)
 - Loads + Dispatch Board (full lifecycle)
-- Brokers (full profile + performance)
+- Brokers (full profile + performance + SAFER links)
 - Invoices (full lifecycle + PDF/CSV/email export + delete)
 - Tasks (daily checklist + all tasks + history + full CRUD; 18 seeded task templates)
-- Settings (theme, business info, Backup & Restore, Google Drive notes, task templates, document library rebuild)
+- Settings (theme, business info, Backup & Restore, Google Drive notes, task templates, document library rebuild, FMCSA re-enrich)
 - Documents (markdown SOP library; 20 comprehensive documents after rebuild)
 - Analytics (KPIs, revenue by month/driver, lane profitability, broker volume)
-- Help (articles, keyboard shortcuts reference, search)
-- Marketing (78 post templates, daily rotation, category filters by truck type, group rotation tracker, add-to-tasks)
+- Help (articles + Glossary tab with 60+ searchable industry terms, keyboard shortcuts reference)
+- Marketing (78 post templates, daily rotation, anti-repetition, variation generator, image prompts, post history logging, group manager, all 11 categories with truck types)
 
 Global features:
 - Global search overlay (Ctrl+K)
@@ -184,10 +225,38 @@ None. Build is clean.
 
 ## Recommended Next Steps (Priority Order)
 
-1. Email/SMTP integration for invoices (replace mailto: with real send)
-2. Analytics page enhancements (more charts, date range filters)
-3. Driver document expiry notifications (push alerts, not just badge)
-4. Hotshot/specialty load board integration or direct broker contact expansion
+1. Start the outreach loop -- the app is ready. Import FMCSA leads, start calling
+2. Email/SMTP integration for invoices (replace mailto: with real send)
+3. Lane guidance tool (given driver home base + preferred lanes, surface common freight corridors)
+4. Driver document expiry push notifications (badge alerts exist, OS push does not)
+
+---
+
+## Files Touched in Most Recent Session (14)
+
+### New files:
+- src/data/industryTerms.ts
+- src/lib/saferUrl.ts
+- src/lib/marketingUtils.ts
+
+### Modified:
+- src/pages/Help.tsx -- added Glossary tab (Articles/Glossary switcher, TermCard component)
+- src/pages/Marketing.tsx -- complete rewrite (daily execution system, variation gen, post logging, group manager)
+- electron/main/repositories/marketingRepo.ts -- rewritten with post log and group update functions
+- electron/main/schema/migrations.ts -- migration 009
+- electron/main/ipcHandlers.ts -- new marketing handlers
+- electron/preload/index.ts -- extended marketing namespace
+- electron/main/fmcsaApi.ts -- pagination via start offset
+- electron/main/fmcsaImport.ts -- onlyNewAuthorities filter, updated search terms
+- src/components/leads/LeadDrawer.tsx -- SAFER links
+- src/components/leads/LeadsTable.tsx -- SAFER links
+- src/components/leads/LeadModal.tsx -- fleet_size field
+- src/components/drivers/DriverDrawer.tsx -- SAFER links
+- src/components/drivers/DriversTable.tsx -- SAFER links
+- src/components/brokers/BrokerDrawer.tsx -- SAFER links
+- src/components/brokers/BrokersTable.tsx -- SAFER links
+- src/pages/Dashboard.tsx -- SAFER links on dashboard KPI
+- docs/ROADMAP.md, PROJECT_MAP.md, FEATURE_REGISTRY.md, ARCHITECTURE.md, DATA_ARCHITECTURE.md, DECISIONS.md, README.md -- full sweep
 
 ---
 

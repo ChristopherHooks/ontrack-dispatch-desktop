@@ -81,6 +81,7 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3 whitespace-nowrap'>MC / DOT</th>
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>Phone</th>
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>Trailer</th>
+            <Th col='fleet_size' label='Fleet' />
             <Th col='authority_date' label='Auth Age' />
             <Th col='follow_up_date' label='Follow-Up' />
             <Th col='priority' label='Priority' />
@@ -91,12 +92,9 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
             {leads.map(lead => (
               <tr key={lead.id} onClick={() => onSelect(lead)} className='cursor-pointer hover:bg-surface-600/40 transition-colors group'>
                 <td className='pl-4 pr-3 py-2.5'><LeadScoreBadge lead={lead} /></td>
-                <td className='pr-3 py-2.5'>
-                  <p className='text-sm font-medium text-gray-100 truncate max-w-[180px]'>{lead.name}</p>
-                  {lead.company && <p className='text-2xs text-gray-500 truncate'>{lead.company}</p>}
-                  {lead.fleet_size != null && (
-                    <p className='text-2xs text-gray-600'>{lead.fleet_size} truck{lead.fleet_size !== 1 ? 's' : ''}</p>
-                  )}
+                <td className='pr-3 py-2.5 max-w-[260px]'>
+                  <p className='text-sm font-medium text-gray-100 break-words leading-snug' title={lead.name}>{lead.name}</p>
+                  {lead.company && <p className='text-2xs text-gray-500 truncate' title={lead.company}>{lead.company}</p>}
                 </td>
                 <td className='pr-3 py-2.5'>
                   <span className={`text-2xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[lead.status]}`}>{lead.status}</span>
@@ -118,6 +116,11 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                     : <span className='text-xs text-gray-700'>—</span>}
                 </td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-400'>{lead.trailer_type ?? '—'}</span></td>
+                <td className='pr-3 py-2.5'>
+                  {lead.fleet_size != null
+                    ? <span className='text-xs text-gray-300 font-medium'>{lead.fleet_size}T</span>
+                    : <span className='text-xs text-gray-700'>—</span>}
+                </td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-500'>{authAge(lead.authority_date)}</span></td>
                 <td className='pr-3 py-2.5'>
                   <div className={`flex items-center gap-1 text-xs ${followUpCls(lead.follow_up_date)}`}>

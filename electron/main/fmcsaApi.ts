@@ -134,7 +134,7 @@ function httpGet(url: string): Promise<Record<string, unknown>> {
 export async function searchCarriersByName(
   webKey:    string,
   name:      string,
-  maxPages = 3,        // 3 pages = up to 150 results per search term
+  maxPages = 5,        // 5 pages = up to 250 results per search term
 ): Promise<ApiCarrier[]> {
   const PAGE_SIZE = 50
   const all: ApiCarrier[] = []

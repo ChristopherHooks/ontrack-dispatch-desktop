@@ -1,5 +1,70 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-15 — Session 14: Marketing Rebuild + FMCSA Improvements + SAFER Links + Docs Sweep + Glossary
+
+### Work Completed
+
+**Marketing tab -- complete rebuild (daily execution system):**
+- Migration 009: `marketing_post_log` table (template_id, category, used_date, groups_posted_to JSON, replies_count, leads_generated, notes); `truck_type_tags`, `region_tags`, `active` columns added to `marketing_groups`
+- `marketingRepo.ts` rewritten: `updateMarketingGroup`, `listPostLog`, `createPostLog`, `updatePostLog`, `deletePostLog`, `getRecentlyUsedTemplateIds`, `getTemplateUsageCounts`
+- 6 new IPC handlers + preload wiring for post log and group update
+- `src/lib/marketingUtils.ts` (new): `selectSuggestedTemplate()` (anti-repetition scoring), `generateVariation()` (OPENING_VARIANTS + CTA_VARIANTS), `IMAGE_PROMPTS` (11 categories), `suggestGroupsForPost()`, daily task localStorage helpers
+- `Marketing.tsx` complete rewrite: daily checklist, suggested post card with variation/skip/mark-used, LogForm, post history tab, group manager tab with inline edit, template library tab with use counts
+
+**Marketing bug fixes (self-fixed by user in marketingUtils.ts):**
+- Expanded `OPENING_VARIANTS` to cover all 11 `PostCategory` values (was 5)
+- Removed `isCtaLine` conditional — CTA always replaced unconditionally
+
+**FMCSA SAFER hyperlinks:**
+- `src/lib/saferUrl.ts` (new): `saferMcUrl(mc)` and `saferDotUrl(dot)` build SAFER CompanySnapshot URLs
+- Wired into: LeadsTable, LeadDrawer, DriversTable, DriverDrawer, BrokersTable, BrokerDrawer, Dashboard
+- `window.api.shell.openExternal()` opens links in system browser
+
+**FMCSA scraper improvements:**
+- `fmcsaApi.ts`: pagination via `start` offset parameter (3 pages x 50 = up to 150/term), 200ms between pages, early stop when page < 50 results
+- `fmcsaImport.ts`: `onlyNewAuthorities = true` parameter; skips carriers with authority date outside 30-180 days
+- `DEFAULT_SEARCH_TERMS` updated: TX, GA, IL, TN, OH, FL, IN, PA (top US freight-volume corridor states)
+
+**Industry terms glossary (new feature):**
+- `src/data/industryTerms.ts` (new): 60+ terms, 6 categories (Documents, Equipment, Regulatory, Dispatch, Rates & Freight, Business), plain-English definitions
+- `Help.tsx` updated: Articles / Glossary tab switcher; Glossary tab: search box, category filter pills, alphabetical `TermCard` list with category color badges
+
+**Documentation sweep (complete):**
+- `docs/ROADMAP.md`: full rewrite, all Phase 1+2 complete, Phase 3 documented
+- `docs/PROJECT_MAP.md`: full directory tree, complete IPC namespace table
+- `docs/FEATURE_REGISTRY.md`: all 21 features with current status and key files
+- `docs/ARCHITECTURE.md`: full IPC channel table, full directory tree, updated schema section
+- `docs/DATA_ARCHITECTURE.md`: 15 tables, all 9 migrations, all repos, updated seed function list
+- `docs/DECISIONS.md`: DEC-009 through DEC-013 added
+- `README.md`: FMCSA section updated, Marketing added to features table
+
+### Files Created (3)
+- src/data/industryTerms.ts
+- src/lib/saferUrl.ts
+- src/lib/marketingUtils.ts
+
+### Files Modified (18+)
+- src/pages/Help.tsx, src/pages/Marketing.tsx
+- electron/main/repositories/marketingRepo.ts
+- electron/main/schema/migrations.ts
+- electron/main/ipcHandlers.ts, electron/preload/index.ts
+- electron/main/fmcsaApi.ts, electron/main/fmcsaImport.ts
+- src/components/leads/LeadDrawer.tsx, LeadsTable.tsx, LeadModal.tsx
+- src/components/drivers/DriverDrawer.tsx, DriversTable.tsx
+- src/components/brokers/BrokerDrawer.tsx, BrokersTable.tsx
+- src/pages/Dashboard.tsx
+- docs/ROADMAP.md, PROJECT_MAP.md, FEATURE_REGISTRY.md, ARCHITECTURE.md, DATA_ARCHITECTURE.md, DECISIONS.md, README.md
+
+### App State at End of Session
+- Marketing: fully operational daily execution system (post selection, variations, logging, groups)
+- Help: Glossary tab with 60+ searchable industry terms
+- SAFER links: live on all MC# and DOT# fields across the app
+- FMCSA scraper: targets new authorities 30-180 days old in high-volume freight zones
+- All docs: current as of 2026-03-15
+- Build: clean
+
+---
+
 ## 2026-03-14 — Session 13: Document Library Expansion + Marketing Template Overhaul
 
 ### Work Completed

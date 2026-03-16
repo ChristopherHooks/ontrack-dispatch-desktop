@@ -7,7 +7,7 @@
 export type UserRole        = "Admin" | "Dispatcher" | "Sales"
 export type ThemePreference = "dark" | "light" | "system"
 
-export type LeadStatus   = "New" | "Contacted" | "Interested" | "Signed" | "Rejected"
+export type LeadStatus   = "New" | "Contacted" | "Interested" | "Signed" | "Rejected" | "Inactive MC"
 export type LeadPriority = "High" | "Medium" | "Low"
 
 export type DriverStatus  = "Active" | "Inactive" | "On Load"

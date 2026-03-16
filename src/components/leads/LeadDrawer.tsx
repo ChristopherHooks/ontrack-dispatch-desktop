@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react'
-import { X, Phone, Mail, MapPin, Truck, Calendar, Tag, Edit2, Trash2,
-         Plus, PhoneCall, ChevronDown, AlertTriangle } from 'lucide-react'
-import type { Lead, LeadStatus, Note } from '../../types/models'
+import { useState, useEffect, useRef } from 'react'
+import { X, Phone, Mail, MapPin, Truck, Calendar, Tag, Trash2,
+         Plus, PhoneCall, ChevronDown, AlertTriangle, Check } from 'lucide-react'
+import type { Lead, LeadStatus, LeadPriority, Note } from '../../types/models'
 import { LeadScoreBadge } from './LeadScoreBadge'
 import { computeLeadScore } from '../../lib/leadScore'
-import { STATUS_STYLES, PRIORITY_STYLES, STATUSES } from './constants'
+import { STATUS_STYLES, STATUS_DOTS, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES } from './constants'
 import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
 
 interface Props {
   lead:           Lead
   onClose:        () => void
   onEdit:         (l: Lead) => void
+  onUpdate:       (l: Lead) => void
   onStatusChange: (l: Lead, s: LeadStatus) => void
   onDelete:       (l: Lead) => void
 }
@@ -48,7 +49,111 @@ function Row({ icon, label, value, mono = false }: { icon: React.ReactNode; labe
   )
 }
 
-export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: Props) {
+// Inline text input that activates on click
+function InlineText({ icon, label, value, placeholder, mono = false, onSave }:
+  { icon: React.ReactNode; label: string; value: string | null; placeholder: string; mono?: boolean; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft]     = useState(value ?? '')
+  const inputRef              = useRef<HTMLInputElement>(null)
+
+  const activate = () => { setDraft(value ?? ''); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }
+  const commit   = () => { setEditing(false); if (draft !== (value ?? '')) onSave(draft) }
+  const cancel   = () => { setEditing(false); setDraft(value ?? '') }
+
+  return (
+    <div className='flex items-start gap-2.5'>
+      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <div className='flex-1 min-w-0'>
+        <p className='text-2xs text-gray-600'>{label}</p>
+        {editing ? (
+          <div className='flex items-center gap-1 mt-0.5'>
+            <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
+              className='flex-1 min-w-0 bg-surface-600 border border-orange-600/50 rounded px-2 py-0.5 text-sm text-gray-100 outline-none font-mono' />
+          </div>
+        ) : (
+          <button onClick={activate}
+            className={`text-sm text-left w-full text-gray-300 hover:text-orange-300 transition-colors group ${mono ? 'font-mono' : ''}`}
+            title='Click to edit'>
+            <span>{value || <span className='text-gray-600 italic'>{placeholder}</span>}</span>
+            <span className='ml-1 opacity-0 group-hover:opacity-60 text-2xs text-orange-500'>[edit]</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Inline date picker
+function InlineDate({ icon, label, value, onSave }:
+  { icon: React.ReactNode; label: string; value: string | null; onSave: (v: string | null) => void }) {
+  const [editing, setEditing] = useState(false)
+  const inputRef              = useRef<HTMLInputElement>(null)
+
+  const activate = () => { setEditing(true); setTimeout(() => inputRef.current?.showPicker?.(), 50) }
+  const commit   = (v: string) => { setEditing(false); onSave(v || null) }
+  const cancel   = () => setEditing(false)
+
+  return (
+    <div className='flex items-start gap-2.5'>
+      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <div className='flex-1 min-w-0'>
+        <p className='text-2xs text-gray-600'>{label}</p>
+        {editing ? (
+          <input ref={inputRef} type='date' defaultValue={value ?? ''}
+            onChange={e => commit(e.target.value)}
+            onBlur={cancel}
+            onKeyDown={e => { if (e.key === 'Escape') cancel() }}
+            className='bg-surface-600 border border-orange-600/50 rounded px-2 py-0.5 text-sm text-gray-100 outline-none' />
+        ) : (
+          <button onClick={activate}
+            className='text-sm text-left text-gray-300 hover:text-orange-300 transition-colors group'
+            title='Click to change date'>
+            <span>{value ? fmtDate(value) : <span className='text-gray-600 italic'>Set date</span>}</span>
+            <span className='ml-1 opacity-0 group-hover:opacity-60 text-2xs text-orange-500'>[edit]</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Inline select
+function InlineSelect({ icon, label, value, options, onSave }:
+  { icon: React.ReactNode; label: string; value: string | null; options: string[]; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const selectRef             = useRef<HTMLSelectElement>(null)
+
+  const activate = () => { setEditing(true); setTimeout(() => selectRef.current?.focus(), 0) }
+
+  return (
+    <div className='flex items-start gap-2.5'>
+      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <div className='flex-1 min-w-0'>
+        <p className='text-2xs text-gray-600'>{label}</p>
+        {editing ? (
+          <select ref={selectRef} defaultValue={value ?? ''}
+            onChange={e => { onSave(e.target.value); setEditing(false) }}
+            onBlur={() => setEditing(false)}
+            className='bg-surface-600 border border-orange-600/50 rounded px-1 py-0.5 text-sm text-gray-100 outline-none w-full'>
+            <option value=''>— none —</option>
+            {options.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <button onClick={activate}
+            className='text-sm text-left text-gray-300 hover:text-orange-300 transition-colors group w-full'
+            title='Click to change'>
+            <span>{value || <span className='text-gray-600 italic'>Not set</span>}</span>
+            <span className='ml-1 opacity-0 group-hover:opacity-60 text-2xs text-orange-500'>[edit]</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, onDelete }: Props) {
   const [notes, setNotes]           = useState<Note[]>([])
   const [calls, setCalls]           = useState<CallEntry[]>([])
   const [noteText, setNoteText]     = useState('')
@@ -57,6 +162,8 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
   const [callForm, setCallForm]     = useState({ type: 'Call', outcome: 'Answered', duration: '', summary: '' })
   const [showScore, setShowScore]   = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
+  const [priorityOpen, setPriorityOpen] = useState(false)
   const { total, grade, factors }   = computeLeadScore(lead)
 
   useEffect(() => {
@@ -71,6 +178,19 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
       }))
     })
   }, [lead.id])
+
+  // Close status/priority dropdowns when clicking outside
+  useEffect(() => {
+    if (!statusOpen && !priorityOpen) return
+    const handler = () => { setStatusOpen(false); setPriorityOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [statusOpen, priorityOpen])
+
+  const saveField = async (field: string, value: string | null) => {
+    const updated = await window.api.leads.update(lead.id, { [field]: value })
+    if (updated) onUpdate(updated)
+  }
 
   const addNote = async () => {
     if (!noteText.trim()) return
@@ -109,8 +229,51 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
             </div>
             {lead.company && <p className='text-sm text-gray-500 truncate'>{lead.company}</p>}
             <div className='flex items-center gap-2 mt-2'>
-              <span className={`text-2xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[lead.status]}`}>{lead.status}</span>
-              <span className={`text-2xs px-1.5 py-0.5 rounded-full ${PRIORITY_STYLES[lead.priority]}`}>{lead.priority}</span>
+
+              {/* Inline status selector */}
+              <div className='relative' onMouseDown={e => e.stopPropagation()}>
+                <button
+                  onClick={() => { setStatusOpen(v => !v); setPriorityOpen(false) }}
+                  className={`flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full border transition-colors hover:opacity-80 ${STATUS_STYLES[lead.status]}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOTS[lead.status]}`} />
+                  {lead.status}
+                  <ChevronDown size={9} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {statusOpen && (
+                  <div className='absolute top-full left-0 mt-1 bg-surface-700 border border-surface-400 rounded-lg shadow-xl z-10 py-1 min-w-[140px]'>
+                    {STATUSES.map(s => (
+                      <button key={s} onClick={() => { onStatusChange(lead, s); setStatusOpen(false) }}
+                        className='flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-surface-600 hover:text-gray-100 transition-colors text-left'>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOTS[s]}`} />
+                        {s}
+                        {s === lead.status && <Check size={10} className='ml-auto text-orange-400' />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Inline priority selector */}
+              <div className='relative' onMouseDown={e => e.stopPropagation()}>
+                <button
+                  onClick={() => { setPriorityOpen(v => !v); setStatusOpen(false) }}
+                  className={`flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded-full transition-colors hover:opacity-80 ${PRIORITY_STYLES[lead.priority]}`}>
+                  {lead.priority}
+                  <ChevronDown size={9} className={`transition-transform ${priorityOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {priorityOpen && (
+                  <div className='absolute top-full left-0 mt-1 bg-surface-700 border border-surface-400 rounded-lg shadow-xl z-10 py-1 min-w-[110px]'>
+                    {PRIORITIES.map(p => (
+                      <button key={p} onClick={() => { saveField('priority', p); setPriorityOpen(false) }}
+                        className='flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-surface-600 hover:text-gray-100 transition-colors text-left'>
+                        {p}
+                        {p === lead.priority && <Check size={10} className='ml-auto text-orange-400' />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
           <button onClick={onClose} className='p-1.5 rounded-lg hover:bg-surface-600 text-gray-500 hover:text-gray-300 ml-3 shrink-0'><X size={16} /></button>
@@ -121,11 +284,8 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
 
           {/* Action bar */}
           <div className='flex items-center gap-1.5 px-5 py-3 border-b border-surface-600 flex-wrap shrink-0'>
-            <button onClick={() => onEdit(lead)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Edit2 size={11} /> Edit</button>
             {lead.phone && <a href={`tel:${lead.phone}`} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Phone size={11} /> Call</a>}
-            {STATUSES.filter(s => s !== lead.status).slice(0, 3).map(s => (
-              <button key={s} onClick={() => onStatusChange(lead, s)} className='px-2 h-7 text-2xs text-gray-600 hover:text-orange-400 rounded hover:bg-surface-600 transition-colors'>→ {s}</button>
-            ))}
+            <button onClick={() => onEdit(lead)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'>Full Edit</button>
             <div className='flex-1' />
             {!confirmDel
               ? <button onClick={() => setConfirmDel(true)} className='p-1.5 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-colors'><Trash2 size={13} /></button>
@@ -149,10 +309,12 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
           <div className='px-5 py-4 border-b border-surface-600'>
             <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>Contact</p>
             <div className='grid grid-cols-2 gap-3'>
-              {lead.phone && <Row icon={<Phone size={12} />} label='Phone' value={lead.phone} />}
+              <InlineText icon={<Phone size={12} />} label='Phone' value={lead.phone} placeholder='Add phone'
+                onSave={v => saveField('phone', v || null)} />
               {lead.email && <Row icon={<Mail size={12} />} label='Email' value={lead.email} />}
               {location   && <Row icon={<MapPin size={12} />} label='Location' value={location} />}
-              {lead.trailer_type && <Row icon={<Truck size={12} />} label='Trailer' value={lead.trailer_type} />}
+              <InlineSelect icon={<Truck size={12} />} label='Trailer' value={lead.trailer_type}
+                options={TRAILER_TYPES} onSave={v => saveField('trailer_type', v || null)} />
               {lead.fleet_size != null && (
                 <Row icon={<Truck size={12} />} label='Fleet Size'
                   value={lead.fleet_size + ' truck' + (lead.fleet_size !== 1 ? 's' : '')} />
@@ -180,8 +342,9 @@ export function LeadDrawer({ lead, onClose, onEdit, onStatusChange, onDelete }: 
                 </div>
               )}
               <Row icon={<Calendar size={12} />} label='Authority Age' value={authAge(lead.authority_date)} />
-              {lead.source       && <Row icon={<Tag size={12} />} label='Source' value={lead.source} />}
-              {lead.follow_up_date && <Row icon={<Calendar size={12} />} label='Follow-Up' value={fmtDate(lead.follow_up_date)} />}
+              {lead.source && <Row icon={<Tag size={12} />} label='Source' value={lead.source} />}
+              <InlineDate icon={<Calendar size={12} />} label='Follow-Up'
+                value={lead.follow_up_date} onSave={v => saveField('follow_up_date', v)} />
             </div>
           </div>
 

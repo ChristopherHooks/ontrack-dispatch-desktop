@@ -133,15 +133,13 @@ export function Leads() {
       // Authority date: sort by age (ascending = youngest/least-aged first = most recent date first).
       // Nulls always go last regardless of direction.
       if (sortKey === 'authority_date') {
-        const av = a.authority_date ?? ''
-        const bv = b.authority_date ?? ''
-        if (!av && !bv) return 0
-        if (!av) return 1
-        if (!bv) return -1
-        // Invert date comparison so "ascending age" = newest date first
-        return sortDir === 'asc'
-          ? bv.localeCompare(av)
-          : av.localeCompare(bv)
+        const at = a.authority_date ? new Date(a.authority_date.trim()).getTime() : null
+        const bt = b.authority_date ? new Date(b.authority_date.trim()).getTime() : null
+        if (at === null && bt === null) return 0
+        if (at === null) return 1   // nulls last
+        if (bt === null) return -1  // nulls last
+        // asc = youngest (largest timestamp) first
+        return sortDir === 'asc' ? bt - at : at - bt
       }
       const av = a[sortKey] ?? ''
       const bv = b[sortKey] ?? ''
@@ -266,6 +264,10 @@ export function Leads() {
           lead={selected}
           onClose={() => setSelected(null)}
           onEdit={openEdit}
+          onUpdate={updated => {
+            setLeads(p => p.map(l => l.id === updated.id ? updated : l))
+            setSelected(updated)
+          }}
           onStatusChange={handleStatusChange}
           onDelete={handleDelete}
         />

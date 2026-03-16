@@ -18,6 +18,8 @@ function esc(s: string) {
 }
 function inline(s: string) {
   return s
+    // [[Document Title]] → clickable cross-reference (processed before bold/italic)
+    .replace(/\[\[(.+?)\]\]/g, '<a data-doc-link="$1" class="text-orange-400 hover:text-orange-300 underline cursor-pointer font-medium">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-100 font-semibold">$1</strong>')
     .replace(/\*(.+?)\*/g,     '<em class="text-gray-400">$1</em>')
     .replace(/`(.+?)`/g,       '<code class="bg-surface-600 text-orange-300 px-1 rounded text-xs font-mono">$1</code>')
@@ -209,7 +211,24 @@ export function Documents() {
             </div>
             <div className='flex-1 overflow-y-auto px-6 py-5'>
               {selected.content ? (
-                <div dangerouslySetInnerHTML={{ __html: renderMd(selected.content) }} />
+                <div
+                  dangerouslySetInnerHTML={{ __html: renderMd(selected.content) }}
+                  onClick={async (e) => {
+                    const el = e.target as HTMLElement
+                    const title = el.getAttribute('data-doc-link')
+                    if (!title) return
+                    e.preventDefault()
+                    // Fast path: doc is already in the current filtered list
+                    const found = docs.find(d => d.title.toLowerCase() === title.toLowerCase())
+                    if (found) { setSelected(found); setEditing(false); setCreating(false); return }
+                    // Cross-category link: fetch all docs, switch to All category, then navigate
+                    try {
+                      const all = await window.api.documents.list()
+                      const target = all.find((d: SopDocument) => d.title.toLowerCase() === title.toLowerCase())
+                      if (target) { setCategory('All'); setSearch(''); setSelected(target); setEditing(false); setCreating(false) }
+                    } catch {}
+                  }}
+                />
               ) : (
                 <p className='text-sm text-gray-600 italic'>No content. Click Edit to add content.</p>
               )}
