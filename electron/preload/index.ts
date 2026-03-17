@@ -142,7 +142,8 @@ contextBridge.exposeInMainWorld('api', {
     create: (dto: unknown) => ipcRenderer.invoke('documents:create', dto),
     update: (id: number, dto: unknown) => ipcRenderer.invoke('documents:update', id, dto),
     delete: (id: number) => ipcRenderer.invoke('documents:delete', id),
-    search: (query: string) => ipcRenderer.invoke('documents:search', query),
+    search:  (query: string) => ipcRenderer.invoke('documents:search', query),
+    popout:  (id: number)    => ipcRenderer.invoke('documents:popout', id),
   },
 
   // -- Analytics --

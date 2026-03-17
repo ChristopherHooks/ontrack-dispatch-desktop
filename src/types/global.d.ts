@@ -142,6 +142,7 @@ declare global {
         update: (id: number, dto: UpdateSopDocumentDto) => Promise<SopDocument | undefined>
         delete: (id: number) => Promise<boolean>
         search: (query: string) => Promise<SopDocument[]>
+        popout: (id: number)    => Promise<void>
       }
       analytics: {
         stats: () => Promise<AnalyticsStats>

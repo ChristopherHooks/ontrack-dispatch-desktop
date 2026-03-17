@@ -166,7 +166,14 @@ export function Leads() {
     if (filters.warm)          r = r.filter(l => l.status === 'Interested' || l.status === 'Call Back Later')
     if (filters.untouched)     r = r.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0)
 
+    const INACTIVE_STATUSES = new Set(['Not Interested', 'Bad Fit', 'Rejected', 'Inactive MC'])
+
     return [...r].sort((a, b) => {
+      // Inactive statuses always sort to the bottom regardless of active sort column
+      const aInactive = INACTIVE_STATUSES.has(a.status) ? 1 : 0
+      const bInactive = INACTIVE_STATUSES.has(b.status) ? 1 : 0
+      if (aInactive !== bInactive) return aInactive - bInactive
+
       // Authority date: sort by age (ascending = youngest/least-aged first = most recent date first).
       // Nulls always go last regardless of direction.
       if (sortKey === 'authority_date') {
@@ -306,6 +313,7 @@ export function Leads() {
             onSelect={setSelected}
             onEdit={openEdit}
             onDelete={handleDelete}
+            onStatusChange={handleStatusChange}
           />
         : <LeadsKanban
             leads={filtered}  loading={loading}

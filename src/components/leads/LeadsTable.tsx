@@ -1,21 +1,22 @@
 import { ChevronUp, ChevronDown, Phone, Edit2, Trash2, Calendar } from 'lucide-react'
-import type { Lead } from '../../types/models'
+import type { Lead, LeadStatus } from '../../types/models'
 import { LeadScoreBadge } from './LeadScoreBadge'
-import { STATUS_STYLES, PRIORITY_STYLES } from './constants'
+import { STATUS_STYLES, PRIORITY_STYLES, STATUSES } from './constants'
 import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
 
 type SortKey = keyof Lead
 type SortDir = 'asc' | 'desc'
 
 interface Props {
-  leads:    Lead[]
-  loading:  boolean
-  sortKey:  SortKey
-  sortDir:  SortDir
-  onSort:   (key: SortKey) => void
-  onSelect: (lead: Lead) => void
-  onEdit:   (lead: Lead) => void
-  onDelete: (lead: Lead) => void
+  leads:          Lead[]
+  loading:        boolean
+  sortKey:        SortKey
+  sortDir:        SortDir
+  onSort:         (key: SortKey) => void
+  onSelect:       (lead: Lead) => void
+  onEdit:         (lead: Lead) => void
+  onDelete:       (lead: Lead) => void
+  onStatusChange: (lead: Lead, status: LeadStatus) => void
 }
 
 const fmtDate = (d: string | null) => {
@@ -38,7 +39,7 @@ const authAge = (d: string | null) => {
 
 const SKELS = [0, 1, 2, 3, 4, 5]
 
-export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect, onEdit, onDelete }: Props) {
+export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect, onEdit, onDelete, onStatusChange }: Props) {
   function Th({ col, label, cls = '' }: { col: SortKey; label: string; cls?: string }) {
     const on = col === sortKey
     return (
@@ -96,8 +97,15 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                   <p className='text-sm font-medium text-gray-100 break-words leading-snug' title={lead.name}>{lead.name}</p>
                   {lead.company && <p className='text-2xs text-gray-500 truncate' title={lead.company}>{lead.company}</p>}
                 </td>
-                <td className='pr-3 py-2.5'>
-                  <span className={`text-2xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[lead.status]}`}>{lead.status}</span>
+                <td className='pr-3 py-2.5' onClick={e => e.stopPropagation()}>
+                  <select
+                    value={lead.status}
+                    onChange={e => onStatusChange(lead, e.target.value as LeadStatus)}
+                    title='Change status'
+                    className={`appearance-none text-2xs px-2 py-0.5 rounded-full border cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-600/40 ${STATUS_STYLES[lead.status]}`}
+                  >
+                    {STATUSES.map(s => <option key={s} value={s} className='bg-surface-700 text-gray-200'>{s}</option>)}
+                  </select>
                 </td>
                 <td className='pr-3 py-2.5'>
                   {lead.mc_number

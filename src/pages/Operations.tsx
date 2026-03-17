@@ -11,7 +11,7 @@ import { openSaferMc, openSaferDot } from '../lib/saferUrl'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import type {
-  Task, Driver, Load, Lead, CheckCallRow,
+  Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
   OperationsData, DriverOpportunity, LeadHeat, GroupPerformance, BrokerLane, ProfitRadarData,
 } from '../types/models'
 
@@ -169,6 +169,11 @@ export function Operations() {
     ops.completedToday.includes(t.id) || t.status === 'Done'
   ).length
 
+  const handleLeadStatusChange = async (leadId: number, status: LeadStatus) => {
+    const updated = await window.api.leads.update(leadId, { status })
+    if (updated) setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status } : l))
+  }
+
   return (
     <div className='space-y-6 max-w-6xl animate-fade-in'>
 
@@ -180,12 +185,12 @@ export function Operations() {
 
       {/* Briefing strip — 6 KPI cards */}
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
-        <KpiCard label='FB Inquiries'    value={loading ? '—' : String(ops.fbConvNew)}           icon={<MessageSquare size={16}/>} accent={ops.fbConvNew > 0}           sub='new / needing reply'   />
-        <KpiCard label='Loads In Transit' value={loading ? '—' : String(ops.loadsInTransit)}     icon={<Package size={16}/>}       accent={false}                        sub='currently moving'      />
-        <KpiCard label='Drivers Avail.'  value={loading ? '—' : String(ops.driversNeedingLoads)} icon={<Truck size={16}/>}         accent={ops.driversNeedingLoads > 0}  sub='need loads today'      />
-        <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'    />
-        <KpiCard label='Groups to Post'  value={loading ? '—' : String(ops.todaysGroupCount)}    icon={<Megaphone size={16}/>}     accent={false}                        sub='eligible today'        />
-        <KpiCard label='Open Invoices'   value={loading ? '—' : String(ops.outstandingInvoices)} icon={<FileText size={16}/>}      accent={ops.outstandingInvoices > 0}  sub='draft / sent / overdue' />
+        <KpiCard label='FB Inquiries'    value={loading ? '—' : String(ops.fbConvNew)}           icon={<MessageSquare size={16}/>} accent={ops.fbConvNew > 0}           sub='new / needing reply'    onClick={() => navigate('/facebook')}  />
+        <KpiCard label='Loads In Transit' value={loading ? '—' : String(ops.loadsInTransit)}     icon={<Package size={16}/>}       accent={false}                        sub='currently moving'       onClick={() => navigate('/loads')}     />
+        <KpiCard label='Drivers Avail.'  value={loading ? '—' : String(ops.driversNeedingLoads)} icon={<Truck size={16}/>}         accent={ops.driversNeedingLoads > 0}  sub='need loads today'       onClick={() => navigate('/drivers')}   />
+        <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'     onClick={() => navigate('/leads')}     />
+        <KpiCard label='Groups to Post'  value={loading ? '—' : String(ops.todaysGroupCount)}    icon={<Megaphone size={16}/>}     accent={false}                        sub='eligible today'         onClick={() => navigate('/marketing')} />
+        <KpiCard label='Open Invoices'   value={loading ? '—' : String(ops.outstandingInvoices)} icon={<FileText size={16}/>}      accent={ops.outstandingInvoices > 0}  sub='draft / sent / overdue' onClick={() => navigate('/invoices')}  />
       </div>
 
       {/* Upcoming Check Calls — only rendered when active loads have events */}
@@ -581,7 +586,7 @@ export function Operations() {
         ) : (
           <div className='divide-y divide-surface-600'>
             {topLeads.map((lead, i) => (
-              <TopLeadRow key={lead.id} rank={i + 1} lead={lead} />
+              <TopLeadRow key={lead.id} rank={i + 1} lead={lead} onStatusChange={handleLeadStatusChange} />
             ))}
           </div>
         )}
@@ -597,17 +602,18 @@ export function Operations() {
 // KPI Card
 // ---------------------------------------------------------------------------
 
-function KpiCard({ label, value, icon, accent = false, sub }: {
-  label: string; value: string; icon: React.ReactNode; accent?: boolean; sub?: string
+function KpiCard({ label, value, icon, accent = false, sub, onClick }: {
+  label: string; value: string; icon: React.ReactNode; accent?: boolean; sub?: string; onClick?: () => void
 }) {
   return (
-    <div className={['bg-surface-700 rounded-xl border p-4 shadow-card hover:shadow-card-hover transition-shadow',
-      accent ? 'border-orange-600/40' : 'border-surface-400'].join(' ')}>
+    <button onClick={onClick}
+      className={['w-full text-left bg-surface-700 rounded-xl border p-4 shadow-card hover:shadow-card-hover hover:bg-surface-600 transition-all',
+        accent ? 'border-orange-600/40' : 'border-surface-400'].join(' ')}>
       <div className={['mb-1.5', accent ? 'text-orange-500' : 'text-gray-500'].join(' ')}>{icon}</div>
       <p className='text-2xl font-bold text-gray-100'>{value}</p>
       <p className='text-xs text-gray-400 mt-0.5 leading-tight'>{label}</p>
       {sub && <p className='text-2xs text-gray-600 mt-0.5 leading-tight'>{sub}</p>}
-    </div>
+    </button>
   )
 }
 
@@ -716,19 +722,59 @@ function TaskRow({ task, initialDone, todayIso, onDocLink }: {
 // Top Lead Row
 // ---------------------------------------------------------------------------
 
-function TopLeadRow({ rank, lead }: { rank: number; lead: ScoredLead }) {
+const LEAD_STATUS_OPTIONS: LeadStatus[] = [
+  'New', 'Attempted', 'Contacted', 'Interested', 'Call Back Later',
+  'Not Interested', 'Bad Fit', 'Converted',
+]
+
+const STATUS_CLS: Record<string, string> = {
+  New:             'text-blue-400',
+  Attempted:       'text-gray-400',
+  Contacted:       'text-yellow-500',
+  Interested:      'text-green-400',
+  'Call Back Later': 'text-sky-400',
+  'Not Interested':  'text-gray-500',
+  'Bad Fit':         'text-gray-500',
+  Converted:         'text-emerald-400',
+  Signed:            'text-orange-400',
+  Rejected:          'text-gray-600',
+  'Inactive MC':     'text-gray-600',
+}
+
+function TopLeadRow({ rank, lead, onStatusChange }: {
+  rank:           number
+  lead:           ScoredLead
+  onStatusChange: (id: number, status: LeadStatus) => Promise<void>
+}) {
+  const [currentStatus, setCurrentStatus] = useState<LeadStatus>(lead.status as LeadStatus)
+  const [saving, setSaving] = useState(false)
+
   const gradeCls =
     lead._grade === 'Hot'  ? 'bg-orange-900/40 text-orange-400 border-orange-700/40' :
     lead._grade === 'Warm' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-700/30' :
                              'bg-surface-600 text-gray-500 border-surface-500'
 
-  const statusCls: Record<string, string> = {
-    New: 'text-blue-400', Contacted: 'text-yellow-500',
-    Interested: 'text-green-400', Signed: 'text-orange-400', Rejected: 'text-gray-600',
-  }
-
   const identifier = lead.mc_number ?? (lead.dot_number ? 'DOT-' + lead.dot_number : null)
   const location   = [lead.city, lead.state].filter(Boolean).join(', ')
+
+  // Include legacy status in options if the lead currently has one
+  const options = LEAD_STATUS_OPTIONS.includes(currentStatus)
+    ? LEAD_STATUS_OPTIONS
+    : [...LEAD_STATUS_OPTIONS, currentStatus]
+
+  async function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = e.target.value as LeadStatus
+    const prev = currentStatus
+    setCurrentStatus(next)  // optimistic
+    setSaving(true)
+    try {
+      await onStatusChange(lead.id, next)
+    } catch {
+      setCurrentStatus(prev)  // revert on failure
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className='flex items-center gap-3 py-2.5'>
@@ -739,7 +785,15 @@ function TopLeadRow({ rank, lead }: { rank: number; lead: ScoredLead }) {
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-1.5 flex-wrap'>
           <p className='text-xs font-medium text-gray-200 truncate'>{lead.name}</p>
-          <span className={`text-2xs shrink-0 ${statusCls[lead.status] ?? 'text-gray-500'}`}>{lead.status}</span>
+          <select
+            value={currentStatus}
+            onChange={handleStatusChange}
+            disabled={saving}
+            title='Change lead status'
+            className={`text-2xs bg-transparent border-0 p-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-600/40 rounded disabled:opacity-50 ${STATUS_CLS[currentStatus] ?? 'text-gray-500'}`}
+          >
+            {options.map(s => <option key={s} value={s} className='bg-surface-700 text-gray-200'>{s}</option>)}
+          </select>
           {lead._overdue  && <span className='text-2xs text-red-400 shrink-0'>● overdue</span>}
           {lead._dueToday && !lead._overdue && <span className='text-2xs text-orange-400 shrink-0'>● today</span>}
         </div>

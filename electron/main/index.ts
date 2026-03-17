@@ -154,6 +154,32 @@ app.whenReady().then(() => {
   }
 
   registerDbHandlers(ipcMain, store)
+
+  // Pop-out document viewer — opens a minimal borderless window for a single doc
+  ipcMain.handle('documents:popout', (_e, id: number) => {
+    const win = new BrowserWindow({
+      width: 700,
+      height: 860,
+      minWidth: 500,
+      minHeight: 400,
+      autoHideMenuBar: true,
+      backgroundColor: '#141416',
+      title: 'OnTrack — Document',
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+    win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' } })
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      win.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/popout/' + id)
+    } else {
+      win.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/popout/' + id })
+    }
+  })
+
   startScheduler(
     () => { const { getDb } = require('./db'); return getDb() },
     (key) => store.get(key as any),

@@ -48,7 +48,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
 import { Operations }      from './pages/Operations'
 import { LoadMatch }       from './pages/LoadMatch'
 import { ActiveLoads }     from './pages/ActiveLoads'
-import { Dashboard }       from './pages/Dashboard'
+import { Dashboard }          from './pages/Dashboard'
+import { DocumentPopout }    from './pages/DocumentPopout'
 import { DispatcherBoard } from './pages/DispatcherBoard'
 import { Leads }      from './pages/Leads'
 import { Drivers }    from './pages/Drivers'
@@ -74,6 +75,8 @@ export function App() {
     <ErrorBoundary>
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
+        {/* Standalone pop-out window — no AppShell chrome */}
+        <Route path='popout/:id' element={<DocumentPopout />} />
         <Route path='/' element={<AppShell />}>
           <Route index element={<Navigate to='/operations' replace />} />
           <Route path='operations'   element={<Operations />} />

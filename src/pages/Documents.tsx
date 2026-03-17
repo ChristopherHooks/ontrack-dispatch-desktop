@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FolderOpen, Plus, Search, Edit2, Trash2, FileText, X, Save } from 'lucide-react'
+import { FolderOpen, Plus, Search, Edit2, Trash2, FileText, X, Save, ExternalLink } from 'lucide-react'
 import type { SopDocument, CreateSopDocumentDto, DocCategory } from '../types/models'
 import { DOC_CATEGORIES } from '../data/helpArticles'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -165,6 +165,11 @@ export function Documents() {
                 <h2 className='text-base font-semibold text-gray-100 truncate'>{selected.title}</h2>
                 <span className={'text-2xs px-1.5 py-0.5 rounded border ' + (CATEGORY_COLORS[selected.category] ?? CATEGORY_COLORS.Other)}>{selected.category}</span>
               </div>
+              <button onClick={() => window.api.documents.popout(selected.id)}
+                title='Open in new window'
+                className='flex items-center gap-1 px-3 py-1.5 text-xs border border-surface-400 text-gray-400 hover:text-orange-400 hover:border-orange-600/40 rounded-lg transition-colors'>
+                <ExternalLink size={12}/> Pop out
+              </button>
               <button onClick={() => startEdit(selected)}
                 className='flex items-center gap-1 px-3 py-1.5 text-xs border border-surface-400 text-gray-400 hover:text-orange-400 hover:border-orange-600/40 rounded-lg transition-colors'>
                 <Edit2 size={12}/> Edit
