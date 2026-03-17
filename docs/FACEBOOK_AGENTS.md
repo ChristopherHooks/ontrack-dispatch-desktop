@@ -192,7 +192,7 @@ posting the same type of content repeatedly.
 ## AI Model Used
 
 All three agents use Claude Haiku (fast, low-cost). Responses are short:
-150-350 tokens. An API key must be set in Settings > Integrations for the AI
+150-350 tokens. An API key must be set in Settings > AI Integration for the AI
 buttons to work. Without a key, the buttons return an error and no request
 is made.
 

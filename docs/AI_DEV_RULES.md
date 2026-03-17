@@ -59,9 +59,9 @@ docs/
 
 # 3. IPC Rules
 
-All IPC channels must be defined in:
+All IPC channel type declarations are in:
 
-src/types/ipcChannels.ts
+src/types/global.d.ts  (window.api ambient declarations)
 
 Do not invent new channel strings.
 

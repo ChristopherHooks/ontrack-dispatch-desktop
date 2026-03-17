@@ -1,8 +1,8 @@
 # Data Architecture -- OnTrack Dispatch Dashboard
 
-Last updated: 2026-03-15
+Last updated: 2026-03-17
 
-## 15-Table SQLite Schema
+## SQLite Schema (15+ tables)
 
 | Table | Purpose |
 |---|---|
@@ -38,6 +38,7 @@ electron/main/schema/migrations.ts applies only unapplied versions.
 | v7 | fleet_size column on leads (Power Units from FMCSA SAFER) |
 | v8 | marketing_groups table (group rotation tracker) |
 | v9 | marketing_post_log table; truck_type_tags, region_tags, active columns on marketing_groups |
+| v10-v19 | Additional columns and tables added in sessions 16-20. See migrations.ts for full list. |
 
 Add new Migration objects to MIGRATIONS array to extend the schema.
 Use addColumnIfMissing() for adding columns to existing tables — safe to re-apply.

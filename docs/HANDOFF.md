@@ -394,9 +394,9 @@ Applied all Critical + High + selected Medium/Low fixes from the Session 18 audi
 All pages fully operational. No PagePlaceholder stubs remaining.
 
 **To populate a fresh database:**
-1. Settings > Sample Data > "Load Task Templates" — seeds 18 tasks + 8 basic SOPs
-2. Settings > Sample Data > "Rebuild Document Library" — overwrites/adds all 20 comprehensive docs
-3. Settings > Sample Data > sample business data seeded automatically on first dev launch
+1. Settings > Setup > "Load Task Templates" — seeds 18 tasks + 8 basic SOPs
+2. Settings > Setup > "Rebuild Document Library" — overwrites/adds all 20 comprehensive docs
+3. Settings > Setup > sample business data seeded automatically on first dev launch
 
 Fully operational pages:
 - Operations (default landing; KPI strip, Upcoming Check Calls, Profit Radar, Next Actions, Daily Checklist, Mini Dispatch Board, Top Leads)

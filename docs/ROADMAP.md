@@ -10,7 +10,7 @@ Last updated: 2026-03-15
 - [x] Tailwind CSS 3 + dark/light theme system
 - [x] AppShell: fixed sidebar + TopBar + main content area
 - [x] React Router v6 with HashRouter + all routes registered
-- [x] SQLite database init, schema (9 migrations applied), WAL mode, auto-backup
+- [x] SQLite database init, schema (19 migrations applied), WAL mode, auto-backup
 - [x] IPC channels: settings, dashboard stats, all CRUD modules
 - [x] Zustand stores: settingsStore, authStore, uiStore
 - [x] electron-store settings persistence
@@ -128,6 +128,5 @@ Last updated: 2026-03-15
 - Email/SMTP: invoices use mailto: — opens local email client, no direct send from app
 - Driver document expiry: badge alerts only, no OS-level push notification
 - Lane data: preferred_lanes field on drivers is free text — no structured lane analysis yet
-- No error boundary or crash recovery UI
 - No user login screen (single-user mode, defaulting to Admin)
 - FMCSA authority date is MCS-150 form date, not the exact authority grant date (usually within a few weeks)

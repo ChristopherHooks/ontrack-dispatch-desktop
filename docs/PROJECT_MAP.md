@@ -61,7 +61,7 @@ app/
 │   │   ├── fmcsaImport.ts        FMCSA lead import pipeline
 │   │   ├── csvLeadImport.ts      CSV/TSV lead import with header detection
 │   │   ├── loadScanner.ts        Load recommendation engine
-│   │   ├── scheduler.ts          Background job ticker (fmcsa, briefing, marketing)
+│   │   ├── scheduler.ts          Background job ticker (fmcsa-scraper only)
 │   │   ├── search.ts             Global search query (all entities)
 │   │   ├── seed.ts               Dev seed data (guarded by app_settings flag)
 │   │   ├── repositories/         One file per entity, all DB CRUD
@@ -176,7 +176,7 @@ All IPC is accessed from the renderer as `window.api.<namespace>.<method>()`.
 
 # Database
 
-15 tables across 9 migrations. All access is in the main process via repository functions.
+15+ tables across 19 migrations. All access is in the main process via repository functions.
 Schema defined in `electron/main/schema/migrations.ts`.
 Full table list in `docs/DATA_ARCHITECTURE.md`.
 

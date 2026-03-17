@@ -84,7 +84,7 @@ app/
 │   │   │   ├── marketingRepo.ts  (marketing_groups + marketing_post_log)
 │   │   │   └── index.ts          Re-exports all repos
 │   │   └── schema/
-│   │       └── migrations.ts     All 9 DB migrations
+│   │       └── migrations.ts     Versioned DB migrations (19 applied)
 │   └── preload/
 │       └── index.ts              contextBridge → window.api (all namespaces)
 ├── src/
@@ -182,7 +182,7 @@ as `window.api.<namespace>.<method>()`.
 
 ## Database Schema
 
-15 tables across 9 migrations. Full schema in docs/DATA_ARCHITECTURE.md.
+15+ tables across 19 migrations. Full schema in docs/DATA_ARCHITECTURE.md.
 
 ```
 WAL journal mode, synchronous=NORMAL, cache_size=-32000

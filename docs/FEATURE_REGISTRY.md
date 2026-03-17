@@ -72,7 +72,7 @@ Key files:
 Status: Implemented
 
 Includes:
-- 15 tables across 9 migrations
+- 15+ tables across 19 migrations
 - addColumnIfMissing() helper for safe schema evolution
 - schema_version table tracking applied migrations
 - WAL mode, synchronous=NORMAL, cache_size=-32000
