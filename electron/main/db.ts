@@ -43,6 +43,16 @@ function syncAdminUserFromStore(database: Database.Database, store: Store<Record
   }
 }
 
+// Removes leads where the entire CSV row was accidentally stored as the name
+// (e.g. "AZ,1,10/08/25,Reefer,FMCSA New Authority,New,,,,High").
+// Safe guard: only deletes records that also have no MC and no DOT number.
+function cleanCorruptedLeads(database: Database.Database): void {
+  const { changes } = database.prepare(
+    "DELETE FROM leads WHERE name LIKE '%,FMCSA New Authority,%' AND mc_number IS NULL AND dot_number IS NULL"
+  ).run()
+  if (changes > 0) console.log('[DB] Removed', changes, 'corrupted leads (CSV row stored as name)')
+}
+
 export function initDatabase(customDataPath?: string, store?: Store<Record<string, unknown>>): void {
   _dataDir = (customDataPath && customDataPath !== '')
     ? customDataPath
@@ -63,6 +73,7 @@ export function initDatabase(customDataPath?: string, store?: Store<Record<strin
 
   runMigrations(db)
   seedMissingItems(db)              // idempotent — INSERT OR IGNORE, safe every startup
+  cleanCorruptedLeads(db)           // one-time: remove CSV-row-as-name garbage records
   if (store) syncAdminUserFromStore(db, store)
   createBackup(db, _dataDir)           // once at startup (daily, skips if exists)
   startPeriodicBackup(getDb, getDataDir) // every 6 hours
