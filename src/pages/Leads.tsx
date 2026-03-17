@@ -84,6 +84,14 @@ export function Leads() {
   }
 
   const handleImport = async () => {
+    const key = await window.api.settings.get('fmcsa_web_key').catch(() => null)
+    if (!key || String(key).trim() === '') {
+      setImportResult({
+        leadsFound: 0, leadsAdded: 0, duplicatesSkipped: 0,
+        errors: ['FMCSA key not configured — add it in Settings > Integrations before importing.'],
+      })
+      return
+    }
     setImportBusy(true)
     setImportResult(null)
     try {

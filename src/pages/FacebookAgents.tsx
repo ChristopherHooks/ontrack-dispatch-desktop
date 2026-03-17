@@ -904,6 +904,13 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 export function FacebookAgents() {
   const [tab, setTab] = useState<Tab>('conversation')
+  const [hasApiKey, setHasApiKey] = useState(true)
+
+  useEffect(() => {
+    window.api.settings.get('claude_api_key')
+      .then(v => setHasApiKey(!!v))
+      .catch(() => setHasApiKey(false))
+  }, [])
 
   return (
     <div className='flex flex-col h-[calc(100vh-112px)] animate-fade-in'>
@@ -911,6 +918,17 @@ export function FacebookAgents() {
         <h1 className='text-xl font-semibold text-gray-100'>Facebook Agents</h1>
         <p className='text-sm text-gray-500 mt-0.5'>AI-assisted Facebook marketing and conversion</p>
       </div>
+
+      {/* API key banner — shown when Claude key is not configured */}
+      {!hasApiKey && (
+        <div className='flex items-start gap-2 px-3 py-2.5 mb-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg shrink-0'>
+          <AlertTriangle size={13} className='text-yellow-400 mt-0.5 shrink-0' />
+          <p className='text-xs text-yellow-300'>
+            Claude API key not configured — AI features on this page will not work.
+            Add your key in <strong>Settings &gt; AI Integration</strong> to enable them.
+          </p>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className='flex gap-1 mb-4 bg-surface-700 rounded-xl border border-surface-400 p-1 w-fit'>

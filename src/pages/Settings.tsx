@@ -262,6 +262,84 @@ export function Settings() {
         </div>
       </Section>
 
+      {/* Setup */}
+      <Section title='Setup' icon={<FlaskConical size={16} />}>
+        <div className='space-y-3'>
+          {seedMsg && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-orange-900/20 border border-orange-700/40 text-orange-300 rounded-lg'>
+              <CheckCircle size={13} /> {seedMsg}
+            </div>
+          )}
+          {docReseedMsg && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-green-900/20 border border-green-700/40 text-green-300 rounded-lg'>
+              <CheckCircle size={13} /> {docReseedMsg}
+            </div>
+          )}
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Load Task Templates</p>
+              <p className='text-xs text-gray-500'>
+                Adds the built-in daily and weekly task checklist (18 tasks) and SOP documents.
+                Safe to run at any time — skips rows that already exist.
+              </p>
+              <button
+                onClick={handleSeedData}
+                disabled={seedBusy || clearBusy}
+                className='text-xs px-3 py-1.5 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-600/40 text-orange-300 rounded-lg transition-colors disabled:opacity-50'
+              >
+                {seedBusy ? 'Loading…' : 'Load Task Templates'}
+              </button>
+            </div>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Rebuild Document Library</p>
+              <p className='text-xs text-gray-500'>
+                Writes all 20 expanded SOPs, scripts, training docs, and reference guides to the Documents page.
+                Overwrites existing documents 101-108 and adds new ones. Safe to run anytime.
+              </p>
+              <button
+                onClick={handleReseedDocs}
+                disabled={docReseedBusy}
+                className='text-xs px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-300 rounded-lg transition-colors disabled:opacity-50'
+              >
+                {docReseedBusy ? 'Rebuilding...' : 'Rebuild Document Library'}
+              </button>
+            </div>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Remove Sample Business Data</p>
+              <p className='text-xs text-gray-500'>
+                Deletes sample brokers, drivers, loads, leads, and invoices (id ≥ 101).
+                Tasks and documents are not affected.
+              </p>
+              {clearConfirm ? (
+                <div className='flex items-center gap-2'>
+                  <span className='text-2xs text-yellow-400'>Confirm?</span>
+                  <button
+                    onClick={handleClearSeedData}
+                    className='text-2xs px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded transition-colors'
+                  >
+                    Yes, remove it
+                  </button>
+                  <button
+                    onClick={() => setClearConfirm(false)}
+                    className='text-2xs text-gray-500 hover:text-gray-300'
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleClearSeedData}
+                  disabled={seedBusy || clearBusy}
+                  className='text-xs px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50'
+                >
+                  {clearBusy ? 'Removing…' : 'Remove Sample Data'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Section>
+
       {/* Data / Storage */}
       <Section title='Data Storage' icon={<Database size={16} />}>
         <div className='space-y-3'>
@@ -476,84 +554,6 @@ export function Settings() {
               <li>Recommended workflow: open on computer A, close fully (including system tray), let Drive sync, then open on computer B.</li>
               <li>Daily backups are your safety net. Restore via the Backup panel above if a conflict occurs.</li>
             </ul>
-          </div>
-        </div>
-      </Section>
-
-      {/* Sample Data */}
-      <Section title='Sample Data' icon={<FlaskConical size={16} />}>
-        <div className='space-y-3'>
-          {seedMsg && (
-            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-orange-900/20 border border-orange-700/40 text-orange-300 rounded-lg'>
-              <CheckCircle size={13} /> {seedMsg}
-            </div>
-          )}
-          {docReseedMsg && (
-            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-green-900/20 border border-green-700/40 text-green-300 rounded-lg'>
-              <CheckCircle size={13} /> {docReseedMsg}
-            </div>
-          )}
-          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
-              <p className='text-xs font-semibold text-gray-300'>Load Task Templates</p>
-              <p className='text-xs text-gray-500'>
-                Adds the built-in daily and weekly task checklist (18 tasks) and SOP documents.
-                Safe to run at any time — skips rows that already exist.
-              </p>
-              <button
-                onClick={handleSeedData}
-                disabled={seedBusy || clearBusy}
-                className='text-xs px-3 py-1.5 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-600/40 text-orange-300 rounded-lg transition-colors disabled:opacity-50'
-              >
-                {seedBusy ? 'Loading…' : 'Load Task Templates'}
-              </button>
-            </div>
-            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
-              <p className='text-xs font-semibold text-gray-300'>Rebuild Document Library</p>
-              <p className='text-xs text-gray-500'>
-                Writes all 20 expanded SOPs, scripts, training docs, and reference guides to the Documents page.
-                Overwrites existing documents 101-108 and adds new ones. Safe to run anytime.
-              </p>
-              <button
-                onClick={handleReseedDocs}
-                disabled={docReseedBusy}
-                className='text-xs px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 text-green-300 rounded-lg transition-colors disabled:opacity-50'
-              >
-                {docReseedBusy ? 'Rebuilding...' : 'Rebuild Document Library'}
-              </button>
-            </div>
-            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
-              <p className='text-xs font-semibold text-gray-300'>Remove Sample Business Data</p>
-              <p className='text-xs text-gray-500'>
-                Deletes sample brokers, drivers, loads, leads, and invoices (id ≥ 101).
-                Tasks and documents are not affected.
-              </p>
-              {clearConfirm ? (
-                <div className='flex items-center gap-2'>
-                  <span className='text-2xs text-yellow-400'>Confirm?</span>
-                  <button
-                    onClick={handleClearSeedData}
-                    className='text-2xs px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded transition-colors'
-                  >
-                    Yes, remove it
-                  </button>
-                  <button
-                    onClick={() => setClearConfirm(false)}
-                    className='text-2xs text-gray-500 hover:text-gray-300'
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleClearSeedData}
-                  disabled={seedBusy || clearBusy}
-                  className='text-xs px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50'
-                >
-                  {clearBusy ? 'Removing…' : 'Remove Sample Data'}
-                </button>
-              )}
-            </div>
           </div>
         </div>
       </Section>
