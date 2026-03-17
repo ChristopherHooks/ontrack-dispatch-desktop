@@ -18,16 +18,35 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MarketingGroup {
-  id:               number
-  name:             string
-  url:              string | null
-  platform:         string
-  last_posted_at:   string | null
-  notes:            string | null
-  truck_type_tags:  string   // JSON
-  region_tags:      string   // JSON
-  active:           number
-  created_at:       string
+  id:                     number
+  name:                   string
+  url:                    string | null
+  platform:               string
+  last_posted_at:         string | null
+  notes:                  string | null
+  truck_type_tags:        string   // JSON
+  region_tags:            string   // JSON
+  active:                 number
+  category:               string
+  priority:               string
+  last_reviewed_at:       string | null
+  leads_generated_count:  number
+  signed_drivers_count:   number
+  created_at:             string
+}
+
+interface GroupRecommendation {
+  group:   MarketingGroup
+  score:   number
+  reasons: string[]
+}
+
+interface CategoryGapAnalysis {
+  counts:      Record<string, number>
+  total:       number
+  gaps:        string[]
+  overweight:  string[]
+  suggestions: string[]
 }
 
 interface PostLog {
@@ -192,14 +211,19 @@ interface GroupRowProps {
   onDelete: (id: number) => void
 }
 
+const CATEGORY_OPTIONS = ['hotshot','box_truck','owner_operator','dispatcher','general_loads','reefer','mixed','other']
+const PRIORITY_OPTIONS = ['High','Medium','Low']
+
 function GroupRow({ group, onUpdate, onMarkPosted, onDelete }: GroupRowProps) {
-  const [editing, setEditing] = useState(false)
-  const [name,    setName]    = useState(group.name)
-  const [url,     setUrl]     = useState(group.url ?? '')
-  const [platform, setPlatform] = useState(group.platform)
-  const [notes,   setNotes]   = useState(group.notes ?? '')
-  const [tags,    setTags]    = useState(() => parseTags(group.truck_type_tags).join(', '))
-  const [active,  setActive]  = useState(group.active !== 0)
+  const [editing,   setEditing]  = useState(false)
+  const [name,      setName]     = useState(group.name)
+  const [url,       setUrl]      = useState(group.url ?? '')
+  const [platform,  setPlatform] = useState(group.platform)
+  const [notes,     setNotes]    = useState(group.notes ?? '')
+  const [tags,      setTags]     = useState(() => parseTags(group.truck_type_tags).join(', '))
+  const [active,    setActive]   = useState(group.active !== 0)
+  const [category,  setCategory] = useState(group.category || 'mixed')
+  const [priority,  setPriority] = useState(group.priority || 'Medium')
 
   const daysSince = fmtDaysSince(group.last_posted_at, today)
   const isOverdue = !group.last_posted_at || (
@@ -216,6 +240,8 @@ function GroupRow({ group, onUpdate, onMarkPosted, onDelete }: GroupRowProps) {
       notes: notes.trim() || null,
       truck_type_tags: truckTypeTags,
       active,
+      category,
+      priority,
     })
     setEditing(false)
   }
@@ -233,6 +259,16 @@ function GroupRow({ group, onUpdate, onMarkPosted, onDelete }: GroupRowProps) {
           <select value={platform} onChange={e => setPlatform(e.target.value)}
             className='h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-600/60'>
             <option>Facebook</option><option>LinkedIn</option><option>Instagram</option><option>Other</option>
+          </select>
+        </div>
+        <div className='grid grid-cols-2 gap-2'>
+          <select value={category} onChange={e => setCategory(e.target.value)}
+            className='h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-600/60'>
+            {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c.replace('_',' ')}</option>)}
+          </select>
+          <select value={priority} onChange={e => setPriority(e.target.value)}
+            className='h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-600/60'>
+            {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
         <input value={tags} onChange={e => setTags(e.target.value)}
@@ -271,9 +307,12 @@ function GroupRow({ group, onUpdate, onMarkPosted, onDelete }: GroupRowProps) {
           {group.active === 0 && <span className='text-2xs text-gray-600'>inactive</span>}
           {group.active !== 0 && isOverdue && !postedToday && <span className='text-2xs text-orange-500'>Due</span>}
           {postedToday && <span className='text-2xs text-green-400'>Done today</span>}
-          {parseTags(group.truck_type_tags).map(tag => (
-            <span key={tag} className='text-2xs px-1.5 py-0 rounded border border-surface-400 text-gray-600'>{tag}</span>
-          ))}
+          {group.category && group.category !== 'mixed' && (
+            <span className='text-2xs px-1.5 py-0 rounded border border-surface-400 text-gray-600'>{group.category.replace('_',' ')}</span>
+          )}
+          {group.priority === 'High' && (
+            <span className='text-2xs text-orange-500'>High</span>
+          )}
         </div>
         <p className='text-2xs text-gray-600 mt-0.5'>{group.platform} · {daysSince}</p>
       </div>
@@ -338,6 +377,11 @@ export function Marketing() {
   const [newGroupPlatform, setNewGroupPlatform] = useState('Facebook')
   const [newGroupTags, setNewGroupTags] = useState('')
 
+  // Facebook Groups workflow
+  const [todaysRecs,  setTodaysRecs]   = useState<GroupRecommendation[]>([])
+  const [catAnalysis, setCatAnalysis]  = useState<CategoryGapAnalysis | null>(null)
+  const [showCoverage, setShowCoverage] = useState(false)
+
   // Post log
   const [postLog,      setPostLog]      = useState<PostLog[]>([])
   const [activeTab,    setActiveTab]    = useState<'history' | 'groups' | 'templates'>('history')
@@ -364,6 +408,20 @@ export function Marketing() {
     setGroups(gs)
   }, [])
 
+  const loadTodaysRecs = useCallback(async () => {
+    try {
+      const recs = await (window.api as any).marketing.groups.todaysGroups(8)
+      setTodaysRecs(recs)
+    } catch {}
+  }, [])
+
+  const loadCatAnalysis = useCallback(async () => {
+    try {
+      const analysis = await (window.api as any).marketing.groups.catAnalysis()
+      setCatAnalysis(analysis)
+    } catch {}
+  }, [])
+
   const loadPostLog = useCallback(async () => {
     const logs = await api().post.list(60)
     setPostLog(logs)
@@ -373,7 +431,9 @@ export function Marketing() {
     loadAntiRep()
     loadGroups()
     loadPostLog()
-  }, [loadAntiRep, loadGroups, loadPostLog])
+    loadTodaysRecs()
+    loadCatAnalysis()
+  }, [loadAntiRep, loadGroups, loadPostLog, loadTodaysRecs, loadCatAnalysis])
 
   // ── Derived: suggested post ────────────────────────────────────────────────
 
@@ -487,12 +547,33 @@ export function Marketing() {
 
   const handleMarkPosted = async (id: number) => {
     const g = await api().groups.markPosted(id, today)
-    if (g) setGroups(p => p.map(gr => gr.id === id ? g : gr))
+    if (g) {
+      setGroups(p => p.map(gr => gr.id === id ? g : gr))
+      loadTodaysRecs()
+    }
   }
 
   const handleDeleteGroup = async (id: number) => {
     await api().groups.delete(id)
     setGroups(p => p.filter(g => g.id !== id))
+  }
+
+  const handleSeedGroups = async () => {
+    await (window.api as any).marketing.groups.seedGroups()
+    await loadGroups()
+    await loadTodaysRecs()
+    await loadCatAnalysis()
+  }
+
+  const [importResult, setImportResult] = useState<{ added: number; found: number } | null>(null)
+  const handleImportHtml = async () => {
+    setImportResult(null)
+    const result = await (window.api as any).marketing.groups.importHtml()
+    if (result?.canceled) return
+    setImportResult(result)
+    await loadGroups()
+    await loadTodaysRecs()
+    await loadCatAnalysis()
   }
 
   const catCls = CATEGORY_COLORS[template.category]
@@ -799,13 +880,178 @@ export function Marketing() {
 
         {/* Groups tab */}
         {activeTab === 'groups' && (
-          <div className='p-5'>
+          <div className='p-5 space-y-5'>
+
+            {/* Today's Recommendations */}
+            <div className='bg-surface-600 rounded-xl border border-surface-400 p-4'>
+              <div className='flex items-center justify-between mb-3'>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm font-semibold text-gray-200'>Today&apos;s Groups</span>
+                  <span className='text-2xs px-2 py-0.5 rounded-full bg-orange-900/30 text-orange-400 border border-orange-700/30'>
+                    {todaysRecs.length} recommended
+                  </span>
+                </div>
+                <button onClick={loadTodaysRecs}
+                  className='p-1 rounded hover:bg-surface-500 text-gray-600 hover:text-gray-300 transition-colors'
+                  title='Refresh recommendations'>
+                  <RefreshCw size={12} />
+                </button>
+              </div>
+              {todaysRecs.length === 0 ? (
+                <div className='text-center py-4 space-y-2'>
+                  <p className='text-xs text-gray-500'>No active groups loaded yet.</p>
+                  <button
+                    onClick={handleSeedGroups}
+                    className='px-3 py-1.5 text-xs bg-orange-700 hover:bg-orange-600 text-white rounded-lg transition-colors'>
+                    Load Groups from List
+                  </button>
+                </div>
+              ) : (
+                <div className='space-y-2'>
+                  {todaysRecs.map(rec => {
+                    const postedToday = rec.group.last_posted_at === today
+                    return (
+                      <div key={rec.group.id}
+                        className={[
+                          'flex items-center gap-3 rounded-lg px-3 py-2 border transition-colors',
+                          postedToday
+                            ? 'border-green-700/30 bg-green-950/10'
+                            : 'border-surface-500 bg-surface-700/50',
+                        ].join(' ')}>
+                        <div className='flex-1 min-w-0'>
+                          <div className='flex items-center gap-2 flex-wrap'>
+                            <p className='text-xs font-medium text-gray-200 truncate'>{rec.group.name}</p>
+                            <span className={[
+                              'text-2xs px-1.5 py-0 rounded border',
+                              rec.group.priority === 'High'   ? 'border-orange-700/40 text-orange-400' :
+                              rec.group.priority === 'Medium' ? 'border-blue-700/40 text-blue-400' :
+                              'border-surface-400 text-gray-600',
+                            ].join(' ')}>{rec.group.priority}</span>
+                            <span className='text-2xs text-gray-600'>{rec.group.category.replace('_', ' ')}</span>
+                          </div>
+                          <div className='flex items-center gap-2 mt-0.5 flex-wrap'>
+                            {rec.reasons.map(r => (
+                              <span key={r} className='text-2xs text-gray-600 italic'>{r}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className='flex items-center gap-1 shrink-0'>
+                          {rec.group.url && (
+                            <a href={rec.group.url} target='_blank' rel='noreferrer'
+                              className='p-1 rounded hover:bg-surface-500 text-gray-600 hover:text-gray-300 transition-colors'>
+                              <ExternalLink size={11} />
+                            </a>
+                          )}
+                          {postedToday ? (
+                            <span className='text-2xs text-green-400 px-2'>Done today</span>
+                          ) : (
+                            <button
+                              onClick={() => handleMarkPosted(rec.group.id)}
+                              className='px-2 py-0.5 text-2xs bg-surface-600 hover:bg-orange-600 text-gray-400 hover:text-white rounded transition-colors'>
+                              Mark Posted
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Category Coverage */}
+            {catAnalysis && (
+              <div className='bg-surface-600 rounded-xl border border-surface-400 p-4'>
+                <button
+                  onClick={() => setShowCoverage(v => !v)}
+                  className='w-full flex items-center justify-between'
+                >
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm font-semibold text-gray-200'>Category Coverage</span>
+                    {catAnalysis.gaps.length > 0 && (
+                      <span className='text-2xs px-2 py-0.5 rounded-full bg-yellow-900/30 text-yellow-400 border border-yellow-700/30'>
+                        {catAnalysis.gaps.length} gap{catAnalysis.gaps.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {catAnalysis.gaps.length === 0 && (
+                      <span className='text-2xs px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-700/30'>
+                        Balanced
+                      </span>
+                    )}
+                  </div>
+                  {showCoverage
+                    ? <ChevronUp size={13} className='text-gray-600' />
+                    : <ChevronDown size={13} className='text-gray-600' />}
+                </button>
+
+                {showCoverage && (
+                  <div className='mt-3 space-y-3'>
+                    {/* Count grid */}
+                    <div className='grid grid-cols-4 gap-2'>
+                      {Object.entries(catAnalysis.counts)
+                        .filter(([cat]) => cat !== 'other')
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([cat, count]) => {
+                          const isGap = catAnalysis.gaps.includes(cat)
+                          const isOver = catAnalysis.overweight.includes(cat)
+                          return (
+                            <div key={cat}
+                              className={[
+                                'rounded-lg px-2 py-1.5 border text-center',
+                                isGap  ? 'border-yellow-700/40 bg-yellow-950/10' :
+                                isOver ? 'border-orange-700/30 bg-orange-950/10' :
+                                'border-surface-500 bg-surface-700/40',
+                              ].join(' ')}>
+                              <p className={[
+                                'text-sm font-semibold',
+                                isGap ? 'text-yellow-400' : isOver ? 'text-orange-400' : 'text-gray-300',
+                              ].join(' ')}>{count}</p>
+                              <p className='text-2xs text-gray-600 mt-0.5 leading-tight'>{cat.replace('_', ' ')}</p>
+                            </div>
+                          )
+                        })}
+                    </div>
+
+                    {/* Gap suggestions */}
+                    {catAnalysis.suggestions.length > 0 && (
+                      <div className='space-y-1.5 pt-2 border-t border-surface-500/50'>
+                        <p className='text-2xs text-gray-500 font-medium uppercase tracking-wide'>Groups to search for</p>
+                        {catAnalysis.suggestions.map((s, i) => (
+                          <p key={i} className={[
+                            'text-xs leading-relaxed',
+                            s.startsWith('You are') ? 'text-yellow-400' : 'text-gray-500 pl-3',
+                          ].join(' ')}>{s}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Group list */}
+            <div>
             <div className='flex items-center justify-between mb-4'>
-              <span className='text-xs text-gray-500'>{groups.length} group{groups.length !== 1 ? 's' : ''}</span>
-              <button
-                onClick={() => setShowAddGroup(v => !v)}
-                className='flex items-center gap-1 text-2xs text-orange-500 hover:text-orange-400 transition-colors'
-              ><Plus size={11} /> Add Group</button>
+              <div className='flex items-center gap-3'>
+                <span className='text-xs text-gray-500'>{groups.length} group{groups.length !== 1 ? 's' : ''}</span>
+                {importResult && (
+                  <span className='text-2xs text-green-400'>
+                    Imported: {importResult.added} new of {importResult.found} found
+                  </span>
+                )}
+              </div>
+              <div className='flex items-center gap-3'>
+                <button
+                  onClick={handleImportHtml}
+                  className='flex items-center gap-1 text-2xs text-blue-400 hover:text-blue-300 transition-colors'
+                  title='Save your Facebook Groups page as HTML, then import it here to add new groups automatically'>
+                  <BookOpen size={11} /> Import from HTML
+                </button>
+                <button
+                  onClick={() => setShowAddGroup(v => !v)}
+                  className='flex items-center gap-1 text-2xs text-orange-500 hover:text-orange-400 transition-colors'
+                ><Plus size={11} /> Add Group</button>
+              </div>
             </div>
 
             {showAddGroup && (
@@ -881,6 +1127,7 @@ export function Marketing() {
                 }
               </div>
             )}
+            </div>
           </div>
         )}
 

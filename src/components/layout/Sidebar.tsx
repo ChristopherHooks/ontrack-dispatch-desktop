@@ -1,9 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import { useSettingsStore } from '../../store/settingsStore'
 import {
-  LayoutDashboard, Users, Truck, Package, Building2,
+  Users, Truck, Package, Building2,
   FileText, Megaphone, CheckSquare, FolderOpen,
-  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban
+  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Bot, Zap, ArrowRightLeft, Activity
 } from 'lucide-react'
 
 interface NavItem {
@@ -13,14 +13,17 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={18} /> },
-  { to: '/dispatcher', label: 'Dispatcher', icon: <Kanban size={18} /> },
+  { to: '/operations',  label: 'Operations',   icon: <Zap size={18} /> },
+  { to: '/loadmatch',   label: 'Load Match',   icon: <ArrowRightLeft size={18} /> },
+  { to: '/activeloads', label: 'Active Loads', icon: <Activity size={18} /> },
+  { to: '/dispatcher',  label: 'Dispatcher',   icon: <Kanban size={18} /> },
   { to: '/leads',      label: 'Leads',      icon: <Users size={18} /> },
   { to: '/drivers',    label: 'Drivers',    icon: <Truck size={18} /> },
   { to: '/loads',      label: 'Loads',      icon: <Package size={18} /> },
   { to: '/brokers',    label: 'Brokers',    icon: <Building2 size={18} /> },
   { to: '/invoices',   label: 'Invoices',   icon: <FileText size={18} /> },
   { to: '/marketing',  label: 'Marketing',  icon: <Megaphone size={18} /> },
+  { to: '/facebook',   label: 'FB Agents',  icon: <Bot size={18} /> },
   { to: '/tasks',      label: 'Tasks',      icon: <CheckSquare size={18} /> },
   { to: '/documents',  label: 'Documents',  icon: <FolderOpen size={18} /> },
   { to: '/analytics',  label: 'Analytics',  icon: <BarChart3 size={18} /> },

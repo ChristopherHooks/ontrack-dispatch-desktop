@@ -1,5 +1,206 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-16 — Session 18: Broker Intelligence + Lane Memory
+
+### Work Completed
+
+**New `brokerIntelligence.ts` service (main process):**
+- No schema changes — all data derived from existing `brokers`, `loads`, `drivers` tables
+- `getBrokerIntelAll(db)`: per-broker score (0–100) + BrokerRating (Preferred/Strong/Neutral/Caution/Avoid) + caution_note; scoring: base 50 + RPM adjustment (±20 pts) + volume bonus (up to +15 for 5+ loads) + flag modifiers
+- `getLaneIntelAll(db)`: aggregate by origin_state/dest_state across Booked+ loads; LaneStrength (Strong/Average/Weak) based on avgRpm and loads count
+- `getDriverLaneFits(db, driverId)`: per-driver lane history; DriverLaneFit (Strong Fit/Has History/New Lane) based on run count and avg RPM
+
+**3 new IPC handlers:** `intel:allBrokers`, `intel:allLanes`, `intel:driverFit`
+
+**Types added:**
+- `models.ts`: `BrokerRating`, `LaneStrength`, `DriverLaneFit`, `BrokerIntelRow`, `LaneIntelRow`, `DriverLaneFitRow`
+- `global.d.ts`: imported new types + `intel` namespace added to `Window.api`
+
+**LoadMatch.tsx updates:**
+- Intel fetched on mount (`allBrokers`, `allLanes`) + on driver select (`driverFit`)
+- Load cards show intel chips: broker rating + lane strength + driver fit
+- Booking workspace adds "Intelligence" section — broker intel (rating, history, caution note), lane intel (strength, avg RPM, run count), driver fit (fit label, run count, avg RPM); section hidden when no intel data exists for the selected load
+
+**BrokerDrawer.tsx updates:**
+- Performance section header shows intel rating badge — computed client-side from already-fetched `completedLoads`, `avgRpm`, `broker.flag`; no new IPC call required
+
+**Operations.tsx updates:**
+- Top Broker Lanes in Profit Radar now include lane strength label (Strong/Average/Weak) computed client-side from existing `avgRpm` + `loads` data; no new data fetch
+
+### Files Created (1)
+- `electron/main/brokerIntelligence.ts`
+
+### Files Modified (7)
+- `electron/main/ipcHandlers.ts` — import + 3 new handlers
+- `electron/preload/index.ts` — `intel` namespace
+- `src/types/models.ts` — 6 new types
+- `src/types/global.d.ts` — imported new types + `intel` in `Window.api`
+- `src/pages/LoadMatch.tsx` — intel state + chips + Intelligence Context panel
+- `src/components/brokers/BrokerDrawer.tsx` — rating badge in Performance section
+- `src/pages/Operations.tsx` — lane strength labels in Profit Radar top lanes
+
+### App State at End of Session
+- Broker Intelligence: all brokers scored and rated; surfaces in LoadMatch, BrokerDrawer, Operations
+- Lane Memory: all lanes classified; surfaces in LoadMatch + Operations Profit Radar
+- Driver-Lane Fit: per-driver lane history; surfaces in LoadMatch load cards + booking workspace
+- No schema migrations required (all derived data)
+- Build: clean (`tsc --noEmit` exit 0)
+
+---
+
+## 2026-03-16 — Session 17: Active Load Timeline + Check Call Engine
+
+### Work Completed
+
+**Duplicate marketing_groups fix:**
+- Identified root cause: no UNIQUE constraint on `name`, so `INSERT OR IGNORE` silently inserted duplicates on every HTML import or seed run
+- Migration 015: `DELETE FROM marketing_groups WHERE id NOT IN (SELECT MIN(id) FROM ... GROUP BY LOWER(TRIM(name)))` purges all existing duplicates, then `CREATE UNIQUE INDEX uq_marketing_groups_name ON marketing_groups (LOWER(TRIM(name)))` prevents future ones
+- `createMarketingGroup()` in `marketingRepo.ts` updated to `INSERT OR IGNORE`; returns existing row if name collides
+
+**Active Load Timeline (new table + service):**
+- Migration 016: `load_timeline_events` table with `id, load_id, event_type, label, scheduled_at, completed_at, notes, created_at`; ON DELETE CASCADE on load_id
+- `loadTimelineRepo.ts`: full CRUD + auto-scheduling engine + `getActiveLoads()` + `getUpcomingCheckCalls()`
+- Auto-scheduling (idempotent, checks existing labels before inserting):
+  - Booked → Driver Dispatched check_call (+1h) + Pickup Check Call (pickup day 08:00)
+  - Picked Up → Mid-Route Check Call (midpoint) + Delivery ETA Confirm (delivery day 10:00)
+  - In Transit → Delivery ETA Confirm (delivery day 10:00)
+  - Delivered → POD Request check_call (+30min)
+
+**10 new IPC handlers:**
+- `timeline:activeLoads`, `timeline:upcomingCalls`, `timeline:events`, `timeline:addEvent`, `timeline:completeEvent`, `timeline:deleteEvent`, `timeline:statusChange`, `timeline:initLoad`, `timeline:generateMessage` (async Claude Haiku, 4 message types)
+
+**ActiveLoads page (`/activeloads`):**
+- Left: scrollable list of Booked/Picked Up/In Transit loads with status badge, route, driver, next event time (overdue = red)
+- Right: load header + Next Action panel + Timeline + Status Update form + AI Message Helpers
+- Next Action: surfaces first pending event; "Mark Done" action; Call Driver tel: link
+- Timeline: pending events first, completed below divider; hover reveals Done/delete; inline note input
+- Status Update: "Mark as [NextStatus]" + "Mark Delivered" shortcut; optional note + confirm
+- AI Messages: Driver Check-In, Broker Update, POD Request, Delivery Confirm — generated text with Copy
+
+**Operations panel integration:**
+- `upcomingCalls` state added; fires independently after main data load
+- "Upcoming Check Calls" grid section between KPI strip and Profit Radar — only shown when active events exist; overdue = red; each card navigates to `/activeloads`
+
+**Sidebar:** Active Loads 3rd nav item (Activity icon)
+
+### Files Created (2)
+- `electron/main/repositories/loadTimelineRepo.ts`
+- `src/pages/ActiveLoads.tsx`
+
+### Files Modified (9)
+- `electron/main/schema/migrations.ts` — migration 015 + 016
+- `electron/main/ipcHandlers.ts` — timeline import + 10 handlers
+- `electron/preload/index.ts` — timeline namespace
+- `src/types/models.ts` — TimelineEvent, ActiveLoadRow, CheckCallRow
+- `src/types/global.d.ts` — timeline in Window.api
+- `src/components/layout/Sidebar.tsx` — Active Loads nav item
+- `src/App.tsx` — ActiveLoads import + route
+- `src/pages/Operations.tsx` — checkCalls state + fetch + Upcoming Check Calls UI
+- `electron/main/repositories/marketingRepo.ts` — INSERT OR IGNORE for dedup
+
+### App State at End of Session
+- Active Load Timeline: fully operational; auto-scheduling, manual status updates, AI messages all wired
+- Upcoming Check Calls: visible on Operations panel when active loads have pending check calls
+- Duplicate marketing_groups: purged on next launch, prevented going forward
+- All previous pages unchanged and operational
+- Build: clean (`tsc --noEmit` exit 0)
+
+---
+
+## 2026-03-16 — Session 16: Load Match + Booking Workspace
+
+### Work Completed
+
+**Load Match page (new guided dispatch workflow at `/loadmatch`):**
+- Three-panel layout: drivers (left) — candidate loads (center) — booking workspace (right)
+- Reuses existing `scanner.recommendLoads()` and `dispatcher.assignLoad()` — no new DB queries
+- Deep-link entry from Operations Profit Radar: idle driver rows navigate to `/loadmatch?driverId=X`; selected driver is auto-set on arrival
+
+**Left panel — Available Drivers:**
+- Calls `window.api.scanner.recommendLoads({})` on mount; lists all Active drivers with no current load
+- Shows driver name, home base, number of loads matched; selected driver highlighted with orange left border
+
+**Center panel — Candidate Loads:**
+- Displays the selected driver's scored load recommendations from `loadScanner.ts`
+- Scoring formula (existing): `RPM * 2.0 - deadheadMiles * 0.005`; deadhead estimated by state (same city=10mi, same state=75mi, cross-state=250mi)
+- Each card: rank badge, origin→dest, rate, RPM (green ≥ $3.00, orange ≥ $2.50, red below), loaded miles, deadhead, broker name + flag color, pickup date, Strong/Good/Fair/Weak score badge
+- Selecting a load opens the right panel workspace
+
+**Right panel — Booking Workspace:**
+- Load summary: origin→dest, rate, RPM, driver name
+- 6-step booking checklist: Verify broker / Confirm pickup / Agree on rate / Get rate confirmation / Log load / Notify driver — each step toggleable; progress bar shows completion percentage
+- Rate analysis table: always visible (rate, RPM color-coded, loaded miles, deadhead)
+- Deterministic negotiation opener: computed immediately from RPM vs $2.50/mi floor — if RPM < $2.50, suggests counter-offer with specific dollar amount; otherwise, sends acceptance script
+- "AI Script" button: calls `loadMatch:nego` IPC → Claude Haiku for a 2-sentence rate assessment + word-for-word broker opener; appears in an orange-bordered box below deterministic opener; fails gracefully if no API key
+- Book Load button: calls `dispatcher.assignLoad()`; glows brighter when all 6 checklist steps are checked; shows error message on failure; success screen shows driver name + "Book another load" / "Back to Operations" options
+
+**New IPC handler:**
+- `loadMatch:nego` in `ipcHandlers.ts` — accepts rate/miles/rpm/deadheadMiles/origin/dest/brokerName/driverName; calls `claudeComplete()` with Claude Haiku; returns null if API key absent (deterministic fallback shown in UI)
+
+**Type declarations fixed:**
+- `global.d.ts`: Added `operations`, `profitRadar`, and `loadMatch` to `Window.api` interface (the first two were added in Session 15 but missing from the type file)
+
+### Files Created (1)
+- `src/pages/LoadMatch.tsx`
+
+### Files Modified (6)
+- `electron/main/ipcHandlers.ts` — `loadMatch:nego` handler added
+- `electron/preload/index.ts` — `loadMatch` namespace exposed
+- `src/types/global.d.ts` — `operations`, `profitRadar`, `loadMatch` types added
+- `src/components/layout/Sidebar.tsx` — Load Match 2nd nav item, `ArrowRightLeft` icon
+- `src/App.tsx` — `LoadMatch` import + `/loadmatch` route
+- `src/pages/Operations.tsx` — idle driver `onClick` changed to `/loadmatch?driverId=X`
+
+### App State at End of Session
+- Load Match: fully operational; driver selection, scored load matching, booking checklist, negotiation support, Book Load all working
+- Profit Radar idle driver rows: clicking any driver now opens Load Match pre-selected on that driver
+- All previous pages unchanged and operational
+- Build: clean (`tsc --noEmit` exit 0)
+
+---
+
+## 2026-03-16 — Session 15: Operations Control Panel + Profit Radar
+
+### Work Completed
+
+**Operations Control Panel (new default landing page):**
+- Merged Dashboard and Operations pages into a single `Operations.tsx` page
+- Route `/operations` is now the app default; `/dashboard` redirects to it
+- Dashboard removed from sidebar; Operations added as first nav item with Zap icon
+- Page sections (top to bottom): KPI briefing strip, Profit Radar, Next Actions + Revenue Opportunities, Daily Checklist + Mini Dispatch Board, Top Leads
+- KPI strip extended to 6 cards: FB Inquiries, Loads In Transit, Drivers Available, Overdue Leads, Groups to Post, Open Invoices
+- `operations.ts` updated to include `loadsInTransit` count
+
+**Profit Radar (new embedded feature):**
+- `profitRadar.ts` — pure data service with four opportunity streams:
+  - **Idle Drivers**: Active with no current load; scored 50 base + 20 for known location + 10 for truck type + 5 for home base
+  - **FB Lead Heat**: Conversations in active stages (Call Ready=90, Interested=70, Replied=40, New=20) + 25 for overdue follow-up; deterministic `nextAction` per stage
+  - **Top Groups**: Ranked by `leads_generated_count * 15 + signed_drivers_count * 25` + priority bonus
+  - **Top Broker Lanes**: Aggregate avg RPM from loads table, minimum 2 loads per lane, top 5 by RPM
+- `getProfitRadarSummary()` async function: builds concise data brief, calls Claude Haiku with 180 max tokens, returns null if API key not set or call fails
+- IPC: `profitRadar:data` (sync) + `profitRadar:summary` (async)
+- Preload: `window.api.profitRadar.data()` + `.summary()`
+- UI: three-column grid (Idle Drivers | FB Lead Heat | Top Groups) with score badges and click-nav to relevant page; optional broker lanes row at bottom; AI summary strip loads independently after main data (does not block render)
+
+### Files Created (3)
+- `electron/main/operations.ts`
+- `electron/main/profitRadar.ts`
+- `src/pages/Operations.tsx`
+
+### Files Modified (4)
+- `electron/main/ipcHandlers.ts` — three new handlers; two new imports
+- `electron/preload/index.ts` — `operations` + `profitRadar` namespaces
+- `src/components/layout/Sidebar.tsx` — Operations first; Dashboard removed; Zap icon
+- `src/App.tsx` — new route; redirect for `/dashboard`
+
+### App State at End of Session
+- Operations Control Panel: fully operational; all four data sources wired
+- Profit Radar: data service clean; AI summary requires Claude API key in Settings
+- All previous pages unchanged and operational
+- Build: clean (`tsc --noEmit` exit 0)
+
+---
+
 ## 2026-03-15 — Session 14: Marketing Rebuild + FMCSA Improvements + SAFER Links + Docs Sweep + Glossary
 
 ### Work Completed

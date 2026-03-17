@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone } from 'lucide-react'
+import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone, ChevronDown, ChevronRight, X } from 'lucide-react'
 import type { Driver, Load, Lead } from '../types/models'
 import { computeLeadScore } from '../lib/leadScore'
 import { openSaferMc, openSaferDot } from '../lib/saferUrl'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
+import { renderMd } from '../lib/renderMd'
 
 interface Stats {
   driversNeedingLoads: { c: number }
@@ -13,8 +14,9 @@ interface Stats {
   leadsFollowUp:       { c: number }
   outstandingInvoices: { c: number }
   todayTasks:          Task[]
+  completedToday:      number[]
 }
-interface Task { id: number; title: string; status: string; time_of_day: string | null; priority: string }
+interface Task { id: number; title: string; status: string; time_of_day: string | null; priority: string; notes: string | null }
 
 // Lead enriched with pre-computed score fields for the Top Leads panel
 interface ScoredLead extends Lead {
@@ -26,7 +28,7 @@ interface ScoredLead extends Lead {
 
 const EMPTY_STATS: Stats = {
   driversNeedingLoads: { c: 0 }, loadsInTransit: { c: 0 },
-  leadsFollowUp: { c: 0 }, outstandingInvoices: { c: 0 }, todayTasks: [],
+  leadsFollowUp: { c: 0 }, outstandingInvoices: { c: 0 }, todayTasks: [], completedToday: [],
 }
 
 export function Dashboard() {
@@ -36,6 +38,7 @@ export function Dashboard() {
   const [leads,        setLeads]        = useState<Lead[]>([])
   const [loading,      setLoading]      = useState(true)
   const [leadsLoading, setLeadsLoading] = useState(true)
+  const [docModal,     setDocModal]     = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -110,8 +113,16 @@ export function Dashboard() {
           ) : stats.todayTasks.length === 0 ? (
             <p className='text-sm text-gray-600'>No tasks found.</p>
           ) : (
-            <ul className='space-y-2'>
-              {stats.todayTasks.map(task => <TaskRow key={task.id} task={task}/>)}
+            <ul className='space-y-1'>
+              {stats.todayTasks.map(task => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  initialDone={stats.completedToday.includes(task.id) || task.status === 'Done'}
+                  todayIso={todayIso}
+                  onDocLink={setDocModal}
+                />
+              ))}
             </ul>
           )}
         </div>
@@ -152,6 +163,9 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Document modal — opened by [[doc]] links in task notes */}
+      {docModal && <DocModal title={docModal} onClose={() => setDocModal(null)} />}
 
       {/* Top 10 Leads Today */}
       <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
@@ -197,17 +211,195 @@ function KpiCard({ label, value, icon, accent = false }: { label: string; value:
   )
 }
 
-function TaskRow({ task }: { task: Task }) {
-  const [done, setDone] = useState(task.status === 'Done')
+// Parse task notes into subtask step lines and doc-link tokens.
+// Returns an array of { text: string; docLinks: string[] } per step line.
+// If no numbered steps exist, returns a single item with the full notes as prose.
+function parseSubtasks(notes: string): Array<{ text: string; docLinks: string[] }> {
+  const lines = notes.split('\n').map(l => l.trim()).filter(Boolean)
+  const steps = lines.filter(l => /^\d+\./.test(l) || l.startsWith('- ') || l.startsWith('* '))
+  const source = steps.length > 0 ? steps : lines
+  return source.map(line => {
+    const clean = line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '')
+    const docLinks: string[] = []
+    const docRe = /\[\[(.+?)\]\]/g
+    let m: RegExpExecArray | null
+    while ((m = docRe.exec(clean)) !== null) docLinks.push(m[1])
+    return { text: clean, docLinks }
+  })
+}
+
+function TaskRow({
+  task, initialDone, todayIso, onDocLink,
+}: {
+  task: Task
+  initialDone: boolean
+  todayIso: string
+  onDocLink: (title: string) => void
+}) {
+  const [done,     setDone]     = useState(initialDone)
+  const [expanded, setExpanded] = useState(false)
+  const [checked,  setChecked]  = useState<Record<number, boolean>>({})
+
+  const hasNotes = Boolean(task.notes?.trim())
+  const subtasks = hasNotes ? parseSubtasks(task.notes!) : []
+  const hasSteps = subtasks.length > 1 || (subtasks.length === 1 && subtasks[0].docLinks.length > 0)
+
+  async function toggleDone() {
+    const next = !done
+    setDone(next)
+    try {
+      if (next) {
+        await window.api.tasks.markComplete(task.id, todayIso)
+      } else {
+        await window.api.tasks.markIncomplete(task.id, todayIso)
+      }
+    } catch {
+      // revert on failure
+      setDone(!next)
+    }
+  }
+
   return (
-    <li className='flex items-center gap-3 group'>
-      <button onClick={() => setDone(!done)} className={['w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors', done ? 'bg-orange-600 border-orange-600' : 'border-surface-300 hover:border-orange-500'].join(' ')}>
-        {done && <span className='text-white text-2xs'>✓</span>}
-      </button>
-      <span className={['text-sm flex-1', done ? 'line-through text-gray-600' : 'text-gray-300'].join(' ')}>{task.title}</span>
-      {task.time_of_day && <div className='flex items-center gap-1 text-2xs text-gray-500'><Clock size={10} />{task.time_of_day}</div>}
-      <span className={['text-2xs px-1.5 py-0.5 rounded-full', task.priority === 'High' ? 'bg-red-900/30 text-red-400' : task.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' : 'bg-surface-600 text-gray-500'].join(' ')}>{task.priority}</span>
+    <li className='rounded-lg border border-transparent hover:border-surface-500 transition-colors'>
+      {/* Main row */}
+      <div className='flex items-center gap-2 px-1 py-1.5'>
+        <button
+          onClick={toggleDone}
+          className={['w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors',
+            done ? 'bg-orange-600 border-orange-600' : 'border-surface-300 hover:border-orange-500'].join(' ')}>
+          {done && <span className='text-white text-2xs'>✓</span>}
+        </button>
+        <span className={['text-sm flex-1', done ? 'line-through text-gray-600' : 'text-gray-300'].join(' ')}>
+          {task.title}
+        </span>
+        {task.time_of_day && (
+          <div className='flex items-center gap-1 text-2xs text-gray-500 shrink-0'>
+            <Clock size={10} />{task.time_of_day}
+          </div>
+        )}
+        <span className={['text-2xs px-1.5 py-0.5 rounded-full shrink-0',
+          task.priority === 'High'   ? 'bg-red-900/30 text-red-400' :
+          task.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' :
+                                       'bg-surface-600 text-gray-500'].join(' ')}>
+          {task.priority}
+        </span>
+        {hasNotes && (
+          <button
+            onClick={() => setExpanded(v => !v)}
+            className='text-gray-600 hover:text-gray-400 transition-colors shrink-0'>
+            {expanded ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
+          </button>
+        )}
+      </div>
+
+      {/* Expanded subtasks */}
+      {expanded && hasNotes && (
+        <div className='ml-6 pb-2 space-y-1'>
+          {hasSteps ? (
+            subtasks.map((step, i) => (
+              <div key={i} className='flex items-start gap-2'>
+                <button
+                  onClick={() => setChecked(c => ({ ...c, [i]: !c[i] }))}
+                  className={['mt-0.5 w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-colors',
+                    checked[i] ? 'bg-green-700 border-green-700' : 'border-surface-400 hover:border-green-600'].join(' ')}>
+                  {checked[i] && <span className='text-white' style={{fontSize:'8px'}}>✓</span>}
+                </button>
+                <span className={['text-xs flex-1 leading-snug', checked[i] ? 'line-through text-gray-600' : 'text-gray-400'].join(' ')}>
+                  {/* Render text with doc links highlighted */}
+                  {step.text.split(/\[\[(.+?)\]\]/).map((part, pi) =>
+                    pi % 2 === 0
+                      ? <span key={pi}>{part}</span>
+                      : <button key={pi} onClick={() => onDocLink(part)}
+                          className='text-orange-400 hover:text-orange-300 underline cursor-pointer font-medium'>
+                          {part}
+                        </button>
+                  )}
+                </span>
+              </div>
+            ))
+          ) : (
+            /* Plain notes — show as a single collapsed paragraph with doc links */
+            <p className='text-xs text-gray-500 leading-relaxed pr-2'>
+              {task.notes!.split(/\[\[(.+?)\]\]/).map((part, pi) =>
+                pi % 2 === 0
+                  ? <span key={pi}>{part}</span>
+                  : <button key={pi} onClick={() => onDocLink(part)}
+                      className='text-orange-400 hover:text-orange-300 underline cursor-pointer font-medium'>
+                      {part}
+                    </button>
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </li>
+  )
+}
+
+// ── Document Modal ────────────────────────────────────────────────────────────
+
+function DocModal({ title, onClose }: { title: string; onClose: () => void }) {
+  const [stack,   setStack]   = useState<{ title: string; content: string | null }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    window.api.documents.list().then((docs: Array<{ title: string; content: string | null }>) => {
+      const found = docs.find(d => d.title.toLowerCase() === title.toLowerCase())
+      setStack(found ? [found] : [{ title, content: null }])
+      setLoading(false)
+    }).catch(() => { setStack([{ title, content: null }]); setLoading(false) })
+  }, [title])
+
+  const current = stack[stack.length - 1]
+
+  async function followLink(linkTitle: string) {
+    try {
+      const docs: Array<{ title: string; content: string | null }> = await window.api.documents.list()
+      const found = docs.find(d => d.title.toLowerCase() === linkTitle.toLowerCase())
+      setStack(s => [...s, found ?? { title: linkTitle, content: null }])
+    } catch {}
+  }
+
+  if (!current) return null
+
+  return (
+    <div
+      className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6'
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className='bg-surface-700 border border-surface-400 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col'>
+        <div className='flex items-center gap-3 px-5 py-3 border-b border-surface-400 shrink-0'>
+          {stack.length > 1 && (
+            <button
+              onClick={() => setStack(s => s.slice(0, -1))}
+              className='text-gray-500 hover:text-gray-300 text-xs px-2 py-0.5 border border-surface-400 rounded transition-colors'>
+              Back
+            </button>
+          )}
+          <h3 className='text-sm font-semibold text-gray-100 flex-1 truncate'>{current.title}</h3>
+          <button onClick={onClose} className='text-gray-500 hover:text-gray-300'>
+            <X size={16}/>
+          </button>
+        </div>
+        <div className='flex-1 overflow-y-auto px-6 py-5'>
+          {loading ? (
+            <p className='text-sm text-gray-600'>Loading...</p>
+          ) : current.content ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: renderMd(current.content) }}
+              onClick={async (e) => {
+                const link = (e.target as HTMLElement).closest('[data-doc-link]') as HTMLElement | null
+                const title = link?.getAttribute('data-doc-link')
+                if (title) { e.preventDefault(); await followLink(title) }
+              }}
+            />
+          ) : (
+            <p className='text-sm text-gray-600 italic'>Document not found: {current.title}</p>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

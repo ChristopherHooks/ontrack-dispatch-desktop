@@ -60,6 +60,29 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
   const payScore = slowPayDiff == null ? null : slowPayDiff <= 0 ? 'On Time' : slowPayDiff <= 7 ? 'Slightly Late' : slowPayDiff <= 14 ? 'Slow' : 'Very Slow'
   const payColor = payScore === 'On Time' ? 'text-green-400' : payScore === 'Slightly Late' ? 'text-yellow-400' : payScore ? 'text-red-400' : 'text-gray-600'
 
+  // Broker intelligence rating — deterministic, same logic as brokerIntelligence.ts
+  const intelRating = (() => {
+    const flag = broker.flag
+    if (flag === 'Blacklisted' || flag === 'Avoid') return 'Avoid'
+    let score = 50
+    if (avgRpm > 0) score += Math.max(-20, Math.min(20, (avgRpm - 2.0) * 15))
+    score += Math.min(completedLoads.length * 3, 15)
+    if (flag === 'Preferred') score += 25
+    if (flag === 'Slow Pay')  score -= 20
+    score = Math.max(0, Math.min(100, Math.round(score)))
+    if (score >= 65) return flag === 'Preferred' ? 'Preferred' : 'Strong'
+    if (score >= 40) return 'Neutral'
+    if (score >= 20) return 'Caution'
+    return 'Avoid'
+  })()
+  const INTEL_RATING_STYLE: Record<string, string> = {
+    Preferred: 'bg-green-500/15 text-green-400 border-green-500/25',
+    Strong:    'bg-green-500/10 text-green-400 border-green-500/20',
+    Neutral:   'bg-gray-500/10 text-gray-400 border-gray-500/20',
+    Caution:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+    Avoid:     'bg-red-500/15 text-red-400 border-red-500/25',
+  }
+
   return (
     <div className='fixed inset-0 z-50 flex'>
       <div className='flex-1 bg-black/50 backdrop-blur-sm' onClick={onClose} />
@@ -123,7 +146,12 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
           </div>
           {/* Performance */}
           <div className='px-5 py-4 border-b border-surface-600'>
-            <Sec title='Performance' />
+            <div className='flex items-center justify-between mb-3'>
+              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider'>Performance</p>
+              <span className={`text-2xs px-2 py-0.5 rounded-full border font-semibold ${INTEL_RATING_STYLE[intelRating]}`}>
+                {intelRating}
+              </span>
+            </div>
             <div className='grid grid-cols-2 gap-3'>
               <div><p className='text-2xs text-gray-600'>Total Loads</p><p className='text-sm text-gray-200 mt-0.5 font-semibold'>{loads.length}</p></div>
               <div><p className='text-2xs text-gray-600'>Completed</p><p className='text-sm text-gray-200 mt-0.5 font-semibold'>{completedLoads.length}</p></div>

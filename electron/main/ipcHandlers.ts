@@ -1,4 +1,5 @@
 import { IpcMain, dialog, app, shell } from 'electron'
+import { readFileSync } from 'fs'
 import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
 import {
@@ -15,8 +16,13 @@ import {
   listAuditLog,
   listDocuments, getDocument, createDocument, updateDocument, deleteDocument, searchDocuments,
   listMarketingGroups, createMarketingGroup, updateMarketingGroup, markGroupPosted, deleteMarketingGroup,
+  getTodaysGroups, getCategoryAnalysis, seedFbGroups, markGroupReviewed,
   listPostLog, createPostLog, updatePostLog, deletePostLog, getRecentlyUsedTemplateIds, getTemplateUsageCounts,
+  listFbConversations, getFbConversation, createFbConversation, updateFbConversation, deleteFbConversation, fbConversationExists,
+  listFbPosts, createFbPost, updateFbPost, deleteFbPost, fbPostExists,
+  listFbQueuePosts, createFbQueuePost, updateFbQueuePost, deleteFbQueuePost, suggestNextCategory, getRecentFbPostCategories,
 } from './repositories'
+import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
@@ -26,6 +32,13 @@ import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly,
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
 import { getDashboardStats } from './dashboard'
+import { getOperationsData } from './operations'
+import { getProfitRadarData, getProfitRadarSummary } from './profitRadar'
+import {
+  listTimelineEvents, addTimelineEvent, completeTimelineEvent, deleteTimelineEvent,
+  applyStatusChange, initLoadTimeline, getActiveLoads, getUpcomingCheckCalls,
+} from './repositories/loadTimelineRepo'
+import { getBrokerIntelAll, getLaneIntelAll, getDriverLaneFits } from './brokerIntelligence'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -36,6 +49,75 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
   // -- Dashboard --
   ipcMain.handle('dashboard:stats', () => getDashboardStats(getDb()))
+
+  // -- Operations Control Panel --
+  ipcMain.handle('operations:data', () => getOperationsData(getDb()))
+
+  // -- Profit Radar --
+  ipcMain.handle('profitRadar:data',    ()  => getProfitRadarData(getDb()))
+  ipcMain.handle('profitRadar:summary', async () => getProfitRadarSummary(getProfitRadarData(getDb()), store))
+
+  // -- Active Load Timeline --
+  ipcMain.handle('timeline:activeLoads',    ()                          => getActiveLoads(getDb()))
+  ipcMain.handle('timeline:upcomingCalls',  (_e, n?: number)            => getUpcomingCheckCalls(getDb(), n))
+  ipcMain.handle('timeline:events',         (_e, loadId: number)        => listTimelineEvents(getDb(), loadId))
+  ipcMain.handle('timeline:addEvent',       (_e, loadId: number, eventType: string, label: string, scheduledAt: string | null, notes: string | null) =>
+    addTimelineEvent(getDb(), loadId, eventType, label, scheduledAt, notes))
+  ipcMain.handle('timeline:completeEvent',  (_e, id: number, notes?: string) => completeTimelineEvent(getDb(), id, notes))
+  ipcMain.handle('timeline:deleteEvent',    (_e, id: number)            => deleteTimelineEvent(getDb(), id))
+  ipcMain.handle('timeline:statusChange',   (_e, loadId: number, newStatus: string, notes: string | null) =>
+    applyStatusChange(getDb(), loadId, newStatus, notes))
+  ipcMain.handle('timeline:initLoad',       (_e, loadId: number)        => initLoadTimeline(getDb(), loadId))
+  ipcMain.handle('timeline:generateMessage', async (_e, p: { driverName: string; route: string; messageType: string }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    const prompts: Record<string, string> = {
+      check_in:        `Write a brief, professional check-in text message to driver ${p.driverName} on load ${p.route}. Ask for current location and estimated arrival time. 1-2 sentences, no emojis, direct and friendly.`,
+      broker_update:   `Write a brief broker status update for a load on route ${p.route}. Driver is in transit and on schedule. 2 sentences, professional tone.`,
+      pod_request:     `Write a brief message to driver ${p.driverName} requesting proof of delivery (POD) for the completed load on route ${p.route}. 1-2 sentences.`,
+      delivery_confirm:`Write a brief delivery confirmation to send to the broker for a load on route ${p.route}. Confirm the load was delivered successfully today. 1-2 sentences.`,
+    }
+    const prompt = prompts[p.messageType] ?? `Write a brief operational message for driver ${p.driverName} on load ${p.route}. 1-2 sentences.`
+    return claudeComplete(
+      apiKey ?? '',
+      prompt,
+      'You are a professional trucking dispatcher writing brief operational messages. No emojis. Clear and direct.',
+      150,
+    )
+  })
+
+  // -- Broker Intelligence + Lane Memory --
+  ipcMain.handle('intel:allBrokers',  ()                       => getBrokerIntelAll(getDb()))
+  ipcMain.handle('intel:allLanes',    ()                       => getLaneIntelAll(getDb()))
+  ipcMain.handle('intel:driverFit',   (_e, driverId: number)  => getDriverLaneFits(getDb(), driverId))
+
+  // -- Load Match: Negotiation Script --
+  ipcMain.handle('loadMatch:nego', async (_e, payload: {
+    rate:          number | null
+    miles:         number | null
+    rpm:           number | null
+    deadheadMiles: number
+    origin:        string
+    dest:          string
+    brokerName:    string | null
+    driverName:    string
+  }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    if (!apiKey?.trim()) return null
+    const brief = [
+      `Lane: ${payload.origin} to ${payload.dest}`,
+      `Rate: ${payload.rate != null ? '$' + payload.rate.toLocaleString() : 'unknown'}, ${payload.miles ?? '?'} loaded miles`,
+      `RPM: ${payload.rpm != null ? '$' + payload.rpm.toFixed(2) + '/mi' : 'unknown'}`,
+      `Deadhead: ${payload.deadheadMiles} miles`,
+      payload.brokerName ? `Broker: ${payload.brokerName}` : null,
+    ].filter(Boolean).join('. ')
+    const result = await claudeComplete(
+      apiKey,
+      brief,
+      'You are a freight dispatcher. Given this load\'s rate and lane details, write exactly 2 sentences: a one-sentence rate assessment and a specific word-for-word call opener to use when negotiating with the broker. Be direct with numbers. No greetings, no bullet points, no emojis.',
+      120,
+    )
+    return result.ok ? result.content.trim() : null
+  })
 
   // -- Generic DB query (dev/debug only — disabled in packaged builds) --
   if (!app.isPackaged) {
@@ -172,13 +254,41 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     getRecommendations(getDb(), payload?.driverId))
 
   // -- Marketing --
-  ipcMain.handle('marketing:groups:list',       () => listMarketingGroups(getDb()))
-  ipcMain.handle('marketing:groups:create',     (_e, name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) =>
+  ipcMain.handle('marketing:groups:list',          () => listMarketingGroups(getDb()))
+  ipcMain.handle('marketing:groups:create',        (_e, name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) =>
     createMarketingGroup(getDb(), name, url, platform, notes, truckTypeTags, regionTags))
-  ipcMain.handle('marketing:groups:update',     (_e, id: number, updates: Parameters<typeof updateMarketingGroup>[2]) =>
+  ipcMain.handle('marketing:groups:update',        (_e, id: number, updates: Parameters<typeof updateMarketingGroup>[2]) =>
     updateMarketingGroup(getDb(), id, updates))
-  ipcMain.handle('marketing:groups:markPosted', (_e, id: number, date: string) => markGroupPosted(getDb(), id, date))
-  ipcMain.handle('marketing:groups:delete',     (_e, id: number) => deleteMarketingGroup(getDb(), id))
+  ipcMain.handle('marketing:groups:markPosted',    (_e, id: number, date: string) => markGroupPosted(getDb(), id, date))
+  ipcMain.handle('marketing:groups:delete',        (_e, id: number) => deleteMarketingGroup(getDb(), id))
+  ipcMain.handle('marketing:groups:todaysGroups',  (_e, n?: number) => getTodaysGroups(getDb(), n))
+  ipcMain.handle('marketing:groups:catAnalysis',   () => getCategoryAnalysis(getDb()))
+  ipcMain.handle('marketing:groups:seedGroups',    () => { seedFbGroups(getDb()); return { ok: true } })
+  ipcMain.handle('marketing:groups:markReviewed',  (_e, id: number, date: string) => markGroupReviewed(getDb(), id, date))
+  ipcMain.handle('marketing:groups:importHtml',    async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select your saved Facebook Groups HTML file',
+      filters: [{ name: 'HTML Files', extensions: ['html', 'htm'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || !result.filePaths[0]) return { added: 0, found: 0, canceled: true }
+    const html = readFileSync(result.filePaths[0], 'utf-8')
+    const groups = parseFbGroupsFromHtml(html)
+    const db = getDb()
+    const ins = db.prepare(
+      'INSERT OR IGNORE INTO marketing_groups ' +
+      '(name, url, platform, notes, truck_type_tags, region_tags, active, category, priority) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    let added = 0
+    db.transaction(() => {
+      for (const g of groups) {
+        const r = ins.run(g.name, g.url, 'Facebook', 'Imported from HTML', '[]', '[]', 1, 'mixed', 'Medium')
+        if (r.changes > 0) added++
+      }
+    })()
+    return { added, found: groups.length }
+  })
 
   ipcMain.handle('marketing:post:list',         (_e, limit?: number) => listPostLog(getDb(), limit))
   ipcMain.handle('marketing:post:create',       (_e, templateId: string, category: string, truckType: string | null, usedDate: string, groupsPostedTo: string[], posted: boolean, repliesCount: number, leadsGenerated: number, notes: string | null) =>
@@ -188,6 +298,127 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('marketing:post:delete',       (_e, id: number) => deletePostLog(getDb(), id))
   ipcMain.handle('marketing:post:recentIds',    (_e, days?: number) => getRecentlyUsedTemplateIds(getDb(), days))
   ipcMain.handle('marketing:post:usageCounts',  () => getTemplateUsageCounts(getDb()))
+
+  // -- FB Conversation Agent (Agent 1) — CRUD --
+  ipcMain.handle('fbConv:list',   (_e, stage?: string) => listFbConversations(getDb(), stage))
+  ipcMain.handle('fbConv:get',    (_e, id: number) => getFbConversation(getDb(), id))
+  ipcMain.handle('fbConv:create', (_e, dto: unknown) => createFbConversation(getDb(), dto as any))
+  ipcMain.handle('fbConv:update', (_e, id: number, dto: unknown) => updateFbConversation(getDb(), id, dto as any))
+  ipcMain.handle('fbConv:delete', (_e, id: number) => deleteFbConversation(getDb(), id))
+  ipcMain.handle('fbConv:exists', (_e, name: string, phone: string | null) => fbConversationExists(getDb(), name, phone))
+
+  // -- FB Conversation Agent — AI actions --
+  ipcMain.handle('fb:conv:generateReply', async (_e, p: { name: string; stage: string; lastMessage: string | null; trailer: string | null; location: string | null }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Name: ${p.name}\nStage: ${p.stage}\nLast message: ${p.lastMessage ?? 'none'}\nEquipment: ${p.trailer ?? 'unknown'}\nLocation: ${p.location ?? 'unknown'}\n\nWrite a short, friendly Facebook DM reply (2-3 sentences) that builds rapport and naturally moves the conversation toward a phone call.`,
+      'You write short, natural Facebook DM replies for a trucking dispatch company called OnTrack Hauling Solutions. Replies should sound human, not salesy.',
+      200,
+    )
+  })
+  ipcMain.handle('fb:conv:generateFollowUp', async (_e, p: { name: string; stage: string; lastMessageAt: string | null }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Name: ${p.name}\nStage: ${p.stage}\nLast contact: ${p.lastMessageAt ?? 'unknown'}\n\nWrite a short follow-up message (1-2 sentences). Friendly, not pushy. Acknowledge time passed.`,
+      'You write short, natural Facebook DM follow-ups for a trucking dispatcher.',
+      150,
+    )
+  })
+  ipcMain.handle('fb:conv:suggestQuestion', async (_e, p: { name: string; stage: string; lastMessage: string | null; trailer: string | null; location: string | null }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Lead: ${p.name}\nStage: ${p.stage}\nEquipment: ${p.trailer ?? 'unknown'}\nLocation: ${p.location ?? 'unknown'}\nLast message: ${p.lastMessage ?? 'none'}\n\nSuggest the single best qualifying question to ask this lead next. Return just the question, nothing else.`,
+      'You help trucking dispatchers qualify carrier leads on Facebook.',
+      100,
+    )
+  })
+  ipcMain.handle('fb:conv:handoffSummary', async (_e, p: { name: string; phone: string | null; trailer: string | null; location: string | null; stage: string; notes: string | null }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Name: ${p.name}\nPhone: ${p.phone ?? 'not captured'}\nEquipment: ${p.trailer ?? 'unknown'}\nLocation: ${p.location ?? 'unknown'}\nStage: ${p.stage}\nNotes: ${p.notes ?? 'none'}\n\nWrite a brief call-ready handoff summary (3-4 sentences) for a dispatcher to read before calling this carrier.`,
+      'You write concise call-ready carrier summaries for trucking dispatchers.',
+      250,
+    )
+  })
+
+  // -- FB Lead Hunter Agent (Agent 2) — CRUD --
+  ipcMain.handle('fbHunter:list',   (_e, status?: string) => listFbPosts(getDb(), status as any))
+  ipcMain.handle('fbHunter:create', (_e, dto: unknown) => createFbPost(getDb(), dto as any))
+  ipcMain.handle('fbHunter:update', (_e, id: number, dto: unknown) => updateFbPost(getDb(), id, dto as any))
+  ipcMain.handle('fbHunter:delete', (_e, id: number) => deleteFbPost(getDb(), id))
+  ipcMain.handle('fbHunter:exists', (_e, rawText: string) => fbPostExists(getDb(), rawText))
+
+  // -- FB Lead Hunter Agent — AI actions --
+  ipcMain.handle('fb:hunter:classify', async (_e, p: { rawText: string }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Facebook post: "${p.rawText.slice(0, 800)}"\n\nReturn valid JSON only (no markdown, no code block):\n{"intent":"Needs Dispatcher"|"Needs Load"|"Empty Truck"|"Looking for Consistent Freight"|"General Networking"|"Low Intent"|"Ignore","extractedName":string|null,"extractedPhone":string|null,"extractedLocation":string|null,"extractedEquipment":string|null,"recommendedAction":string,"why":string}`,
+      'You classify Facebook posts for a trucking dispatch company. Return valid JSON only. No explanations, no markdown.',
+      350,
+    )
+  })
+  ipcMain.handle('fb:hunter:draftComment', async (_e, p: { rawText: string; intent: string }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Intent: ${p.intent}\nPost: "${p.rawText.slice(0, 400)}"\n\nWrite a short public Facebook comment (1-2 sentences) showing genuine interest. Friendly, not salesy. No generic phrases like "DM me".`,
+      'You write brief public Facebook comments for a trucking dispatch company called OnTrack Hauling Solutions.',
+      150,
+    )
+  })
+  ipcMain.handle('fb:hunter:draftDm', async (_e, p: { intent: string; extractedInfo: string }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Intent: ${p.intent}\nExtracted info: ${p.extractedInfo}\n\nWrite a short, direct Facebook DM opening (2-3 sentences) to start a dispatching conversation. Introduce the company briefly.`,
+      'You write concise Facebook DMs for a trucking dispatcher at OnTrack Hauling Solutions looking for carriers to work with.',
+      200,
+    )
+  })
+
+  // -- FB Content Agent (Agent 3) — CRUD --
+  ipcMain.handle('fbContent:list',       (_e, status?: string) => listFbQueuePosts(getDb(), status as any))
+  ipcMain.handle('fbContent:create',     (_e, dto: unknown) => createFbQueuePost(getDb(), dto as any))
+  ipcMain.handle('fbContent:update',     (_e, id: number, dto: unknown) => updateFbQueuePost(getDb(), id, dto as any))
+  ipcMain.handle('fbContent:delete',     (_e, id: number) => deleteFbQueuePost(getDb(), id))
+  ipcMain.handle('fbContent:suggestCat', () => suggestNextCategory(getDb()))
+  ipcMain.handle('fbContent:recentCats', (_e, days?: number) => getRecentFbPostCategories(getDb(), days))
+
+  // -- FB Content Agent — AI actions --
+  ipcMain.handle('fb:content:generatePost', async (_e, p: { category: string; recentCategories: string[] }) => {
+    const apiKey     = store.get('claude_api_key') as string | undefined
+    const company    = (store.get('companyName') as string | undefined) ?? 'OnTrack Hauling Solutions'
+    const owner      = (store.get('ownerName')   as string | undefined) ?? 'Chris'
+    return claudeComplete(
+      apiKey ?? '',
+      `Company: ${company}\nContact: ${owner}\nCategory: ${p.category}\nRecent categories (vary your angle): ${p.recentCategories.slice(0, 5).join(', ') || 'none'}\n\nWrite one Facebook post for this category. Natural human tone. No hashtag spam. No bullet lists. 2-4 sentences. End with a clear call to action.`,
+      'You write Facebook posts for a trucking dispatch company. Posts should sound human, professional, and build trust with independent owner-operators.',
+      300,
+    )
+  })
+  ipcMain.handle('fb:content:generateVariation', async (_e, p: { content: string }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Original post:\n${p.content}\n\nWrite one variation of this post with different wording. Same core message, different angle or opening. 2-4 sentences.`,
+      'You rewrite Facebook posts for a trucking dispatch company. Keep the professional, human tone.',
+      250,
+    )
+  })
+  ipcMain.handle('fb:content:suggestReplies', async (_e, p: { content: string }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    return claudeComplete(
+      apiKey ?? '',
+      `Post: "${p.content}"\n\nSuggest 3 short reply options (1 sentence each) for likely comments on this post. Format as:\n1. [reply]\n2. [reply]\n3. [reply]`,
+      'You suggest comment replies for Facebook posts from a trucking dispatch company.',
+      200,
+    )
+  })
 
   // -- Shell utilities --
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
@@ -199,4 +430,31 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('dev:seedTasksOnly', () => { seedTasksAndDocsOnly(getDb()); return { ok: true } })
   ipcMain.handle('dev:clearSeedData', () => { clearNonTaskSeedData(getDb()); return { ok: true } })
   ipcMain.handle('dev:reseedDocs',    () => { reseedDocuments(getDb());      return { ok: true } })
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Parse saved Facebook HTML to extract group name + URL pairs.
+ * Looks for <a href="...facebook.com/groups/..."> anchor tags.
+ * Uses INSERT OR IGNORE so re-importing the same file is always safe.
+ */
+function parseFbGroupsFromHtml(html: string): Array<{ name: string; url: string }> {
+  const results: Array<{ name: string; url: string }> = []
+  const seen = new Set<string>()
+  // Match anchor tags whose href contains a Facebook group URL
+  const re = /<a\b[^>]*\bhref=["']([^"']*facebook\.com\/groups\/([^"'?&#/][^"'?&#]*))[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) !== null) {
+    const url  = m[1].split('?')[0].replace(/\/$/, '')
+    const text = m[3].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (seen.has(url)) continue
+    if (!text || text.length < 3 || text.length > 150) continue
+    // Skip obvious UI chrome
+    const lower = text.toLowerCase()
+    if (['see all', 'join', 'visit', 'more', 'groups', 'your groups', 'invite'].includes(lower)) continue
+    seen.add(url)
+    results.push({ name: text, url })
+  }
+  return results
 }

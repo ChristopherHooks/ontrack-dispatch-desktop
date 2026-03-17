@@ -14,6 +14,17 @@ contextBridge.exposeInMainWorld('api', {
     stats: () => ipcRenderer.invoke('dashboard:stats'),
   },
 
+  // -- Operations Control Panel --
+  operations: {
+    data: () => ipcRenderer.invoke('operations:data'),
+  },
+
+  // -- Profit Radar --
+  profitRadar: {
+    data:    () => ipcRenderer.invoke('profitRadar:data'),
+    summary: () => ipcRenderer.invoke('profitRadar:summary'),
+  },
+
   // -- Generic DB query (dev/debug) --
   db: {
     query: (sql: string, params?: unknown[]) => ipcRenderer.invoke('db:query', sql, params),
@@ -156,15 +167,46 @@ contextBridge.exposeInMainWorld('api', {
     recommendLoads: (payload: { driverId?: number }) => ipcRenderer.invoke('scanner:recommendLoads', payload),
   },
 
+  // -- Active Load Timeline --
+  timeline: {
+    activeLoads:     ()                                                                           => ipcRenderer.invoke('timeline:activeLoads'),
+    upcomingCalls:   (n?: number)                                                                 => ipcRenderer.invoke('timeline:upcomingCalls', n),
+    events:          (loadId: number)                                                             => ipcRenderer.invoke('timeline:events', loadId),
+    addEvent:        (loadId: number, eventType: string, label: string, scheduledAt: string | null, notes: string | null) => ipcRenderer.invoke('timeline:addEvent', loadId, eventType, label, scheduledAt, notes),
+    completeEvent:   (id: number, notes?: string)                                                 => ipcRenderer.invoke('timeline:completeEvent', id, notes),
+    deleteEvent:     (id: number)                                                                 => ipcRenderer.invoke('timeline:deleteEvent', id),
+    statusChange:    (loadId: number, newStatus: string, notes: string | null)                   => ipcRenderer.invoke('timeline:statusChange', loadId, newStatus, notes),
+    initLoad:        (loadId: number)                                                             => ipcRenderer.invoke('timeline:initLoad', loadId),
+    generateMessage: (payload: { driverName: string; route: string; messageType: string })       => ipcRenderer.invoke('timeline:generateMessage', payload),
+  },
+
+  // -- Broker Intelligence + Lane Memory --
+  intel: {
+    allBrokers: ()                   => ipcRenderer.invoke('intel:allBrokers'),
+    allLanes:   ()                   => ipcRenderer.invoke('intel:allLanes'),
+    driverFit:  (driverId: number)   => ipcRenderer.invoke('intel:driverFit', driverId),
+  },
+
+  // -- Load Match Workspace --
+  loadMatch: {
+    nego: (payload: unknown) => ipcRenderer.invoke('loadMatch:nego', payload),
+  },
+
   // -- Marketing --
   marketing: {
     groups: {
-      list:       () => ipcRenderer.invoke('marketing:groups:list'),
-      create:     (name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) =>
-                    ipcRenderer.invoke('marketing:groups:create', name, url, platform, notes, truckTypeTags, regionTags),
-      update:     (id: number, updates: object) => ipcRenderer.invoke('marketing:groups:update', id, updates),
-      markPosted: (id: number, date: string) => ipcRenderer.invoke('marketing:groups:markPosted', id, date),
-      delete:     (id: number) => ipcRenderer.invoke('marketing:groups:delete', id),
+      list:         () => ipcRenderer.invoke('marketing:groups:list'),
+      create:       (name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) =>
+                      ipcRenderer.invoke('marketing:groups:create', name, url, platform, notes, truckTypeTags, regionTags),
+      update:       (id: number, updates: object) => ipcRenderer.invoke('marketing:groups:update', id, updates),
+      markPosted:   (id: number, date: string) => ipcRenderer.invoke('marketing:groups:markPosted', id, date),
+      delete:       (id: number) => ipcRenderer.invoke('marketing:groups:delete', id),
+      // Facebook Groups workflow
+      todaysGroups:  (n?: number) => ipcRenderer.invoke('marketing:groups:todaysGroups', n),
+      catAnalysis:   () => ipcRenderer.invoke('marketing:groups:catAnalysis'),
+      seedGroups:    () => ipcRenderer.invoke('marketing:groups:seedGroups'),
+      markReviewed:  (id: number, date: string) => ipcRenderer.invoke('marketing:groups:markReviewed', id, date),
+      importHtml:    () => ipcRenderer.invoke('marketing:groups:importHtml'),
     },
     post: {
       list:        (limit?: number) => ipcRenderer.invoke('marketing:post:list', limit),
@@ -175,6 +217,45 @@ contextBridge.exposeInMainWorld('api', {
       recentIds:   (days?: number) => ipcRenderer.invoke('marketing:post:recentIds', days),
       usageCounts: () => ipcRenderer.invoke('marketing:post:usageCounts'),
     },
+  },
+
+  // -- FB Conversation Agent (Agent 1) --
+  fbConv: {
+    list:             (stage?: string)                    => ipcRenderer.invoke('fbConv:list', stage),
+    get:              (id: number)                        => ipcRenderer.invoke('fbConv:get', id),
+    create:           (dto: unknown)                      => ipcRenderer.invoke('fbConv:create', dto),
+    update:           (id: number, dto: unknown)          => ipcRenderer.invoke('fbConv:update', id, dto),
+    delete:           (id: number)                        => ipcRenderer.invoke('fbConv:delete', id),
+    exists:           (name: string, phone: string | null) => ipcRenderer.invoke('fbConv:exists', name, phone),
+    generateReply:    (payload: unknown)                  => ipcRenderer.invoke('fb:conv:generateReply', payload),
+    generateFollowUp: (payload: unknown)                  => ipcRenderer.invoke('fb:conv:generateFollowUp', payload),
+    suggestQuestion:  (payload: unknown)                  => ipcRenderer.invoke('fb:conv:suggestQuestion', payload),
+    handoffSummary:   (payload: unknown)                  => ipcRenderer.invoke('fb:conv:handoffSummary', payload),
+  },
+
+  // -- FB Lead Hunter Agent (Agent 2) --
+  fbHunter: {
+    list:         (status?: string)                => ipcRenderer.invoke('fbHunter:list', status),
+    create:       (dto: unknown)                   => ipcRenderer.invoke('fbHunter:create', dto),
+    update:       (id: number, dto: unknown)       => ipcRenderer.invoke('fbHunter:update', id, dto),
+    delete:       (id: number)                     => ipcRenderer.invoke('fbHunter:delete', id),
+    exists:       (rawText: string)                => ipcRenderer.invoke('fbHunter:exists', rawText),
+    classify:     (payload: unknown)               => ipcRenderer.invoke('fb:hunter:classify', payload),
+    draftComment: (payload: unknown)               => ipcRenderer.invoke('fb:hunter:draftComment', payload),
+    draftDm:      (payload: unknown)               => ipcRenderer.invoke('fb:hunter:draftDm', payload),
+  },
+
+  // -- FB Content Agent (Agent 3) --
+  fbContent: {
+    list:             (status?: string)                => ipcRenderer.invoke('fbContent:list', status),
+    create:           (dto: unknown)                   => ipcRenderer.invoke('fbContent:create', dto),
+    update:           (id: number, dto: unknown)       => ipcRenderer.invoke('fbContent:update', id, dto),
+    delete:           (id: number)                     => ipcRenderer.invoke('fbContent:delete', id),
+    suggestCategory:  ()                               => ipcRenderer.invoke('fbContent:suggestCat'),
+    recentCategories: (days?: number)                  => ipcRenderer.invoke('fbContent:recentCats', days),
+    generatePost:     (payload: unknown)               => ipcRenderer.invoke('fb:content:generatePost', payload),
+    generateVariation:(payload: unknown)               => ipcRenderer.invoke('fb:content:generateVariation', payload),
+    suggestReplies:   (payload: unknown)               => ipcRenderer.invoke('fb:content:suggestReplies', payload),
   },
 
   // -- Shell utilities --

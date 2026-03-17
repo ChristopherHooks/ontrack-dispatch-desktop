@@ -3,6 +3,7 @@ import { FolderOpen, Plus, Search, Edit2, Trash2, FileText, X, Save } from 'luci
 import type { SopDocument, CreateSopDocumentDto, DocCategory } from '../types/models'
 import { DOC_CATEGORIES } from '../data/helpArticles'
 import { EmptyState } from '../components/ui/EmptyState'
+import { renderMd } from '../lib/renderMd'
 
 const CATEGORY_COLORS: Record<string, string> = {
   SOP:       'bg-blue-900/30 text-blue-400 border-blue-700/40',
@@ -13,45 +14,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   Other:     'bg-surface-600 text-gray-400 border-surface-400',
 }
 
-function esc(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-function inline(s: string) {
-  return s
-    // [[Document Title]] → clickable cross-reference (processed before bold/italic)
-    .replace(/\[\[(.+?)\]\]/g, '<a data-doc-link="$1" class="text-orange-400 hover:text-orange-300 underline cursor-pointer font-medium">$1</a>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-100 font-semibold">$1</strong>')
-    .replace(/\*(.+?)\*/g,     '<em class="text-gray-400">$1</em>')
-    .replace(/`(.+?)`/g,       '<code class="bg-surface-600 text-orange-300 px-1 rounded text-xs font-mono">$1</code>')
-}
-function renderMd(text: string): string {
-  const lines = text.split(String.fromCharCode(10))
-  const out: string[] = []
-  let inUl = false, inOl = false, olIdx = 0
-  for (const line of lines) {
-    const closeList = () => { if (inUl) { out.push('</ul>'); inUl=false } if (inOl) { out.push('</ol>'); inOl=false } }
-    if (line.startsWith('### ')) { closeList(); out.push('<h3 class="text-base font-semibold text-gray-100 mt-4 mb-1">' + inline(esc(line.slice(4))) + '</h3>') }
-    else if (line.startsWith('## ')) { closeList(); out.push('<h2 class="text-lg font-bold text-gray-100 mt-5 mb-2">' + inline(esc(line.slice(3))) + '</h2>') }
-    else if (line.startsWith('# '))  { closeList(); out.push('<h1 class="text-xl font-bold text-white mt-5 mb-2">' + inline(esc(line.slice(2))) + '</h1>') }
-    else if (/^\d+\.\s/.test(line)) {
-      if (inUl) { out.push('</ul>'); inUl=false }
-      if (!inOl) { out.push('<ol class="list-decimal list-inside space-y-1 my-2 text-gray-300">'); inOl=true; olIdx=0 }
-      out.push('<li class="text-sm">' + inline(esc(line.replace(/^\d+\.\s/, ''))) + '</li>')
-    }
-    else if (line.startsWith('- ') || line.startsWith('* ')) {
-      if (inOl) { out.push('</ol>'); inOl=false }
-      if (!inUl) { out.push('<ul class="list-disc list-inside space-y-1 my-2 text-gray-300">'); inUl=true }
-      out.push('<li class="text-sm">' + inline(esc(line.slice(2))) + '</li>')
-    }
-    else if (line.startsWith('> ')) { closeList(); out.push('<blockquote class="border-l-2 border-orange-600 pl-3 my-2 text-gray-400 italic text-sm">' + esc(line.slice(2)) + '</blockquote>') }
-    else if (line.trim() === '---') { closeList(); out.push('<hr class="border-surface-400 my-3"/>') }
-    else if (line.trim() === '')    { closeList(); out.push('<div class="my-1"></div>') }
-    else { closeList(); out.push('<p class="text-sm text-gray-300 my-1 leading-relaxed">' + inline(esc(line)) + '</p>') }
-  }
-  if (inUl) out.push('</ul>')
-  if (inOl) out.push('</ol>')
-  return out.join('')
-}
 
 export function Documents() {
   const [docs, setDocs]           = useState<SopDocument[]>([])
@@ -62,6 +24,8 @@ export function Documents() {
   const [creating, setCreating]   = useState(false)
   const [loading, setLoading]     = useState(true)
   const [draft, setDraft]         = useState<Partial<SopDocument>>({})
+  // linkedDoc: opens a doc cross-reference in a floating modal without leaving current view
+  const [linkedDoc, setLinkedDoc] = useState<SopDocument | null>(null)
 
   useEffect(() => { load() }, [category])
 
@@ -214,18 +178,16 @@ export function Documents() {
                 <div
                   dangerouslySetInnerHTML={{ __html: renderMd(selected.content) }}
                   onClick={async (e) => {
-                    const el = e.target as HTMLElement
-                    const title = el.getAttribute('data-doc-link')
+                    // Use closest() so clicks on any child element inside the <a> still resolve
+                    const link = (e.target as HTMLElement).closest('[data-doc-link]') as HTMLElement | null
+                    const title = link?.getAttribute('data-doc-link')
                     if (!title) return
                     e.preventDefault()
-                    // Fast path: doc is already in the current filtered list
-                    const found = docs.find(d => d.title.toLowerCase() === title.toLowerCase())
-                    if (found) { setSelected(found); setEditing(false); setCreating(false); return }
-                    // Cross-category link: fetch all docs, switch to All category, then navigate
+                    // Always fetch fresh list — avoids stale in-memory docs state
                     try {
                       const all = await window.api.documents.list()
                       const target = all.find((d: SopDocument) => d.title.toLowerCase() === title.toLowerCase())
-                      if (target) { setCategory('All'); setSearch(''); setSelected(target); setEditing(false); setCreating(false) }
+                      if (target) setLinkedDoc(target)
                     } catch {}
                   }}
                 />
@@ -241,6 +203,68 @@ export function Documents() {
               description='Choose a document from the list, or create a new one.' />
           </div>
         )}
+      </div>
+
+      {/* Linked-doc modal — opens [[cross-reference]] links without leaving current view */}
+      {linkedDoc && (
+        <LinkedDocModal doc={linkedDoc} onClose={() => setLinkedDoc(null)} />
+      )}
+    </div>
+  )
+}
+
+// ── Linked Document Modal ─────────────────────────────────────────────────────
+
+function LinkedDocModal({ doc, onClose }: { doc: SopDocument; onClose: () => void }) {
+  const [stack, setStack] = useState<SopDocument[]>([doc])
+  const current = stack[stack.length - 1]
+
+  async function followLink(title: string) {
+    try {
+      const all: SopDocument[] = await window.api.documents.list()
+      const target = all.find(d => d.title.toLowerCase() === title.toLowerCase())
+      if (target) setStack(s => [...s, target])
+    } catch {}
+  }
+
+  return (
+    <div
+      className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6'
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className='bg-surface-700 border border-surface-400 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col'>
+        {/* Header */}
+        <div className='flex items-center gap-3 px-5 py-3 border-b border-surface-400 shrink-0'>
+          {stack.length > 1 && (
+            <button
+              onClick={() => setStack(s => s.slice(0, -1))}
+              className='text-gray-500 hover:text-gray-300 text-xs px-2 py-0.5 border border-surface-400 rounded transition-colors'>
+              Back
+            </button>
+          )}
+          <h3 className='text-sm font-semibold text-gray-100 flex-1 truncate'>{current.title}</h3>
+          <span className={'text-2xs px-1.5 py-0 rounded border ' + (CATEGORY_COLORS[current.category] ?? CATEGORY_COLORS.Other)}>
+            {current.category}
+          </span>
+          <button onClick={onClose} className='text-gray-500 hover:text-gray-300 ml-1'>
+            <X size={16}/>
+          </button>
+        </div>
+        {/* Content */}
+        <div className='flex-1 overflow-y-auto px-6 py-5'>
+          {current.content ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: renderMd(current.content) }}
+              onClick={async (e) => {
+                const link = (e.target as HTMLElement).closest('[data-doc-link]') as HTMLElement | null
+                const title = link?.getAttribute('data-doc-link')
+                if (title) { e.preventDefault(); await followLink(title) }
+              }}
+            />
+          ) : (
+            <p className='text-sm text-gray-600 italic'>No content.</p>
+          )}
+        </div>
       </div>
     </div>
   )

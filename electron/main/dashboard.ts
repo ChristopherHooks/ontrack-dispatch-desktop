@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import type { Task } from '../../src/types/models'
+import { getCompletionsForDate } from './repositories/tasksRepo'
 
 // ---------------------------------------------------------------------------
 // Dashboard stats service
@@ -13,6 +14,7 @@ export interface DashboardStats {
   leadsFollowUp:       { c: number }
   outstandingInvoices: { c: number }
   todayTasks:          Task[]
+  completedToday:      number[]   // task_ids completed today via task_completions
 }
 
 function parseTimeOfDay(s: string | null | undefined): number {
@@ -60,5 +62,8 @@ export function getDashboardStats(db: Database.Database): DashboardStats {
     (a, b) => parseTimeOfDay(a.time_of_day) - parseTimeOfDay(b.time_of_day)
   )
 
-  return { driversNeedingLoads, loadsInTransit, leadsFollowUp, outstandingInvoices, todayTasks }
+  const todayIso = new Date().toISOString().split('T')[0]
+  const completedToday = getCompletionsForDate(db, todayIso).map(c => c.task_id)
+
+  return { driversNeedingLoads, loadsInTransit, leadsFollowUp, outstandingInvoices, todayTasks, completedToday }
 }

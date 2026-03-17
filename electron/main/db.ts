@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import Store from 'electron-store'
 import { runMigrations } from './schema/migrations'
+import { seedMissingItems } from './seed'
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
@@ -61,6 +62,7 @@ export function initDatabase(customDataPath?: string, store?: Store<Record<strin
   db.pragma('cache_size = -32000')
 
   runMigrations(db)
+  seedMissingItems(db)              // idempotent — INSERT OR IGNORE, safe every startup
   if (store) syncAdminUserFromStore(db, store)
   createBackup(db, _dataDir)           // once at startup (daily, skips if exists)
   startPeriodicBackup(getDb, getDataDir) // every 6 hours

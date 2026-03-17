@@ -256,6 +256,167 @@ export interface AnalyticsStats {
   revenueByMonth:    Array<{ month: string; revenue: number; loads: number }>
 }
 
+// -- Claude AI Response --
+export interface ClaudeOk    { ok: true;  content: string }
+export interface ClaudeError { ok: false; error: string }
+export type ClaudeResponse = ClaudeOk | ClaudeError
+
+// -- FB Conversation Agent (Agent 1) --
+export type FbConvStage =
+  | 'New' | 'Replied' | 'Interested' | 'Call Ready' | 'Converted' | 'Dead'
+
+export interface FbConversation {
+  id:              number
+  lead_id:         number | null
+  name:            string
+  phone:           string | null
+  platform:        string
+  stage:           FbConvStage
+  last_message:    string | null
+  last_message_at: string | null
+  follow_up_at:    string | null
+  notes:           string | null
+  created_at:      string
+  updated_at:      string
+}
+export type CreateFbConversationDto = Omit<FbConversation, 'id' | 'created_at' | 'updated_at'>
+export type UpdateFbConversationDto = Partial<CreateFbConversationDto>
+
+// -- FB Lead Hunter Agent (Agent 2) --
+export type FbPostIntent =
+  | 'Needs Dispatcher'
+  | 'Needs Load'
+  | 'Empty Truck'
+  | 'Looking for Consistent Freight'
+  | 'General Networking'
+  | 'Low Intent'
+  | 'Ignore'
+
+export type FbPostStatus = 'queued' | 'reviewed' | 'converted' | 'ignored'
+
+export interface FbPost {
+  id:                  number
+  raw_text:            string
+  author_name:         string | null
+  group_name:          string | null
+  posted_at:           string | null
+  intent:              FbPostIntent | null
+  extracted_name:      string | null
+  extracted_phone:     string | null
+  extracted_location:  string | null
+  extracted_equipment: string | null
+  recommended_action:  string | null
+  draft_comment:       string | null
+  draft_dm:            string | null
+  lead_id:             number | null
+  status:              FbPostStatus
+  created_at:          string
+}
+export type CreateFbPostDto = Omit<FbPost, 'id' | 'created_at'>
+export type UpdateFbPostDto = Partial<CreateFbPostDto>
+
+// -- FB Content Agent (Agent 3) --
+export type FbContentCategory =
+  | 'Driver Recruitment'
+  | 'Educational'
+  | 'New Authority Tip'
+  | 'Lane Availability'
+  | 'Small Fleet Positioning'
+  | 'Trust / Credibility'
+  | 'Engagement Question'
+
+export type FbQueueStatus = 'draft' | 'scheduled' | 'posted' | 'skipped'
+
+export interface FbQueuePost {
+  id:            number
+  content:       string
+  category:      FbContentCategory
+  variation_of:  number | null
+  scheduled_for: string | null
+  group_ids:     string
+  status:        FbQueueStatus
+  posted_at:     string | null
+  created_at:    string
+}
+export type CreateFbQueuePostDto = Omit<FbQueuePost, 'id' | 'created_at'>
+export type UpdateFbQueuePostDto = Partial<CreateFbQueuePostDto>
+
+// -- Active Load Timeline --
+export interface TimelineEvent {
+  id:           number
+  load_id:      number
+  event_type:   string        // 'status' | 'check_call' | 'note'
+  label:        string
+  scheduled_at: string | null // ISO datetime YYYY-MM-DDTHH:MM
+  completed_at: string | null
+  notes:        string | null
+  created_at:   string
+}
+
+export interface ActiveLoadRow {
+  id:               number
+  load_id:          string | null
+  driver_id:        number | null
+  driver_name:      string | null
+  driver_phone:     string | null
+  broker_id:        number | null
+  broker_name:      string | null
+  origin_city:      string | null
+  origin_state:     string | null
+  dest_city:        string | null
+  dest_state:       string | null
+  pickup_date:      string | null
+  delivery_date:    string | null
+  status:           string
+  rate:             number | null
+  miles:            number | null
+  next_event_label: string | null
+  next_event_at:    string | null
+}
+
+export interface CheckCallRow {
+  event_id:     number
+  load_id_pk:   number
+  load_ref:     string | null
+  driver_name:  string | null
+  label:        string
+  scheduled_at: string | null
+}
+
+// -- Broker Intelligence + Lane Memory --
+export type BrokerRating   = 'Preferred' | 'Strong' | 'Neutral' | 'Caution' | 'Avoid'
+export type LaneStrength   = 'Strong' | 'Average' | 'Weak'
+export type DriverLaneFit  = 'Strong Fit' | 'Has History' | 'New Lane'
+
+export interface BrokerIntelRow {
+  broker_id:     number
+  broker_name:   string
+  flag:          string
+  loads_count:   number
+  avg_rpm:       number | null
+  total_revenue: number
+  score:         number
+  rating:        BrokerRating
+  caution_note:  string | null
+}
+
+export interface LaneIntelRow {
+  origin_state:  string
+  dest_state:    string
+  loads_count:   number
+  avg_rpm:       number
+  total_revenue: number
+  strength:      LaneStrength
+}
+
+export interface DriverLaneFitRow {
+  origin_state: string
+  dest_state:   string
+  loads_count:  number
+  avg_rpm:      number | null
+  fit:          DriverLaneFit
+}
+
 // -- CSV Lead Import --
 export interface CsvImportResult {
   totalRows:         number

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { seedFbGroups } from './repositories/marketingRepo'
 
 export function runSeedIfEmpty(db: Database.Database): void {
   const guard = db.prepare(
@@ -60,6 +61,20 @@ export function clearNonTaskSeedData(db: Database.Database): void {
  * already exist.  Does NOT check or touch the dev_seed_applied guard flag.
  */
 export function seedMissingItems(db: Database.Database): void {
+  // ── Data fixes — outside the main transaction so they always run ─────────────
+  // Doc 120 title had an em-dash; normalize to plain hyphen so [[...]] links match.
+  db.prepare(
+    "UPDATE documents SET title = 'New Driver Pitch - Converting Leads to Signed'" +
+    " WHERE id = 120 AND title != 'New Driver Pitch - Converting Leads to Signed'"
+  ).run()
+  // Patch the em-dash link reference inside doc 122's content to match.
+  db.prepare(
+    "UPDATE documents SET content = REPLACE(content," +
+    " '[[New Driver Pitch \u2014 Converting Leads to Signed]]'," +
+    " '[[New Driver Pitch - Converting Leads to Signed]]')" +
+    " WHERE id = 122"
+  ).run()
+
   db.transaction(() => {
     const tIns = db.prepare(
       'INSERT OR IGNORE INTO tasks (id, title, category, priority, due_date, time_of_day, recurring, status, notes)' +
@@ -73,6 +88,152 @@ export function seedMissingItems(db: Database.Database): void {
     tIns.run(116,'Monday FMCSA Lead Review','Leads','High','Monday','8:30 AM',1,'Pending','Run FMCSA import or review leads imported from the past week. Score by fleet size, trailer type, and lane match. Assign follow-up dates. Move high-priority leads to Contacted. See: FMCSA Lead Review Checklist doc.')
     tIns.run(117,'Wednesday Warm Lead Follow-Up','Leads','High','Wednesday','10:00 AM',1,'Pending','Call or message all Contacted and Interested leads that have not responded in 3+ days. Use the warm lead follow-up script. Goal: at least 2 new Interested leads per session. See: Warm Lead Follow-Up Script doc.')
     tIns.run(118,'Friday Driver Conversation Review','Leads','Medium','Friday','3:00 PM',1,'Pending','Review all driver conversations from the week. Update lead statuses. Archive dead leads as Rejected with reason. Identify top 3 leads to prioritize next week. Prep outreach for Monday.')
+    tIns.run(119,'Weekly Facebook Groups Review','Marketing','Medium','Sunday','9:00 AM',1,'Pending','Review and update the Facebook groups list. Check for inactive groups or low-performing ones. Look for new groups to join in underweight categories. See the How to Update Facebook Groups document in the Documents library.')
+
+    // ── Comprehensive daily operations tasks (120-132) ──────────────────────
+    // These cover every step from morning to EOD, Monday through Friday.
+    // Every task has numbered subtasks and [[doc]] links so a new hire
+    // can run the business without guesswork.
+
+    // DAILY (Mon-Fri)
+    tIns.run(120,'Morning Dashboard Review','Dispatch','High','Daily','8:00 AM',1,'Pending',
+      'Start every day here. Open the Dashboard and get your bearings before touching anything else.\n' +
+      '1. Look at Drivers Needing Loads -- any Active driver with no load is costing you money. This is your top priority.\n' +
+      '2. Look at Loads In Transit -- are all drivers moving? Any ETAs you need to update?\n' +
+      '3. Look at Leads Awaiting Follow-Up -- anyone you promised to call today?\n' +
+      '4. Look at Outstanding Invoices -- any unpaid invoices over 30 days? Flag them.\n' +
+      '5. Scroll through Today\'s Tasks -- note your scheduled times so you do not miss anything.\n' +
+      'See: [[Daily Operations Playbook]]')
+
+    tIns.run(121,'Active Load Status Update','Dispatch','High','Daily','8:15 AM',1,'Pending',
+      'Confirm every in-transit load is moving and update the app.\n' +
+      '1. Go to Loads page.\n' +
+      '2. Filter to show Booked, Picked Up, and In Transit loads.\n' +
+      '3. For each load: text or call the driver -- "Hey [Name], good morning. Can you confirm your status?"\n' +
+      '4. Update the load status in the app based on the driver\'s answer.\n' +
+      '5. If a driver has picked up but status is still Booked -- change it to Picked Up.\n' +
+      '6. If a load was delivered yesterday and you missed it -- change to Delivered and note the date.\n' +
+      '7. If a driver is not responding -- call them. If still no answer after 2 hours, flag it.\n' +
+      'See: [[Load Booking and Status SOP]]')
+
+    tIns.run(122,'Post in Today\'s Facebook Groups','Marketing','High','Daily','10:00 AM',1,'Pending',
+      'Post content in your recommended groups for today. This is your primary driver acquisition activity.\n' +
+      '1. Go to Marketing > Groups tab in the app.\n' +
+      '2. Look at the Today\'s Groups panel -- it shows up to 8 groups you should post in today.\n' +
+      '3. For each group in the list: open Facebook, find the group, and post your content.\n' +
+      '4. Use one of the templates from Marketing > Templates tab, or write naturally in your own voice.\n' +
+      '5. After posting in each group: click "Mark Posted" next to that group in the app.\n' +
+      '6. Do not post the same exact text in every group -- change a few words each time.\n' +
+      '7. If a group requires post approval, allow up to 24 hours before marking it done.\n' +
+      'See: [[Facebook Post Script Bank]] | [[Facebook Driver Search SOP]]')
+
+    tIns.run(123,'Midday Driver and Load Check','Dispatch','Medium','Daily','1:00 PM',1,'Pending',
+      'Quick midday check to keep loads moving and catch anything missed this morning.\n' +
+      '1. Go to Dispatcher Board page.\n' +
+      '2. Any Active driver showing "Needs Load"? Go find them a load right now.\n' +
+      '3. Log in to your load board (DAT or Truckstop.com).\n' +
+      '4. Search for loads near the driver\'s current location, matching their equipment.\n' +
+      '5. Call the broker for the load you want. Negotiate if the rate is low.\n' +
+      '6. Once booked: add the load in the Loads page with status Booked.\n' +
+      '7. Text the driver the pickup details immediately.\n' +
+      'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]')
+
+    tIns.run(124,'New Driver Inquiry Response','Leads','High','Daily','3:30 PM',1,'Pending',
+      'Check for new driver inquiries and respond before end of business day.\n' +
+      '1. Open Facebook and check all DMs and group comment replies.\n' +
+      '2. Check email at dispatch@ontrackhaulingsolutions.com.\n' +
+      '3. For every new inquiry: add the person to the Leads page immediately with status New.\n' +
+      '4. Send them the first-contact response using the script.\n' +
+      '5. Set a follow-up date for tomorrow in the lead record.\n' +
+      '6. Do not leave any inquiry unanswered overnight -- response speed is your competitive edge.\n' +
+      'See: [[Driver Intake Script]]')
+
+    tIns.run(125,'End-of-Day Close Out','Dispatch','Medium','Daily','5:00 PM',1,'Pending',
+      'Close out the day properly so tomorrow starts clean.\n' +
+      '1. Go to Leads page -- update the status and notes on every lead you interacted with today.\n' +
+      '2. Go to Loads page -- confirm all load statuses are current.\n' +
+      '3. Check your Facebook DMs one final time for any last-minute messages.\n' +
+      '4. Set follow-up dates on any leads that need a call or message tomorrow.\n' +
+      '5. Write one sentence in your own notes about today: what worked, what did not.\n' +
+      '6. Tomorrow starts at 8:00 AM -- close your browser tabs and stop working.\n' +
+      'See: [[Daily Operations Playbook]]')
+
+    // MONDAY-SPECIFIC
+    tIns.run(126,'Monday Weekly Goal Review','Dispatch','High','Monday','8:00 AM',1,'Pending',
+      'Start every Monday knowing exactly where you stand and what you need to accomplish this week.\n' +
+      '1. Go to Invoices page -- total up the dispatch fees paid last week. Write it down.\n' +
+      '2. Weekly target: $1,000/week = $4,000/month. Are you on track?\n' +
+      '3. Go to Leads page -- how many signed drivers do you have active right now?\n' +
+      '4. To hit $4k/month with 7% dispatch: you need roughly $57k in driver gross per month.\n' +
+      '   That is about 3 drivers each grossing $19k/month, or 4 drivers at $14k/month.\n' +
+      '5. If you are behind: your primary job today is to sign at least 1 more driver.\n' +
+      '6. Write your 3 most important actions for this week at the top of your notes.\n' +
+      'See: [[Weekly Revenue Tracking Guide]]')
+
+    // TUESDAY-SPECIFIC
+    tIns.run(127,'Tuesday Load Board Search','Dispatch','High','Tuesday','9:00 AM',1,'Pending',
+      'Tuesday morning load board sweep -- find loads for all available drivers.\n' +
+      '1. Go to Dispatcher Board. Identify every Active driver with no current load.\n' +
+      '2. For each available driver: open your load board (DAT or Truckstop).\n' +
+      '3. Search from their home base or last known location for available loads.\n' +
+      '4. Target: RPM at or above the driver\'s minimum (check their driver record in the app).\n' +
+      '5. Call the broker, confirm the rate, and get a verbal agreement before hanging up.\n' +
+      '6. Email the broker your carrier packet (if new broker) and request the rate confirmation.\n' +
+      '7. Add the load in the Loads page and text pickup details to the driver.\n' +
+      'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]')
+
+    tIns.run(128,'Tuesday Driver Onboarding Follow-Up','Leads','Medium','Tuesday','2:00 PM',1,'Pending',
+      'Follow up with any driver who expressed interest but has not signed yet.\n' +
+      '1. Go to Leads page. Filter by status Interested.\n' +
+      '2. For each Interested lead with follow_up_date on or before today: call them.\n' +
+      '3. Script: "Hey [Name], this is Chris from OnTrack. Just checking in -- are you ready to get moving? I have loads available in your lanes right now."\n' +
+      '4. If they say yes: schedule a call to walk through the onboarding steps.\n' +
+      '5. If they say not yet: ask what is holding them back and address it directly.\n' +
+      '6. Update the lead status and set the next follow-up date.\n' +
+      'See: [[Driver Intake Script]] | [[Driver Onboarding Checklist]]')
+
+    // THURSDAY-SPECIFIC
+    tIns.run(129,'Thursday Broker Outreach','Leads','Medium','Thursday','10:00 AM',1,'Pending',
+      'Build broker relationships to ensure consistent freight for your drivers.\n' +
+      '1. Go to Brokers page. Review your Preferred brokers.\n' +
+      '2. Call or email your top 3 brokers. Ask: "Do you have any consistent freight coming up in the next week?"\n' +
+      '3. Ask specifically about lanes that match your drivers\' home bases and preferred routes.\n' +
+      '4. For any broker offering good consistent freight: note their lanes and contact in the broker record.\n' +
+      '5. If any broker has been slow to pay: call their accounting department and reference the invoice number.\n' +
+      '6. Add any new brokers you booked loads with this week to the Brokers page.\n' +
+      'See: [[Broker Rate Negotiation Script]]')
+
+    tIns.run(130,'Thursday Driver Pipeline Review','Leads','High','Thursday','2:00 PM',1,'Pending',
+      'Push every warm lead closer to signing. This is your conversion session.\n' +
+      '1. Go to Leads page. Filter by status Interested and Contacted.\n' +
+      '2. For every Interested lead: this is a signing candidate. Call them today.\n' +
+      '3. Opening: "Hey [Name], I wanted to personally reach out. I have a load in [their lane] available Monday and I want to offer it to you first if you want to move forward."\n' +
+      '4. If they agree to sign: walk them through the [[Driver Onboarding Checklist]] step by step.\n' +
+      '5. For Contacted leads overdue by 5+ days with no response: send one final message, then move to Rejected if still no answer.\n' +
+      '6. Update every lead status and note the outcome of each conversation.\n' +
+      'See: [[Driver Onboarding Checklist]] | [[Driver Intake Script]]')
+
+    // FRIDAY-SPECIFIC
+    tIns.run(131,'Friday Invoice and Payment Review','Admin','High','Friday','8:30 AM',1,'Pending',
+      'Handle all invoicing and payment tracking before the weekend.\n' +
+      '1. Go to Loads page. Find all loads delivered this week with status Delivered.\n' +
+      '2. For each: go to Invoices page, create an invoice, and update the load to status Invoiced.\n' +
+      '3. Send the invoice to the broker by email with the POD attached.\n' +
+      '4. Check for any invoices marked Overdue -- call that broker today before 5 PM.\n' +
+      '5. For any invoice Paid this week: record the amount in your weekly revenue notes.\n' +
+      '6. Update the driver\'s pay record for the week.\n' +
+      'See: [[Weekly Revenue Tracking Guide]]')
+
+    tIns.run(132,'Friday Weekly Revenue and Pipeline Snapshot','Admin','High','Friday','4:00 PM',1,'Pending',
+      'End every Friday knowing exactly where you stand. This 15-minute review keeps you on track.\n' +
+      '1. Go to Analytics page. Note this week\'s total revenue and compare to your $1,000/week target.\n' +
+      '2. Are you behind? By how much? Write it down.\n' +
+      '3. Go to Leads page. Count: how many Interested leads do you have right now?\n' +
+      '4. Identify your single most likely sign next week -- write their name down.\n' +
+      '5. Go to Dispatcher Board -- any drivers sitting empty going into the weekend?\n' +
+      '6. If a driver is empty Friday afternoon: call them and see if they want a short weekend load or are resting.\n' +
+      '7. Set your top 3 Monday actions in your notes and close the app.\n' +
+      'See: [[Weekly Revenue Tracking Guide]] | [[Daily Operations Playbook]]')
 
     const dIns = db.prepare(
       'INSERT OR IGNORE INTO documents (id, title, category, content, driver_id, doc_type, expiry_date)' +
@@ -81,8 +242,334 @@ export function seedMissingItems(db: Database.Database): void {
     dIns.run(106,'Facebook Driver Search SOP','Marketing','# Facebook Driver Search SOP\n\n## Purpose\nSystematic daily process for finding owner-operator drivers on Facebook who are actively seeking dispatch services.\n\n## Target Groups\n- Dispatch Nation\n- Owner Operators United\n- CDL Truckers Network\n- Trucking & Freight Professionals\n- Independent Owner Operators\n\n## Search Keywords\n- "looking for dispatcher"\n- "need dispatch"\n- "seeking dispatch service"\n- "available truck"\n- "looking for loads"\n- "need a dispatcher"\n\n## Daily Workflow\n1. 9:00 AM -- Morning sweep: search each group for the keywords above. Note any new posts from the last 24 hours.\n2. 9:30 AM -- Algorithm training: like and comment on 5+ relevant posts to boost your visibility in those groups.\n3. 11:30 AM -- Second sweep: check for any new posts since morning.\n4. 2:00 PM -- Response monitoring: reply to any DMs or comments received from outreach.\n5. 4:30 PM -- Final sweep: last check before end of day. Set follow-up reminders for unresponded leads.\n\n## Outreach Message Template\n"Hi [Name], I saw your post and wanted to reach out. I run a dispatch service for owner-operators -- we handle load searching, rate negotiation, paperwork, and broker relationships so you can focus on driving. Our rate is 7% of gross. Would you be open to a quick call this week?"\n\n## Notes\n- Always message from the OnTrack Hauling Solutions page, not a personal account.\n- Log every contact in the Leads page immediately.\n- Do not follow up more than 3 times without a response.',null,null,null)
     dIns.run(107,'Warm Lead Follow-Up Script','SOP','# Warm Lead Follow-Up Script\n\n## Purpose\nScript and process for following up with Contacted and Interested leads who have not responded in 3+ days.\n\n## When to Use\nEvery Wednesday at 10:00 AM. Pull all leads with status Contacted or Interested and follow_up_date on or before today.\n\n## Phone Script\n"Hi, this is Chris from OnTrack Hauling Solutions. I reached out a few days ago about our dispatch service. I wanted to follow up and see if you had any questions or if the timing is better now. We work with owner-operators on a 7% dispatch rate -- no contracts, just results. Do you have 5 minutes to chat?"\n\n## Text/DM Script\n"Hey [Name], just following up from my message earlier this week. Still interested in talking about dispatch? Happy to answer any questions. No pressure at all."\n\n## Email Script\nSubject: Following up -- OnTrack Dispatch Services\n\n"Hi [Name],\n\nI wanted to follow up on my earlier message about OnTrack Hauling Solutions dispatch services.\n\nWe help owner-operators find quality loads, negotiate rates, and handle broker paperwork -- all for 7% of gross revenue with no long-term contracts.\n\nIf you have a few minutes this week, I would love to connect. What does your schedule look like?\n\nBest,\nChris Hooks\nOnTrack Hauling Solutions\ndispatch@ontrackhaulingsolutions.com"\n\n## Follow-Up Rules\n- Attempt 1: Day 3 after initial contact (phone or DM)\n- Attempt 2: Day 7 (email or text)\n- Attempt 3: Day 14 (final call)\n- After 3 attempts with no response: mark lead as Rejected with note "No response after 3 attempts"\n\n## Tracking\nUpdate lead notes after every contact attempt with date, method, and outcome.',null,null,null)
     dIns.run(108,'FMCSA Lead Review Checklist','SOP','# FMCSA Lead Review Checklist\n\n## Purpose\nWeekly Monday process for reviewing FMCSA-imported leads and prioritizing outreach.\n\n## Step 1 -- Run the Import\n1. Go to Leads page.\n2. Click "FMCSA Import" button.\n3. Wait for the import to complete. Note how many leads were added.\n\n## Step 2 -- Score New Leads\nFor each new lead, evaluate:\n- Fleet size: 2+ trucks = High priority. Solo = Medium. Unknown = Low.\n- Trailer type match: Flatbed, Reefer, Dry Van -- all acceptable. Specials (Tanker, HazMat) = lower priority.\n- Authority date: Less than 1 year old = hot lead, new to the industry, may not have dispatcher yet.\n- Location: Drivers in TX, TN, GA, IL, OH, MO = strong lane match for our network.\n\n## Step 3 -- Assign Follow-Up Dates\n- High priority: follow-up within 2 business days.\n- Medium priority: follow-up within 5 business days.\n- Low priority: follow-up within 10 business days.\n\n## Step 4 -- Update Statuses\n- Any lead you have already spoken to: move from New to Contacted.\n- Any lead that expressed interest: move to Interested.\n- Any duplicate you recognize: mark Rejected with note "Duplicate".\n\n## Step 5 -- Review Existing Pipeline\n- Check all Contacted leads for stale follow-up dates.\n- Check all Interested leads -- any ready to close this week?\n- Review any Rejected leads from last week for accuracy.\n\n## Notes\nTarget: review and score all new leads within 2 hours of import on Monday morning.',null,null,null)
+    dIns.run(123,'How to Update Facebook Groups','SOP','# How to Update Facebook Groups\n\n## Where the Groups File Lives\nThe Facebook groups list is stored in:\n  electron/main/fbGroupsSeed.ts\n\nThis is a TypeScript file you can open in any text editor or VS Code. Every group is a JavaScript object with clearly labeled fields.\n\n## How to Add a New Group\n1. Open fbGroupsSeed.ts.\n2. Find the section that matches the group\'s category (e.g., "Hotshot", "Owner Operator").\n3. Copy any existing entry and paste it at the end of that section.\n4. Update the name field to exactly match the group name on Facebook.\n5. Leave url as null unless you have the actual group URL.\n6. Set category, priority, and active.\n7. Save the file.\n8. In the app: Settings > Dev Tools > Seed Missing Items.\n\n## How to Add a URL\nIf you find the Facebook group URL:\n1. Open fbGroupsSeed.ts.\n2. Find the entry by name.\n3. Change url: null to url: \'https://www.facebook.com/groups/XXXXXXXX\'.\n4. Save and run Seed Missing Items. Note: INSERT OR IGNORE is used, so the URL update will only apply to NEW groups. For existing rows, update directly in Marketing > Groups > Edit.\n\n## How to Change a Category\n1. Find the group in fbGroupsSeed.ts.\n2. Change the category field to one of: hotshot, box_truck, owner_operator, dispatcher, general_loads, reefer, mixed, other.\n3. Save and run Seed Missing Items (applies to new groups only).\n4. For groups already in the database, go to Marketing > Groups > Edit.\n\n## How to Mark a Group Inactive\nOption A (preferred): In the app, go to Marketing > Groups. Find the group, click Edit, uncheck Active, click Save.\nOption B: In fbGroupsSeed.ts, set active: false. Run Seed Missing Items (applies to new rows only; existing rows require Option A).\n\n## How to Change Priority\nSame as category -- edit fbGroupsSeed.ts for new rows, or use Marketing > Groups > Edit for existing rows.\n\n## How to Track Last Posted / Performance\n- Last posted: click "Mark Posted" next to any group in Marketing > Groups. Updates automatically.\n- Leads generated: manually increment in Marketing > Groups > Edit (leads_generated_count field).\n- Signed drivers: same -- manually track in Marketing > Groups > Edit.\n\n## Weekly Review Process (every Sunday)\n1. Go to Marketing > Groups tab.\n2. Look at the Coverage section -- are any categories underweight?\n3. Look at the Today\'s Recommendations section -- are the right groups showing up?\n4. Check for any groups that are inactive but should be re-activated.\n5. Search Facebook for any new groups in underweight categories.\n6. Add new groups to fbGroupsSeed.ts and run Seed Missing Items.\n7. Mark this task complete in the Tasks page.\n\n## How the App Picks Today\'s Groups\nThe recommendation engine scores every active group using these factors:\n- Never posted: +50 points\n- Each day since last post: +2 points (max 30)\n- High priority: +30 points, Medium: +15 points\n- Review overdue (>30 days): +10 points\n- Already posted today: removed from recommendations\n\nGroups are then sorted by score with a diversity cap of 3 groups per category. The top 8 are shown as today\'s recommendations.\n\n## Related Documents\n- [[Facebook Driver Search SOP]]\n- [[Facebook Groups Review]] (this document)\n\n## Notes\n- Do not delete rows from the file -- mark inactive instead.\n- URLs are optional and can be added at any time.\n- The file is plain TypeScript. If you break the syntax, the app will fail to start. Always check your brackets and commas.',null,null,null)
+
+    // ── Operations playbooks and scripts (125-131) ────────────────────────────
+
+    dIns.run(125,'Daily Operations Playbook','SOP',
+      '# Daily Operations Playbook\n\n' +
+      '## Overview\n' +
+      'This document is the master guide for running OnTrack Hauling Solutions every day. Follow it in order, every weekday, without skipping steps. If you do all of this consistently, you will hit $4,000/month.\n\n' +
+      '## The Core Math\n' +
+      '- Dispatch rate: 7% of driver gross\n' +
+      '- To earn $4,000/month: drivers must gross approximately $57,000/month combined\n' +
+      '- With 3 active drivers each grossing $19,000/month: you hit the goal\n' +
+      '- Average driver earns $1,000-2,000/week gross on regional runs\n' +
+      '- Your job: keep them loaded and find more drivers\n\n' +
+      '## Daily Schedule (Every Weekday)\n\n' +
+      '### 8:00 AM -- Morning Dashboard Review\n' +
+      '1. Open the Dashboard. Look for any red flags: drivers needing loads, overdue leads, outstanding invoices.\n' +
+      '2. Note your top 3 priorities for today.\n\n' +
+      '### 8:15 AM -- Active Load Status Update\n' +
+      '1. Text or call every driver with an active load.\n' +
+      '2. Confirm they are moving. Update load statuses in the app.\n\n' +
+      '### 9:00 AM -- Facebook Driver Search\n' +
+      '1. Open Facebook. Search your target groups for new driver posts.\n' +
+      '2. Message any promising drivers using the [[Driver Intake Script]].\n' +
+      '3. Log every new contact in Leads immediately.\n\n' +
+      '### 9:30 AM -- Algorithm Training\n' +
+      '1. Like and comment on 5+ posts in driver groups.\n' +
+      '2. This keeps your posts visible to drivers. Do not skip this -- it takes 5 minutes.\n\n' +
+      '### 10:00 AM -- Facebook Group Posting Session\n' +
+      '1. Go to Marketing > Groups. Look at Today\'s Groups panel.\n' +
+      '2. Post in each recommended group. Use templates from Marketing > Templates.\n' +
+      '3. Mark each group as posted in the app after you post.\n' +
+      'See: [[Facebook Post Script Bank]]\n\n' +
+      '### 11:30 AM -- Second Driver Sweep\n' +
+      '1. Check Facebook again for any new posts since morning.\n' +
+      '2. Message new prospects. Add to Leads.\n\n' +
+      '### 1:00 PM -- Midday Driver and Load Check\n' +
+      '1. Open Dispatcher Board. Any active driver without a load is your #1 priority.\n' +
+      '2. Go to your load board and find them a load. Book it. Update the app.\n' +
+      'See: [[Load Booking and Status SOP]]\n\n' +
+      '### 2:00 PM -- Lead Response Monitoring\n' +
+      '1. Check all Facebook DMs and email for driver responses.\n' +
+      '2. Reply to everyone. Update lead statuses.\n\n' +
+      '### 3:30 PM -- New Driver Inquiry Response\n' +
+      '1. Final check of all incoming messages.\n' +
+      '2. Add any new contacts to Leads. Set follow-up dates.\n' +
+      'See: [[Driver Intake Script]]\n\n' +
+      '### 4:30 PM -- Final Driver Lead Sweep\n' +
+      '1. Last check of Facebook and email.\n' +
+      '2. Set follow-up reminders for tomorrow.\n\n' +
+      '### 5:00 PM -- End-of-Day Close Out\n' +
+      '1. Update all lead notes and statuses.\n' +
+      '2. Confirm all load statuses are current.\n' +
+      '3. Tomorrow starts at 8:00 AM. Stop working.\n\n' +
+      '## Non-Negotiable Rules\n' +
+      '- Respond to every driver message within 2 hours during business hours\n' +
+      '- Never leave a driver empty for more than 24 hours if they want to run\n' +
+      '- Log every contact in the app the same day it happens\n' +
+      '- If you skip a step today, do not skip it tomorrow\n\n' +
+      '## Related Documents\n' +
+      '- [[Driver Intake Script]]\n' +
+      '- [[Facebook Post Script Bank]]\n' +
+      '- [[Load Booking and Status SOP]]\n' +
+      '- [[Driver Onboarding Checklist]]\n' +
+      '- [[Weekly Revenue Tracking Guide]]',
+      null,null,null)
+
+    dIns.run(126,'Facebook Post Script Bank','Template',
+      '# Facebook Post Script Bank\n\n' +
+      '## How to Use This\n' +
+      'Pick one post style per day. Change the wording slightly each time -- do not copy-paste the same exact post into multiple groups without tweaking it. Authentic posts outperform copy-paste every time.\n\n' +
+      '## Post Style 1 -- Direct Recruitment\n' +
+      '"Any owner-operators in here running [region] lanes looking for a dispatcher? I\'m booking consistent dry van freight right now and have lanes available. Low rate, no contracts. Comment or DM me."\n\n' +
+      '## Post Style 2 -- Load Availability\n' +
+      '"Just got a load available: [Origin City] to [Destination City], [trailer type], [approximate rate]. Looking for a reliable driver with a [truck type]. If you or someone you know is interested, message me directly."\n\n' +
+      '## Post Style 3 -- Value Question\n' +
+      '"Quick question for any owner-operators in here -- what is the one thing you wish your dispatcher did better? Just trying to understand what actually matters to you guys."\n\n' +
+      '## Post Style 4 -- Authority Tip\n' +
+      '"If you got your MC authority in the last 6 months, this one\'s for you. The first 90 days are the hardest -- finding consistent freight, dealing with brokers, figuring out what lanes actually pay. If you want someone in your corner handling that so you can focus on driving, I have availability right now."\n\n' +
+      '## Post Style 5 -- Social Proof\n' +
+      '"One of my drivers just finished a [Origin State] to [Destination State] run at [rate per mile] RPM. Clean load, good broker, paid on time. If you want more runs like this, I have lanes available. DM me."\n\n' +
+      '## Post Style 6 -- Re-engagement\n' +
+      '"Still looking for owner-operators for consistent freight. I\'ve been in this group for a while and the drivers I\'ve worked with have been great. If you\'re tired of chasing loads and want someone handling the broker side, let\'s talk."\n\n' +
+      '## DM Response Template (when someone replies to a post)\n' +
+      '"Hey [Name], thanks for reaching out. Tell me a little about your setup -- what equipment are you running, what lanes do you prefer, and are you currently with a dispatcher or running on your own? I want to make sure we\'re a good fit before we talk numbers."\n\n' +
+      '## Rules\n' +
+      '- Never use emojis or bullet points with symbols in posts\n' +
+      '- Write like you are talking to someone, not advertising\n' +
+      '- Keep posts under 150 words\n' +
+      '- Respond to every comment within 1 hour\n\n' +
+      'See: [[Facebook Driver Search SOP]] | [[Driver Intake Script]]',
+      null,null,null)
+
+    dIns.run(127,'Driver Intake Script','SOP',
+      '# Driver Intake Script\n\n' +
+      '## Purpose\n' +
+      'Use this script for every first contact with a new driver prospect -- DM, text, or phone call. The goal is to qualify them quickly and move them toward a 15-minute call.\n\n' +
+      '## Step 1 -- First DM Response\n' +
+      'When a driver replies to your post or DMs you first:\n\n' +
+      '"Hey [Name], thanks for reaching out. I\'d love to learn more about your setup. Can you tell me:\n' +
+      '1. What are you running (truck type and trailer)?\n' +
+      '2. What lanes or regions do you prefer?\n' +
+      '3. Are you currently working with a dispatcher or running on your own?\n\n' +
+      'I want to make sure I can actually help before we talk further."\n\n' +
+      '## Step 2 -- Qualifying Their Answer\n' +
+      'Good signs:\n' +
+      '- Dry van, flatbed, reefer, step deck -- all good\n' +
+      '- Running without a dispatcher or unhappy with current one\n' +
+      '- Has their own authority (MC number)\n' +
+      '- Based in TX, TN, GA, IL, OH, MO or anywhere in the Southeast or Midwest\n\n' +
+      'Red flags (proceed with caution):\n' +
+      '- No authority yet (just applied)\n' +
+      '- Looking for 90-day contract loads only\n' +
+      '- Wants to pay less than 6%\n\n' +
+      '## Step 3 -- Moving to a Call\n' +
+      '"Based on what you\'ve told me, I think I can help. I have loads available in your lanes right now. Do you have 15 minutes today or tomorrow for a quick call? I can walk you through exactly how we work and answer any questions."\n\n' +
+      '## Step 4 -- The 15-Minute Call\n' +
+      'On the call, cover in this order:\n' +
+      '1. Confirm their equipment details and preferred lanes\n' +
+      '2. Explain the service: 7% of gross, no contracts, you handle load search + rate negotiation + paperwork\n' +
+      '3. Ask: "What would make this a no-brainer for you?"\n' +
+      '4. If they are ready: send the dispatcher agreement by email\n' +
+      '5. Set a start date -- ideally within 3 days\n\n' +
+      '## Step 5 -- After the Call\n' +
+      '1. Update the lead status to Interested or Signed in the app\n' +
+      '2. Set a follow-up date if they need more time\n' +
+      '3. If they signed: begin the onboarding steps\n\n' +
+      'See: [[Driver Onboarding Checklist]] | [[Warm Lead Follow-Up Script]]',
+      null,null,null)
+
+    dIns.run(128,'Load Booking and Status SOP','SOP',
+      '# Load Booking and Status SOP\n\n' +
+      '## Purpose\n' +
+      'Step-by-step guide for finding, booking, and tracking loads for your drivers. Follow this process every time.\n\n' +
+      '## Step 1 -- Identify Available Drivers\n' +
+      '1. Open Dispatcher Board in the app.\n' +
+      '2. Any Active driver with "Needs Load" is your priority.\n' +
+      '3. Check their driver record for: equipment type, preferred lanes, minimum RPM.\n\n' +
+      '## Step 2 -- Search the Load Board\n' +
+      '1. Log in to DAT (dat.com) or Truckstop (truckstop.com).\n' +
+      '2. Search from the driver\'s current location or home base.\n' +
+      '3. Filter by their equipment type and target lanes.\n' +
+      '4. Target loads with RPM at or above their minimum (check driver record).\n' +
+      '5. Avoid brokers flagged as "Avoid" or "Slow Pay" in your Brokers page.\n\n' +
+      '## Step 3 -- Call the Broker\n' +
+      '1. Call the broker\'s dispatch line.\n' +
+      '2. Give your MC number and say: "I have a [truck type] available at [location], interested in load [reference number]."\n' +
+      '3. If the rate is low, use the [[Broker Rate Negotiation Script]].\n' +
+      '4. Get a verbal agreement on the rate before hanging up.\n' +
+      '5. Ask for a rate confirmation by email.\n\n' +
+      '## Step 4 -- Book the Load in the App\n' +
+      '1. Go to Loads page, click New Load.\n' +
+      '2. Fill in: Origin, Destination, Driver, Broker, Pickup Date, Rate.\n' +
+      '3. Set status to Booked.\n' +
+      '4. Enter the broker\'s load reference number in the Load ID field.\n\n' +
+      '## Step 5 -- Notify the Driver\n' +
+      '1. Text or call the driver with: pickup location, pickup time, delivery location, broker contact, and any special instructions.\n' +
+      '2. Confirm they received it and are en route.\n\n' +
+      '## Step 6 -- Update Status as Load Progresses\n' +
+      '- When driver confirms pickup: change status to Picked Up\n' +
+      '- When driver confirms they are on the road: change to In Transit\n' +
+      '- When driver delivers: change to Delivered\n' +
+      '- After invoicing: change to Invoiced\n\n' +
+      '## Step 7 -- After Delivery\n' +
+      '1. Get the POD (Proof of Delivery) from the driver by text or email.\n' +
+      '2. Create an invoice in the Invoices page.\n' +
+      '3. Send the invoice to the broker with the POD attached.\n\n' +
+      'See: [[Broker Rate Negotiation Script]] | [[Daily Operations Playbook]]',
+      null,null,null)
+
+    dIns.run(129,'Broker Rate Negotiation Script','SOP',
+      '# Broker Rate Negotiation Script\n\n' +
+      '## Purpose\n' +
+      'Use this script to negotiate better rates with brokers. Most brokers have more room than their first offer. A 10-15 cent RPM increase on a 1,000-mile load is $100-150 more in your driver\'s pocket and more in yours.\n\n' +
+      '## The Basic Counter\n' +
+      '"I appreciate the offer, but based on current fuel costs and my driver\'s minimum, I need to come in at [your target rate]. Can you work with that?"\n\n' +
+      '## When They Say No\n' +
+      '"I understand. Is there any flexibility at all, or is that a firm number? My driver is sitting right now and I want to make this work if possible."\n\n' +
+      '## The Fuel Argument\n' +
+      '"Diesel is running [current price] in that corridor right now. At your current offer, my driver barely breaks even after fuel and fixed costs. The minimum I can take to make this profitable for both of us is [rate]."\n\n' +
+      '## The Competition Argument\n' +
+      '"I actually have another load offer at [slightly higher rate] for this same equipment and time window. I prefer working with you because of your payment history. Can you match it?"\n\n' +
+      '## When to Accept Without Negotiating\n' +
+      '- Preferred broker with consistent loads\n' +
+      '- Rate is already at or above driver\'s minimum RPM\n' +
+      '- Driver needs the load immediately and alternatives are limited\n\n' +
+      '## After Booking\n' +
+      '1. Always get a written rate confirmation before the driver leaves for pickup.\n' +
+      '2. Make sure the rate on the rate con matches what was agreed verbally.\n' +
+      '3. If the rate con is wrong: call and correct it before pickup.\n\n' +
+      'See: [[Load Booking and Status SOP]]',
+      null,null,null)
+
+    dIns.run(130,'Driver Onboarding Checklist','SOP',
+      '# Driver Onboarding Checklist\n\n' +
+      '## Purpose\n' +
+      'Follow this checklist every time a new driver agrees to work with OnTrack. Do not start booking loads until every item is complete.\n\n' +
+      '## Before You Start\n' +
+      '- You have had the 15-minute intake call\n' +
+      '- Driver has confirmed they want to move forward\n' +
+      '- Driver has an active MC authority (not just applied)\n\n' +
+      '## Step 1 -- Collect Driver Information\n' +
+      '1. Full legal name (as on their CDL)\n' +
+      '2. MC number and DOT number\n' +
+      '3. CDL number and expiration date\n' +
+      '4. Phone number and email address\n' +
+      '5. Truck type (year, make, model if possible)\n' +
+      '6. Trailer type (dry van, reefer, flatbed, step deck, etc.)\n' +
+      '7. Home base city and state\n' +
+      '8. Preferred lanes or regions\n' +
+      '9. Minimum RPM (rate per mile) they will run\n' +
+      '10. Factoring company name (if they use one)\n' +
+      '11. Insurance company and policy expiry date\n\n' +
+      '## Step 2 -- Add Driver to the App\n' +
+      '1. Go to Drivers page in the OnTrack app.\n' +
+      '2. Click New Driver.\n' +
+      '3. Fill in all the information collected in Step 1.\n' +
+      '4. Set status to Active.\n' +
+      '5. Save the record.\n\n' +
+      '## Step 3 -- Verify Their Authority\n' +
+      '1. Go to https://safer.fmcsa.dot.gov\n' +
+      '2. Look up their MC number.\n' +
+      '3. Confirm: Operating Status is AUTHORIZED FOR HHG or AUTHORIZED FOR PROPERTY.\n' +
+      '4. Confirm: Insurance is active (check the insurance filing section).\n' +
+      '5. If anything is wrong: do not book loads until it is resolved.\n\n' +
+      '## Step 4 -- Send the Dispatcher Agreement\n' +
+      '1. Send the dispatcher agreement by email.\n' +
+      '2. Confirm they have signed and returned it before booking any loads.\n' +
+      '3. Save the signed agreement.\n\n' +
+      '## Step 5 -- Get Their Carrier Packet Ready\n' +
+      'You will need to submit a carrier packet to brokers. Collect:\n' +
+      '1. Certificate of Insurance (COI) -- driver provides this\n' +
+      '2. MC authority letter -- from FMCSA\n' +
+      '3. W-9 form -- driver fills this out\n' +
+      '4. Void check (for direct deposit, if applicable)\n\n' +
+      '## Step 6 -- Book Their First Load\n' +
+      '1. Ask the driver: "Where are you right now and when are you available?"\n' +
+      '2. Follow the [[Load Booking and Status SOP]] to find their first load.\n' +
+      '3. Aim to get them loaded within 24 hours of signing.\n\n' +
+      '## Step 7 -- Update the Lead Record\n' +
+      '1. Go to Leads page. Find the driver\'s lead record.\n' +
+      '2. Change status to Signed.\n' +
+      '3. Note the signing date in the lead notes.\n\n' +
+      'See: [[Load Booking and Status SOP]] | [[Driver Intake Script]]',
+      null,null,null)
+
+    dIns.run(131,'Weekly Revenue Tracking Guide','Reference',
+      '# Weekly Revenue Tracking Guide\n\n' +
+      '## Your Goal\n' +
+      '- Monthly target: $4,000 in dispatch fees\n' +
+      '- Weekly target: $1,000 per week\n' +
+      '- Daily target: $200 per weekday\n\n' +
+      '## The Math\n' +
+      'Dispatch fee = 7% of driver gross load revenue.\n' +
+      'To earn $1,000 this week: your drivers need to gross about $14,300 in load revenue combined.\n' +
+      'Example: 3 drivers each running 2 loads at $2,400 each = $14,400 gross = $1,008 dispatch fees.\n\n' +
+      '## How to Track Your Revenue\n\n' +
+      '### Every Friday\n' +
+      '1. Go to Invoices page in the app.\n' +
+      '2. Look at invoices marked Paid this week. Add up the dispatch fee amounts.\n' +
+      '3. That is your actual revenue for the week.\n' +
+      '4. Compare to the $1,000/week target.\n\n' +
+      '### Monthly Check (1st of each month)\n' +
+      '1. Go to Analytics page.\n' +
+      '2. Look at Revenue by Month chart.\n' +
+      '3. Compare to your $4,000/month target.\n\n' +
+      '## If You Are Behind\n' +
+      'If you are below $1,000 by Friday:\n' +
+      '1. Sign more drivers -- this is almost always the root cause.\n' +
+      '2. Check if any of your active drivers have been underloaded this week.\n' +
+      '3. Check if any invoices from loads this week are still outstanding (unpaid).\n\n' +
+      '## Driver Revenue Targets\n' +
+      '- Minimum viable driver: $3,500/week gross = $245/week for you\n' +
+      '- To hit $4k/month solo: you need 4+ drivers averaging $3,500/week each\n' +
+      '- Focus on drivers running 48-state or long regional routes -- they gross more\n\n' +
+      '## What to Do When a Driver is Underperforming\n' +
+      '1. Call them: "Hey [Name], I noticed you only ran 1 load this week. Is everything okay? Are you available to run more?"\n' +
+      '2. If they want more runs: find them a load today.\n' +
+      '3. If they are inactive for 2+ weeks with no explanation: mark them Inactive in the app.\n\n' +
+      'See: [[Daily Operations Playbook]] | [[Load Booking and Status SOP]]',
+      null,null,null)
+
+    dIns.run(124,'How to Save Facebook Groups as HTML','SOP',
+      '# How to Save Facebook Groups as HTML\n\n' +
+      '## What This Does\n' +
+      'This method lets you save your current list of Facebook groups to an HTML file, then import it into the OnTrack app to automatically add any new groups you have joined. Existing groups already in the app are never duplicated.\n\n' +
+      '## Step 1 -- Open Your Facebook Groups Page\n' +
+      '1. Open a web browser on your computer (Chrome or Edge work best).\n' +
+      '2. Go to https://www.facebook.com\n' +
+      '3. Log in if needed.\n' +
+      '4. In the left sidebar, click "Groups" or go to https://www.facebook.com/groups/\n' +
+      '5. Click "Your groups" to see the full list of groups you have joined.\n' +
+      '6. Scroll all the way down the page until all groups are visible. Facebook loads groups as you scroll, so if you have many groups, scroll slowly until no more appear.\n\n' +
+      '## Step 2 -- Save the Page as HTML\n' +
+      '**In Chrome or Edge:**\n' +
+      '1. Press Ctrl+S on your keyboard (or File > Save As from the browser menu).\n' +
+      '2. A "Save As" dialog will open.\n' +
+      '3. Choose where to save it -- your Desktop works well.\n' +
+      '4. In the "Save as type" dropdown, select "Webpage, HTML Only" (not "Complete").\n' +
+      '5. Give it a recognizable name like facebook-groups-2026-03.html\n' +
+      '6. Click Save.\n\n' +
+      '## Step 3 -- Import into the App\n' +
+      '1. Open the OnTrack app.\n' +
+      '2. Go to Marketing > Groups tab.\n' +
+      '3. Click the "Import from HTML" button at the top of the Groups tab.\n' +
+      '4. A file picker will open. Navigate to where you saved the HTML file.\n' +
+      '5. Select the file and click Open.\n' +
+      '6. The app will scan the file for Facebook group links and add any new ones it finds.\n' +
+      '7. A message will tell you how many groups were found and how many were added.\n\n' +
+      '## What Happens After Import\n' +
+      '- New groups are added with category "mixed" and priority "Medium" by default.\n' +
+      '- Go to Marketing > Groups, find each new group, and update the category and priority using the Edit button.\n' +
+      '- The group URL is saved automatically from the HTML file -- no need to copy it manually.\n' +
+      '- Groups you were already tracking are not affected (INSERT OR IGNORE).\n\n' +
+      '## How Often to Do This\n' +
+      'Once a week on Sunday, as part of the Weekly Facebook Groups Review task. Any groups you joined during the week will be picked up automatically.\n\n' +
+      '## Troubleshooting\n' +
+      '- If the import says "0 groups found": make sure you saved the page correctly and that you were on the "Your groups" page, not a search results page.\n' +
+      '- If groups appear with garbled names: the page may not have fully loaded before saving. Try scrolling more slowly and re-saving.\n' +
+      '- If a group URL is missing: the group may be private or your browser blocked the link. Add that group manually using the Add Group button.\n\n' +
+      '## Related Documents\n' +
+      'See: [[How to Update Facebook Groups]]',
+      null,null,null)
+
+    // Seed the Facebook groups list from the static data file (INSERT OR IGNORE -- safe to re-run)
+    seedFbGroups(db)
   })()
-  console.log('[Seed] seedMissingItems: tasks 111-118 and documents 106-108 applied (INSERT OR IGNORE).')
+  console.log('[Seed] seedMissingItems: tasks 111-132, documents 106-108/123-131, and FB groups applied (INSERT OR IGNORE).')
 }
 
 export function resetAndReseed(db: Database.Database): void {
@@ -1737,8 +2224,8 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 120 ── New Driver Pitch ────────────────────────────────────────────────
-  ups.run(120, 'New Driver Pitch — Converting Leads to Signed', 'SOP', [
-    '# New Driver Pitch -- Converting Leads to Signed',
+  ups.run(120, 'New Driver Pitch - Converting Leads to Signed', 'SOP', [
+    '# New Driver Pitch - Converting Leads to Signed',
     '',
     '## Overview',
     'A lead becomes a client when they sign a dispatch agreement and send you their carrier packet.',
@@ -1804,7 +2291,7 @@ export function reseedDocuments(db: Database.Database): void {
     '2. Certificate of Insurance -- with OnTrack listed as certificate holder',
     '3. W-9 form',
     '4. Preferred payment method for your invoice (Zelle, ACH, check)',
-    'See Driver Onboarding Checklist for full document details.',
+    'See [[Driver Onboarding Checklist]] for full document details.',
     '',
     '## The First Load -- Make It Count',
     'The first load sets the tone for the entire relationship.',
@@ -1896,7 +2383,7 @@ export function reseedDocuments(db: Database.Database): void {
     '- [[Driver Onboarding Checklist]] -- required documents and setup in OnTrack',
     '- [[Driver Onboarding Email Template]] -- welcome email to send after signing',
     '- [[Load Booking SOP]] -- how to find and book the first load',
-    '- [[New Driver Pitch \u2014 Converting Leads to Signed]] -- where this lead came from',
+    '- [[New Driver Pitch - Converting Leads to Signed]] -- where this lead came from',
     '- [[Driver Communication Standards]] -- communication approach going forward',
     '- [[Daily Dispatch Routine]] -- the recurring workflow once driver is active',
     '',

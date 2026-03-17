@@ -360,10 +360,245 @@ const migration009: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 010 -- fb_conversations (Facebook Conversation/Conversion Agent)
+// ---------------------------------------------------------------------------
+
+const migration010: Migration = {
+  version: 10,
+  description: 'Add fb_conversations table for Facebook Conversation Agent (Agent 1)',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS fb_conversations (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,' +
+      '  name TEXT NOT NULL,' +
+      '  phone TEXT,' +
+      '  platform TEXT NOT NULL DEFAULT \'Facebook\',' +
+      '  stage TEXT NOT NULL DEFAULT \'New\',' +
+      '  last_message TEXT,' +
+      '  last_message_at TEXT,' +
+      '  follow_up_at TEXT,' +
+      '  notes TEXT,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  updated_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_fb_conv_stage ON fb_conversations(stage);' +
+      'CREATE INDEX IF NOT EXISTS idx_fb_conv_follow_up ON fb_conversations(follow_up_at);' +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (10)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 011 -- fb_posts (Facebook Lead Hunter Agent)
+// ---------------------------------------------------------------------------
+
+const migration011: Migration = {
+  version: 11,
+  description: 'Add fb_posts table for Facebook Lead Hunter Agent (Agent 2)',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS fb_posts (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  raw_text TEXT NOT NULL,' +
+      '  author_name TEXT,' +
+      '  group_name TEXT,' +
+      '  posted_at TEXT,' +
+      '  intent TEXT,' +
+      '  extracted_name TEXT,' +
+      '  extracted_phone TEXT,' +
+      '  extracted_location TEXT,' +
+      '  extracted_equipment TEXT,' +
+      '  recommended_action TEXT,' +
+      '  draft_comment TEXT,' +
+      '  draft_dm TEXT,' +
+      '  lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,' +
+      '  status TEXT NOT NULL DEFAULT \'queued\',' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_fb_posts_status ON fb_posts(status);' +
+      'CREATE INDEX IF NOT EXISTS idx_fb_posts_intent ON fb_posts(intent);' +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (11)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 012 -- fb_post_queue (Facebook Content Agent)
+// ---------------------------------------------------------------------------
+
+const migration012: Migration = {
+  version: 12,
+  description: 'Add fb_post_queue table for Facebook Content + Posting Agent (Agent 3)',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS fb_post_queue (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  content TEXT NOT NULL,' +
+      '  category TEXT NOT NULL,' +
+      '  variation_of INTEGER REFERENCES fb_post_queue(id) ON DELETE SET NULL,' +
+      '  scheduled_for TEXT,' +
+      '  group_ids TEXT NOT NULL DEFAULT \'[]\',' +
+      '  status TEXT NOT NULL DEFAULT \'draft\',' +
+      '  posted_at TEXT,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_fb_queue_status ON fb_post_queue(status);' +
+      'CREATE INDEX IF NOT EXISTS idx_fb_queue_scheduled ON fb_post_queue(scheduled_for);' +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (12)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 013 -- Extend marketing_groups for Facebook Groups workflow
+//
+// Adds five new columns used by the group recommendation engine:
+//   category            — content category (hotshot, box_truck, owner_operator, etc.)
+//   priority            — posting priority (High, Medium, Low)
+//   last_reviewed_at    — YYYY-MM-DD when Chris last reviewed this group's health
+//   leads_generated_count — total leads attributed to this group (manually updated)
+//   signed_drivers_count  — total signed drivers attributed (manually updated)
+// ---------------------------------------------------------------------------
+
+const migration013: Migration = {
+  version: 13,
+  description: 'Add category, priority, last_reviewed_at, leads_generated_count, signed_drivers_count to marketing_groups',
+  up: (db) => {
+    addColumnIfMissing(db, 'marketing_groups', 'category',               "TEXT NOT NULL DEFAULT 'mixed'")
+    addColumnIfMissing(db, 'marketing_groups', 'priority',               "TEXT NOT NULL DEFAULT 'Medium'")
+    addColumnIfMissing(db, 'marketing_groups', 'last_reviewed_at',       'TEXT')
+    addColumnIfMissing(db, 'marketing_groups', 'leads_generated_count',  'INTEGER NOT NULL DEFAULT 0')
+    addColumnIfMissing(db, 'marketing_groups', 'signed_drivers_count',   'INTEGER NOT NULL DEFAULT 0')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (13)")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 014 -- Update task notes to use [[doc]] cross-reference links
+// Runs once. Adds [[Document Name]] links to seed tasks that reference SOPs
+// so the dashboard can render them as clickable doc-modal openers.
+// ---------------------------------------------------------------------------
+
+const migration014: Migration = {
+  version: 14,
+  description: 'Update task notes with [[doc]] cross-reference links for dashboard subtask display',
+  up: (db) => {
+    db.prepare('UPDATE tasks SET notes = ? WHERE id = 116').run(
+      'Run FMCSA import or review leads imported from the past week.\n' +
+      '1. Go to Leads page and click FMCSA Import\n' +
+      '2. Score each new lead: fleet size, trailer type, and lane match\n' +
+      '3. Assign follow-up dates -- High = 2 days, Medium = 5 days, Low = 10 days\n' +
+      '4. Move leads you have already spoken with to Contacted status\n' +
+      '5. Archive dead leads as Rejected with a reason note\n' +
+      'See: [[FMCSA Lead Review Checklist]]'
+    )
+    db.prepare('UPDATE tasks SET notes = ? WHERE id = 117').run(
+      'Call or message all Contacted and Interested leads that have not responded in 3+ days.\n' +
+      '1. Pull all leads with status Contacted or Interested and a follow-up date on or before today\n' +
+      '2. Phone or text each lead using the follow-up script\n' +
+      '3. Log the outcome in the lead notes immediately after each call\n' +
+      '4. Goal: at least 2 new Interested leads per session\n' +
+      '5. After 3 unanswered attempts, mark the lead as Rejected with note "No response after 3 attempts"\n' +
+      'See: [[Warm Lead Follow-Up Script]]'
+    )
+    db.prepare('UPDATE tasks SET notes = ? WHERE id = 119').run(
+      'Review and update the Facebook groups list every Sunday.\n' +
+      '1. Go to Marketing > Groups and check the Category Coverage panel for gaps\n' +
+      '2. Save your Facebook Groups page as HTML and import it into the app (see doc below)\n' +
+      '3. Check for inactive or low-performing groups and deactivate them\n' +
+      '4. Search Facebook for new groups in any underweight categories\n' +
+      '5. Add new groups found manually via the Add Group button\n' +
+      '6. Mark this task complete when done\n' +
+      'See: [[How to Update Facebook Groups]] | [[How to Save Facebook Groups as HTML]]'
+    )
+    db.prepare('UPDATE tasks SET notes = ? WHERE id = 111').run(
+      'Morning sweep -- search Facebook groups for owner-operators looking for dispatch.\n' +
+      '1. Open each group in your target list and search for recent posts\n' +
+      '2. Keywords: looking for dispatcher, need dispatch, seeking dispatch service\n' +
+      '3. Send a brief DM to any promising post authors\n' +
+      '4. Log every new contact in the Leads page with status New\n' +
+      'See: [[Facebook Driver Search SOP]]'
+    )
+    db.prepare('UPDATE tasks SET notes = ? WHERE id = 113').run(
+      'Second pass through Facebook groups -- catch anything missed in the morning.\n' +
+      '1. Check all groups for posts made in the last 2 hours\n' +
+      '2. Use the same keywords: available truck, looking for loads, need a dispatcher\n' +
+      '3. Message any new prospects and add them to Leads\n' +
+      'See: [[Facebook Driver Search SOP]]'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (14)")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 015 -- Deduplicate marketing_groups + add unique index on name
+//
+// Fixes the root cause of duplicate groups appearing in the Marketing page:
+// the table had no UNIQUE constraint, so INSERT OR IGNORE never triggered and
+// every HTML import or seedGroups call added fresh duplicate rows.
+//
+// Step 1: Remove duplicate rows, keeping the one with the lowest id for each
+//         case-insensitive trimmed name (preserves the earliest import).
+// Step 2: Create a unique index on LOWER(TRIM(name)) so INSERT OR IGNORE now
+//         correctly skips any name that already exists.
+// ---------------------------------------------------------------------------
+
+const migration015: Migration = {
+  version: 15,
+  description: 'Deduplicate marketing_groups and add unique name index to prevent future duplicates',
+  up: (db) => {
+    // Remove duplicates — keep the row with the smallest id per unique name
+    db.exec(
+      'DELETE FROM marketing_groups ' +
+      'WHERE id NOT IN (' +
+      '  SELECT MIN(id) FROM marketing_groups GROUP BY LOWER(TRIM(name))' +
+      ')'
+    )
+    // Create unique index so INSERT OR IGNORE works correctly going forward
+    db.exec(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_marketing_groups_name ' +
+      'ON marketing_groups (LOWER(TRIM(name)))'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (15)")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 016 -- Add load_timeline_events table
+//
+// Stores the Active Load Timeline and Check Call Engine data.
+// One row per event (status change, check call, or dispatcher note) per load.
+// Linked to loads via ON DELETE CASCADE so events are cleaned up with the load.
+// ---------------------------------------------------------------------------
+
+const migration016: Migration = {
+  version: 16,
+  description: 'Add load_timeline_events table for Active Load Timeline and Check Call Engine',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS load_timeline_events (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  event_type TEXT NOT NULL DEFAULT \'check_call\',' +
+      '  label TEXT NOT NULL,' +
+      '  scheduled_at TEXT,' +
+      '  completed_at TEXT,' +
+      '  notes TEXT,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_timeline_load  ON load_timeline_events(load_id);' +
+      'CREATE INDEX IF NOT EXISTS idx_timeline_sched ON load_timeline_events(scheduled_at);' +
+      "INSERT OR IGNORE INTO schema_version (version) VALUES (16)"
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

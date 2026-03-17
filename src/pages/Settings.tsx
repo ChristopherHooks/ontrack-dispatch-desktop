@@ -20,6 +20,8 @@ export function Settings() {
   const [fmcsaKey, setFmcsaKey]       = useState('')
   const [fmcsaTerms, setFmcsaTerms]   = useState('')
   const [fmcsaSaved, setFmcsaSaved]   = useState(false)
+  const [claudeKey, setClaudeKey]     = useState('')
+  const [claudeSaved, setClaudeSaved] = useState(false)
   const [backfillBusy, setBackfillBusy] = useState(false)
   const [backfillMsg,  setBackfillMsg]  = useState<{ text: string; ok: boolean } | null>(null)
   const [seedBusy,       setSeedBusy]       = useState(false)
@@ -33,6 +35,7 @@ export function Settings() {
     window.api.backups.pending().then(setPendingRestore).catch(() => {})
     window.api.settings.get('fmcsa_web_key').then(v => { if (v) setFmcsaKey(String(v)) }).catch(() => {})
     window.api.settings.get('fmcsa_search_terms').then(v => { if (v) setFmcsaTerms(String(v)) }).catch(() => {})
+    window.api.settings.get('claude_api_key').then(v => { if (v) setClaudeKey(String(v)) }).catch(() => {})
   }, [])
 
   async function loadBackups() {
@@ -116,6 +119,12 @@ export function Settings() {
     await window.api.settings.set('fmcsa_search_terms', fmcsaTerms.trim())
     setFmcsaSaved(true)
     setTimeout(() => setFmcsaSaved(false), 2500)
+  }
+
+  async function handleSaveClaude() {
+    await window.api.settings.set('claude_api_key', claudeKey.trim())
+    setClaudeSaved(true)
+    setTimeout(() => setClaudeSaved(false), 2500)
   }
 
   async function handleBackfill() {
@@ -337,6 +346,39 @@ export function Settings() {
                 </span>
               )}
             </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* AI Integration */}
+      <Section title='AI Integration' icon={<Link size={16} />}>
+        <div className='space-y-3'>
+          <div>
+            <Label>Claude API Key</Label>
+            <input
+              type='password'
+              value={claudeKey}
+              onChange={e => setClaudeKey(e.target.value)}
+              placeholder='sk-ant-...'
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+            <p className='text-2xs text-gray-600 mt-1'>
+              Required for the FB Agents tab (Conversation, Lead Hunter, Content). Get a key at console.anthropic.com.
+              Stored locally in app settings — never sent anywhere except Anthropic.
+            </p>
+          </div>
+          <div className='flex items-center gap-3'>
+            <button
+              onClick={handleSaveClaude}
+              className='text-xs px-4 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+            >
+              Save
+            </button>
+            {claudeSaved && (
+              <span className='text-xs text-green-400 flex items-center gap-1'>
+                <CheckCircle size={12} /> Saved
+              </span>
+            )}
           </div>
         </div>
       </Section>
