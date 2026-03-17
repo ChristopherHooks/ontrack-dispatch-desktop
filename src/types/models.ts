@@ -7,7 +7,18 @@
 export type UserRole        = "Admin" | "Dispatcher" | "Sales"
 export type ThemePreference = "dark" | "light" | "system"
 
-export type LeadStatus   = "New" | "Contacted" | "Interested" | "Signed" | "Rejected" | "Inactive MC"
+export type LeadStatus   =
+  | "New"
+  | "Attempted"
+  | "Contacted"
+  | "Interested"
+  | "Call Back Later"
+  | "Not Interested"
+  | "Bad Fit"
+  | "Converted"
+  | "Signed"        // legacy — kept for existing records
+  | "Rejected"      // legacy — kept for existing records
+  | "Inactive MC"   // legacy — kept for existing records
 export type LeadPriority = "High" | "Medium" | "Low"
 
 export type DriverStatus  = "Active" | "Inactive" | "On Load"
@@ -57,6 +68,12 @@ export interface Lead {
   priority: LeadPriority
   follow_up_date: string | null
   notes: string | null
+  // Outreach tracking (migration 019)
+  last_contact_date:     string | null  // YYYY-MM-DD of last outreach
+  contact_attempt_count: number         // total times contacted/attempted
+  contact_method:        string | null  // last method: Call, SMS, Email, DM
+  outreach_outcome:      string | null  // last outcome summary
+  follow_up_notes:       string | null  // quick outreach context note
   created_at: string
   updated_at: string
 }

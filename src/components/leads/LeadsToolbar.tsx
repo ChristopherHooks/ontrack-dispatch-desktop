@@ -3,10 +3,18 @@ import type { LeadStatus, LeadPriority } from '../../types/models'
 import { STATUSES, PRIORITIES, LEAD_SOURCES } from './constants'
 
 export interface LeadFilters {
-  status:   LeadStatus | ''
-  priority: LeadPriority | ''
-  source:   string
-  overdue:  boolean
+  status:        LeadStatus | ''
+  priority:      LeadPriority | ''
+  source:        string
+  overdue:       boolean
+  followUpToday: boolean  // follow_up_date = today
+  warm:          boolean  // status in [Interested, Call Back Later]
+  untouched:     boolean  // status = New AND contact_attempt_count = 0
+}
+
+export const DEFAULT_FILTERS: LeadFilters = {
+  status: '', priority: '', source: '', overdue: false,
+  followUpToday: false, warm: false, untouched: false,
 }
 
 interface Props {
@@ -30,6 +38,21 @@ const selCls =
   'h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 ' +
   'focus:outline-none focus:border-orange-600/60 cursor-pointer'
 
+function QuickChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`h-7 px-2.5 rounded text-xs font-medium border transition-colors ${
+        active
+          ? 'bg-orange-600/20 border-orange-600/50 text-orange-300'
+          : 'bg-surface-600 border-surface-400 text-gray-500 hover:text-gray-300 hover:border-surface-300'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
 export function LeadsToolbar({
   search, onSearch, filters, onFilters, view, onView, total, onAdd,
   onImport, importBusy, lastImportAt,
@@ -38,7 +61,12 @@ export function LeadsToolbar({
 }: Props) {
   const hasFilters =
     filters.status !== '' || filters.priority !== '' ||
-    filters.source !== '' || filters.overdue
+    filters.source !== '' || filters.overdue ||
+    filters.followUpToday || filters.warm || filters.untouched
+
+  const toggle = (key: 'followUpToday' | 'warm' | 'untouched') => {
+    onFilters({ ...filters, [key]: !filters[key] })
+  }
 
   return (
     <div className='flex flex-col gap-3'>
@@ -140,9 +168,16 @@ export function LeadsToolbar({
         </button>
       </div>
 
-      {/* ── Row 2: filters ── */}
+      {/* ── Row 2: quick chips + dropdown filters ── */}
       <div className='flex items-center gap-2 flex-wrap'>
         <SlidersHorizontal size={12} className='text-gray-600 shrink-0' />
+
+        {/* Quick filter chips */}
+        <QuickChip label='Due Today'   active={filters.followUpToday} onClick={() => toggle('followUpToday')} />
+        <QuickChip label='Warm'        active={filters.warm}          onClick={() => toggle('warm')} />
+        <QuickChip label='Untouched'   active={filters.untouched}     onClick={() => toggle('untouched')} />
+
+        <div className='w-px h-4 bg-surface-500 mx-0.5' />
 
         <select
           value={filters.status}
@@ -183,7 +218,7 @@ export function LeadsToolbar({
 
         {hasFilters && (
           <button
-            onClick={() => onFilters({ status: '', priority: '', source: '', overdue: false })}
+            onClick={() => onFilters(DEFAULT_FILTERS)}
             className='flex items-center gap-1 text-2xs text-orange-400 hover:text-orange-300 transition-colors ml-1'
           >
             <X size={10} /> Clear

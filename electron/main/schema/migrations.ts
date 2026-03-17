@@ -627,10 +627,31 @@ const migration018: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 019 -- Add outreach tracking fields to leads
+//
+// Enables the lead follow-up workflow: tracks how many times a lead has been
+// contacted, when they were last reached, by what method, the outcome, and
+// quick follow-up notes separate from the general notes field.
+// ---------------------------------------------------------------------------
+
+const migration019: Migration = {
+  version: 19,
+  description: 'Add outreach tracking fields to leads: last_contact_date, contact_attempt_count, contact_method, outreach_outcome, follow_up_notes',
+  up: (db) => {
+    addColumnIfMissing(db, 'leads', 'last_contact_date',     'TEXT')
+    addColumnIfMissing(db, 'leads', 'contact_attempt_count', 'INTEGER NOT NULL DEFAULT 0')
+    addColumnIfMissing(db, 'leads', 'contact_method',        'TEXT')
+    addColumnIfMissing(db, 'leads', 'outreach_outcome',      'TEXT')
+    addColumnIfMissing(db, 'leads', 'follow_up_notes',       'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (19)")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

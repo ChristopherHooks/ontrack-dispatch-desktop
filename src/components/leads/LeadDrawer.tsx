@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { X, Phone, Mail, MapPin, Truck, Calendar, Tag, Trash2,
-         Plus, PhoneCall, ChevronDown, AlertTriangle, Check } from 'lucide-react'
+         Plus, PhoneCall, ChevronDown, AlertTriangle, Check,
+         Zap, UserPlus } from 'lucide-react'
 import type { Lead, LeadStatus, LeadPriority, Note } from '../../types/models'
 import { LeadScoreBadge } from './LeadScoreBadge'
 import { computeLeadScore } from '../../lib/leadScore'
-import { STATUS_STYLES, STATUS_DOTS, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES } from './constants'
+import { STATUS_STYLES, STATUS_DOTS, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES, CONTACT_METHODS } from './constants'
 import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
 
 interface Props {
@@ -35,6 +37,13 @@ const authAge = (d: string | null) => {
   if (!d) return '—'
   const mo = (new Date().getFullYear() - new Date(d).getFullYear()) * 12 + (new Date().getMonth() - new Date(d).getMonth())
   return mo < 12 ? `${mo} months` : `${Math.floor(mo / 12)}y ${mo % 12}mo`
+}
+
+// Returns YYYY-MM-DD for today + N days
+const dateOffset = (days: number): string => {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
 }
 
 function Row({ icon, label, value, mono = false }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
@@ -154,6 +163,7 @@ function InlineSelect({ icon, label, value, options, onSave }:
 }
 
 export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, onDelete }: Props) {
+  const navigate = useNavigate()
   const [notes, setNotes]           = useState<Note[]>([])
   const [calls, setCalls]           = useState<CallEntry[]>([])
   const [noteText, setNoteText]     = useState('')
@@ -164,6 +174,8 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
   const [confirmDel, setConfirmDel] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
   const [priorityOpen, setPriorityOpen] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [convertedMsg, setConvertedMsg] = useState('')
   const { total, grade, factors }   = computeLeadScore(lead)
 
   useEffect(() => {
@@ -187,7 +199,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
     return () => document.removeEventListener('mousedown', handler)
   }, [statusOpen, priorityOpen])
 
-  const saveField = async (field: string, value: string | null) => {
+  const saveField = async (field: string, value: string | number | null) => {
     const updated = await window.api.leads.update(lead.id, { [field]: value })
     if (updated) onUpdate(updated)
   }
@@ -207,6 +219,79 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
   }
   const delCall = async (id: number) => {
     await window.api.notes.delete(id); setCalls(p => p.filter(c => c.id !== id))
+  }
+
+  // ── Quick Actions ────────────────────────────────────────────────────────
+
+  const logAttempt = async () => {
+    const today = new Date().toISOString().split('T')[0]
+    const newCount = (lead.contact_attempt_count ?? 0) + 1
+    const updated = await window.api.leads.update(lead.id, {
+      contact_attempt_count: newCount,
+      last_contact_date: today,
+      status: lead.status === 'New' ? 'Attempted' : lead.status,
+    })
+    if (updated) onUpdate(updated)
+  }
+
+  const markContacted = async () => {
+    const today = new Date().toISOString().split('T')[0]
+    const newCount = (lead.contact_attempt_count ?? 0) + 1
+    const updated = await window.api.leads.update(lead.id, {
+      status: 'Contacted',
+      last_contact_date: today,
+      contact_attempt_count: newCount,
+    })
+    if (updated) onUpdate(updated)
+  }
+
+  const setFollowUp = async (days: number) => {
+    const updated = await window.api.leads.update(lead.id, { follow_up_date: dateOffset(days) })
+    if (updated) onUpdate(updated)
+  }
+
+  const markNotInterested = async () => {
+    const updated = await window.api.leads.update(lead.id, { status: 'Not Interested' })
+    if (updated) onUpdate(updated)
+  }
+
+  const convertToDriver = async () => {
+    setConverting(true)
+    setConvertedMsg('')
+    try {
+      const driver = await window.api.drivers.create({
+        name:              lead.name,
+        company:           lead.company ?? null,
+        mc_number:         lead.mc_number ?? null,
+        dot_number:        lead.dot_number ?? null,
+        cdl_number:        null,
+        cdl_expiry:        null,
+        phone:             lead.phone ?? null,
+        email:             lead.email ?? null,
+        truck_type:        null,
+        trailer_type:      lead.trailer_type ?? null,
+        home_base:         lead.city && lead.state ? `${lead.city}, ${lead.state}` : (lead.city ?? lead.state ?? null),
+        current_location:  null,
+        preferred_lanes:   null,
+        min_rpm:           null,
+        dispatch_percent:  7.0,
+        factoring_company: null,
+        insurance_expiry:  null,
+        start_date:        null,
+        status:            'Active',
+        notes:             lead.notes ?? null,
+      })
+      if (driver) {
+        const updated = await window.api.leads.update(lead.id, { status: 'Converted' })
+        if (updated) onUpdate(updated)
+        setConvertedMsg('Driver created. Opening Drivers page…')
+        setTimeout(() => { navigate('/drivers') }, 1200)
+      }
+    } catch {
+      setConvertedMsg('Convert failed — check driver details.')
+    } finally {
+      setConverting(false)
+    }
   }
 
   const today    = new Date().toISOString().split('T')[0]
@@ -240,7 +325,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                   <ChevronDown size={9} className={`transition-transform ${statusOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {statusOpen && (
-                  <div className='absolute top-full left-0 mt-1 bg-surface-700 border border-surface-400 rounded-lg shadow-xl z-10 py-1 min-w-[140px]'>
+                  <div className='absolute top-full left-0 mt-1 bg-surface-700 border border-surface-400 rounded-lg shadow-xl z-10 py-1 min-w-[160px]'>
                     {STATUSES.map(s => (
                       <button key={s} onClick={() => { onStatusChange(lead, s); setStatusOpen(false) }}
                         className='flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-surface-600 hover:text-gray-100 transition-colors text-left'>
@@ -274,6 +359,13 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                 )}
               </div>
 
+              {/* Attempt counter badge */}
+              {(lead.contact_attempt_count ?? 0) > 0 && (
+                <span className='text-2xs text-gray-600 bg-surface-600 px-1.5 py-0.5 rounded'>
+                  {lead.contact_attempt_count} attempt{lead.contact_attempt_count !== 1 ? 's' : ''}
+                </span>
+              )}
+
             </div>
           </div>
           <button onClick={onClose} className='p-1.5 rounded-lg hover:bg-surface-600 text-gray-500 hover:text-gray-300 ml-3 shrink-0'><X size={16} /></button>
@@ -282,7 +374,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
         {/* Scrollable body */}
         <div className='flex-1 overflow-y-auto'>
 
-          {/* Action bar */}
+          {/* Standard action bar */}
           <div className='flex items-center gap-1.5 px-5 py-3 border-b border-surface-600 flex-wrap shrink-0'>
             {lead.phone && <a href={`tel:${lead.phone}`} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Phone size={11} /> Call</a>}
             <button onClick={() => onEdit(lead)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'>Full Edit</button>
@@ -297,11 +389,106 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             }
           </div>
 
+          {/* ── Quick Actions ── */}
+          <div className='px-5 py-3 border-b border-surface-600 bg-surface-700/40'>
+            <div className='flex items-center gap-1 mb-2'>
+              <Zap size={11} className='text-orange-500' />
+              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider'>Quick Actions</p>
+            </div>
+            <div className='flex flex-wrap gap-1.5'>
+              <button
+                onClick={logAttempt}
+                title='Log a contact attempt — increments count, sets last contact to today'
+                className='flex items-center gap-1 h-6 px-2 text-2xs font-medium bg-surface-600 hover:bg-surface-500 border border-surface-400 hover:border-orange-600/40 text-gray-300 rounded transition-colors'
+              >
+                <PhoneCall size={10} /> Log Attempt
+              </button>
+              <button
+                onClick={markContacted}
+                title='Mark as Contacted and update last contact date'
+                className='flex items-center gap-1 h-6 px-2 text-2xs font-medium bg-surface-600 hover:bg-surface-500 border border-surface-400 hover:border-blue-500/40 text-gray-300 rounded transition-colors'
+              >
+                <Check size={10} /> Mark Contacted
+              </button>
+              <div className='w-px h-4 bg-surface-500 self-center mx-0.5' />
+              <button
+                onClick={() => setFollowUp(1)}
+                title='Set follow-up to tomorrow'
+                className='h-6 px-2 text-2xs font-medium bg-surface-600 hover:bg-surface-500 border border-surface-400 hover:border-orange-600/40 text-gray-300 rounded transition-colors'
+              >
+                Tmrw
+              </button>
+              <button
+                onClick={() => setFollowUp(3)}
+                title='Set follow-up to 3 days from now'
+                className='h-6 px-2 text-2xs font-medium bg-surface-600 hover:bg-surface-500 border border-surface-400 hover:border-orange-600/40 text-gray-300 rounded transition-colors'
+              >
+                +3 Days
+              </button>
+              <button
+                onClick={() => setFollowUp(7)}
+                title='Set follow-up to next week'
+                className='h-6 px-2 text-2xs font-medium bg-surface-600 hover:bg-surface-500 border border-surface-400 hover:border-orange-600/40 text-gray-300 rounded transition-colors'
+              >
+                +7 Days
+              </button>
+              <div className='w-px h-4 bg-surface-500 self-center mx-0.5' />
+              <button
+                onClick={markNotInterested}
+                title='Mark lead as Not Interested'
+                className='h-6 px-2 text-2xs font-medium bg-surface-600 hover:bg-red-900/30 border border-surface-400 hover:border-red-800/40 text-gray-400 hover:text-red-400 rounded transition-colors'
+              >
+                Not Interested
+              </button>
+              <button
+                onClick={convertToDriver}
+                disabled={converting || lead.status === 'Converted'}
+                title={lead.status === 'Converted' ? 'Already converted' : 'Create a driver record from this lead'}
+                className='flex items-center gap-1 h-6 px-2 text-2xs font-medium bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-800/30 hover:border-emerald-700/50 text-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors'
+              >
+                <UserPlus size={10} /> {converting ? 'Converting…' : 'Convert to Driver'}
+              </button>
+            </div>
+            {convertedMsg && (
+              <p className='mt-1.5 text-2xs text-emerald-400'>{convertedMsg}</p>
+            )}
+          </div>
+
           {/* Overdue banner */}
           {overdue && (
             <div className='mx-5 mt-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-900/20 border border-orange-700/30'>
               <AlertTriangle size={12} className='text-orange-400 shrink-0' />
               <p className='text-xs text-orange-300'>Follow-up overdue since <strong>{fmtDate(lead.follow_up_date)}</strong></p>
+            </div>
+          )}
+
+          {/* Outreach summary row */}
+          {((lead.last_contact_date) || (lead.contact_attempt_count ?? 0) > 0) && (
+            <div className='mx-5 mt-4 flex items-center gap-4 px-3 py-2 rounded-lg bg-surface-700/50 border border-surface-500/40'>
+              {lead.last_contact_date && (
+                <div>
+                  <p className='text-2xs text-gray-600'>Last Contact</p>
+                  <p className='text-xs text-gray-300'>{fmtDate(lead.last_contact_date)}</p>
+                </div>
+              )}
+              {(lead.contact_attempt_count ?? 0) > 0 && (
+                <div>
+                  <p className='text-2xs text-gray-600'>Attempts</p>
+                  <p className='text-xs text-gray-300'>{lead.contact_attempt_count}</p>
+                </div>
+              )}
+              {lead.contact_method && (
+                <div>
+                  <p className='text-2xs text-gray-600'>Last Method</p>
+                  <p className='text-xs text-gray-300'>{lead.contact_method}</p>
+                </div>
+              )}
+              {lead.outreach_outcome && (
+                <div className='flex-1 min-w-0'>
+                  <p className='text-2xs text-gray-600'>Last Outcome</p>
+                  <p className='text-xs text-gray-300 truncate'>{lead.outreach_outcome}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -345,6 +532,15 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               {lead.source && <Row icon={<Tag size={12} />} label='Source' value={lead.source} />}
               <InlineDate icon={<Calendar size={12} />} label='Follow-Up'
                 value={lead.follow_up_date} onSave={v => saveField('follow_up_date', v)} />
+              <InlineSelect icon={<PhoneCall size={12} />} label='Last Method'
+                value={lead.contact_method} options={CONTACT_METHODS}
+                onSave={v => saveField('contact_method', v || null)} />
+            </div>
+            {/* Outreach notes inline */}
+            <div className='mt-3'>
+              <InlineText icon={<Tag size={12} />} label='Outreach Notes' value={lead.follow_up_notes}
+                placeholder='Quick outreach context…'
+                onSave={v => saveField('follow_up_notes', v || null)} />
             </div>
           </div>
 

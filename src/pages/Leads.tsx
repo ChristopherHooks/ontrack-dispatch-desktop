@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { Lead, LeadStatus, CsvImportResult, FmcsaImportResult, FmcsaImportStatus } from '../types/models'
-import { LeadsToolbar, type LeadFilters } from '../components/leads/LeadsToolbar'
+import { LeadsToolbar, type LeadFilters, DEFAULT_FILTERS } from '../components/leads/LeadsToolbar'
 import { LeadsTable }  from '../components/leads/LeadsTable'
 import { LeadsKanban } from '../components/leads/LeadsKanban'
 import { LeadModal }        from '../components/leads/LeadModal'
@@ -17,12 +17,19 @@ function fmtAgo(iso: string): string {
   return Math.floor(hrs / 24) + 'd ago'
 }
 
+interface SummaryCount {
+  label:       string
+  count:       number
+  color:       string
+  filterApply: Partial<LeadFilters>
+}
+
 export function Leads() {
   const [leads,    setLeads]    = useState<Lead[]>([])
   const [loading,  setLoading]  = useState(true)
   const [view,     setView]     = useState<'table' | 'kanban'>('table')
   const [search,   setSearch]   = useState('')
-  const [filters,  setFilters]  = useState<LeadFilters>({ status: '', priority: '', source: '', overdue: false })
+  const [filters,  setFilters]  = useState<LeadFilters>(DEFAULT_FILTERS)
   const [sortKey,  setSortKey]  = useState<keyof Lead>('follow_up_date')
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>('asc')
   const [selected,     setSelected]     = useState<Lead | null>(null)
@@ -114,6 +121,24 @@ export function Leads() {
 
   const today = new Date().toISOString().split('T')[0]
 
+  // ── Summary counts (computed from full unfiltered list) ──────────────────
+  const summaryCounts = useMemo((): SummaryCount[] => {
+    const untouchedNew  = leads.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0).length
+    const dueToday      = leads.filter(l => l.follow_up_date === today).length
+    const interested    = leads.filter(l => l.status === 'Interested' || l.status === 'Call Back Later').length
+    const converted     = leads.filter(l => l.status === 'Converted' || l.status === 'Signed').length
+    return [
+      { label: 'New / Untouched', count: untouchedNew, color: 'text-gray-400 border-surface-400',              filterApply: { untouched: true } },
+      { label: 'Due Today',       count: dueToday,     color: 'text-orange-400 border-orange-800/40',          filterApply: { followUpToday: true } },
+      { label: 'Warm / Interested', count: interested, color: 'text-yellow-400 border-yellow-800/40',          filterApply: { warm: true } },
+      { label: 'Converted',       count: converted,    color: 'text-emerald-400 border-emerald-800/40',        filterApply: { status: 'Converted' } },
+    ]
+  }, [leads, today])
+
+  const applyCount = (c: SummaryCount) => {
+    setFilters({ ...DEFAULT_FILTERS, ...c.filterApply })
+  }
+
   const filtered = useMemo(() => {
     let r = leads
     if (search) {
@@ -125,10 +150,14 @@ export function Leads() {
         (l.phone     ?? '').toLowerCase().includes(q)
       )
     }
-    if (filters.status)   r = r.filter(l => l.status   === filters.status)
-    if (filters.priority) r = r.filter(l => l.priority === filters.priority)
-    if (filters.source)   r = r.filter(l => l.source   === filters.source)
-    if (filters.overdue)  r = r.filter(l => l.follow_up_date != null && l.follow_up_date < today)
+    if (filters.status)        r = r.filter(l => l.status   === filters.status)
+    if (filters.priority)      r = r.filter(l => l.priority === filters.priority)
+    if (filters.source)        r = r.filter(l => l.source   === filters.source)
+    if (filters.overdue)       r = r.filter(l => l.follow_up_date != null && l.follow_up_date < today)
+    if (filters.followUpToday) r = r.filter(l => l.follow_up_date === today)
+    if (filters.warm)          r = r.filter(l => l.status === 'Interested' || l.status === 'Call Back Later')
+    if (filters.untouched)     r = r.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0)
+
     return [...r].sort((a, b) => {
       // Authority date: sort by age (ascending = youngest/least-aged first = most recent date first).
       // Nulls always go last regardless of direction.
@@ -154,6 +183,24 @@ export function Leads() {
       <div>
         <h1 className='text-xl font-semibold text-gray-100'>Leads</h1>
         <p className='text-sm text-gray-500 mt-0.5'>Manage your carrier pipeline</p>
+      </div>
+
+      {/* ── Pipeline Summary ── */}
+      <div className='flex items-center gap-3 flex-wrap'>
+        {summaryCounts.map(c => (
+          <button
+            key={c.label}
+            onClick={() => applyCount(c)}
+            title={`Filter to: ${c.label}`}
+            className={`flex items-center gap-2 px-3 h-8 rounded-lg border bg-surface-700 hover:bg-surface-600 transition-colors ${c.color}`}
+          >
+            <span className='text-lg font-semibold leading-none'>{c.count}</span>
+            <span className='text-2xs text-gray-500'>{c.label}</span>
+          </button>
+        ))}
+        {leads.length > 0 && (
+          <span className='text-2xs text-gray-700 ml-1'>{leads.length} total leads</span>
+        )}
       </div>
 
       {importStatus?.lastAttemptedAt ? (

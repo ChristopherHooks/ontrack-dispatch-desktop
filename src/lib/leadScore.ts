@@ -15,7 +15,7 @@ export interface LeadScoreResult {
 export function computeLeadScore(lead: Lead): LeadScoreResult {
   const factors: ScoreFactor[] = [
     { label: 'Has MC number',          points: 20, met: Boolean(lead.mc_number)    },
-    { label: 'Status: Interested/Signed', points: 20, met: lead.status === 'Interested' || lead.status === 'Signed' },
+    { label: 'Status: Interested/Converted', points: 20, met: lead.status === 'Interested' || lead.status === 'Signed' || lead.status === 'Converted' || lead.status === 'Call Back Later' },
     { label: 'Has phone number',       points: 15, met: Boolean(lead.phone)        },
     { label: 'High priority',          points: 15, met: lead.priority === 'High'   },
     { label: 'Has company name',       points: 10, met: Boolean(lead.company)      },

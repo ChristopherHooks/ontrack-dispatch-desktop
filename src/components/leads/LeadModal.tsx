@@ -10,6 +10,8 @@ const BLANK: CreateLeadDto = {
   city: null, state: null, trailer_type: null, authority_date: null,
   fleet_size: null, source: null, status: 'New', priority: 'Medium',
   follow_up_date: null, notes: null,
+  last_contact_date: null, contact_attempt_count: 0,
+  contact_method: null, outreach_outcome: null, follow_up_notes: null,
 }
 
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
