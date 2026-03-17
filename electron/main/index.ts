@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, session, dialog, screen } from 'electron'
 import { join } from 'path'
 import { initDatabase, getDataDir, getDb } from './db'
 import { registerDbHandlers } from './ipcHandlers'
@@ -29,10 +29,39 @@ const store = new Store<{
   },
 })
 
+// Single-instance lock — second launch focuses the existing window instead of opening another.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 let mainWindow: BrowserWindow | null = null
 
+// Clamp saved window bounds to a visible display area.
+// Guards against the window reopening off-screen after a monitor is disconnected.
+function clampBounds(
+  saved: { width: number; height: number; x?: number; y?: number }
+): { width: number; height: number; x?: number; y?: number } {
+  if (saved.x === undefined || saved.y === undefined) return saved
+  const onScreen = screen.getAllDisplays().some(d =>
+    saved.x! < d.bounds.x + d.bounds.width  &&
+    saved.x! + saved.width  > d.bounds.x     &&
+    saved.y! < d.bounds.y + d.bounds.height  &&
+    saved.y! + saved.height > d.bounds.y
+  )
+  if (onScreen) return saved
+  const wa = screen.getPrimaryDisplay().workArea
+  return { width: saved.width, height: saved.height, x: wa.x + 40, y: wa.y + 40 }
+}
+
 function createWindow(): void {
-  const bounds = store.get('windowBounds')
+  const bounds = clampBounds(store.get('windowBounds'))
 
   mainWindow = new BrowserWindow({
     width: bounds.width,
@@ -112,7 +141,18 @@ app.whenReady().then(() => {
   const restored = applyPendingRestore(dbPath, store as any)
   if (restored) console.log('[Main] Database restored from backup')
 
-  initDatabase(customDataPath, store as any)  // also starts periodic backup; syncs admin user from store
+  try {
+    initDatabase(customDataPath, store as any)  // also starts periodic backup; syncs admin user from store
+  } catch (err) {
+    dialog.showErrorBox(
+      'OnTrack failed to start',
+      'The database could not be opened.\n\n' + String(err) +
+      '\n\nData path: ' + resolvedDataDir
+    )
+    app.quit()
+    return
+  }
+
   registerDbHandlers(ipcMain, store)
   startScheduler(
     () => { const { getDb } = require('./db'); return getDb() },
