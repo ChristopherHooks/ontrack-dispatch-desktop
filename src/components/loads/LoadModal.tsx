@@ -9,7 +9,7 @@ const BLANK: CreateLoadDto = {
   load_id: null, driver_id: null, broker_id: null,
   origin_city: null, origin_state: null, dest_city: null, dest_state: null,
   pickup_date: null, delivery_date: null, miles: null, rate: null,
-  dispatch_pct: 7, commodity: null, status: 'Searching', invoiced: 0, notes: null,
+  dispatch_pct: 7, trailer_type: null, commodity: null, status: 'Searching', invoiced: 0, notes: null,
 }
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
 
@@ -123,6 +123,9 @@ export function LoadModal({ load, onSave, onClose }: Props) {
               </Field>
               <Field label='Commodity' icon={<Tag size={10} />}>
                 <input className={inp} value={form.commodity??''} onChange={e=>str('commodity',e.target.value)} placeholder='e.g. Dry Goods, Frozen Food' />
+              </Field>
+              <Field label='Trailer Type' icon={<Truck size={10} />}>
+                <input className={inp} value={form.trailer_type??''} onChange={e=>str('trailer_type',e.target.value)} placeholder='e.g. Dry Van, Reefer, Flatbed' />
               </Field>
               <div className='col-span-2'>
                 <Field label='Notes' icon={<FileText size={10} />}>

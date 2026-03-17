@@ -23,9 +23,9 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
   theme: 'dark',
   sidebarCollapsed: false,
   dataPath: '',
-  companyName: 'OnTrack Hauling Solutions',
-  ownerName: 'Chris Hooks',
-  ownerEmail: 'dispatch@ontrackhaulingsolutions.com',
+  companyName: '',
+  ownerName: '',
+  ownerEmail: '',
   defaultDispatchPct: 7,
 
   setTheme: (theme) => {
@@ -51,10 +51,9 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
       theme,
       sidebarCollapsed:   Boolean(all.sidebarCollapsed),
       dataPath:           String(all.dataPath ?? ''),
-      // Business identity — fall back to compile-time defaults if not yet persisted
-      companyName:        typeof all.companyName  === 'string' ? all.companyName  : 'OnTrack Hauling Solutions',
-      ownerName:          typeof all.ownerName    === 'string' ? all.ownerName    : 'Chris Hooks',
-      ownerEmail:         typeof all.ownerEmail   === 'string' ? all.ownerEmail   : 'dispatch@ontrackhaulingsolutions.com',
+      companyName:        typeof all.companyName  === 'string' ? all.companyName  : '',
+      ownerName:          typeof all.ownerName    === 'string' ? all.ownerName    : '',
+      ownerEmail:         typeof all.ownerEmail   === 'string' ? all.ownerEmail   : '',
       defaultDispatchPct: typeof all.defaultDispatchPct === 'number' ? all.defaultDispatchPct : 7,
     })
     applyTheme(theme)

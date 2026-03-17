@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, FileText, Truck, DollarSign, Calendar, Hash } from 'lucide-react'
-import type { Invoice, CreateInvoiceDto, InvoiceStatus, Load, Driver } from '../../types/models'
+import type { Invoice, CreateInvoiceDto, InvoiceStatus, Load, Driver, Broker } from '../../types/models'
 import { INVOICE_STATUSES, genInvoiceNumber } from './constants'
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 }
 
 const BLANK: CreateInvoiceDto = {
-  invoice_number: '', load_id: null, driver_id: null,
+  invoice_number: '', load_id: null, broker_id: null, driver_id: null,
   week_ending: null, driver_gross: null, dispatch_pct: 7,
   dispatch_fee: null, sent_date: null, paid_date: null,
   status: 'Draft', notes: null,
@@ -32,12 +32,13 @@ export function InvoiceModal({ invoice, prefillLoad, onSave, onClose }: Props) {
   const [form, setForm] = useState<CreateInvoiceDto>(BLANK)
   const [loads, setLoads] = useState<Load[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
+  const [brokers, setBrokers] = useState<Broker[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([window.api.loads.list(), window.api.drivers.list()]).then(([l, d]) => {
-      setLoads(l); setDrivers(d)
+    Promise.all([window.api.loads.list(), window.api.drivers.list(), window.api.brokers.list()]).then(([l, d, b]) => {
+      setLoads(l); setDrivers(d); setBrokers(b)
     })
     if (invoice) {
       const { id, created_at, updated_at, ...rest } = invoice
@@ -49,6 +50,7 @@ export function InvoiceModal({ invoice, prefillLoad, onSave, onClose }: Props) {
         ...BLANK,
         invoice_number: genInvoiceNumber(),
         load_id: prefillLoad.id,
+        broker_id: prefillLoad.broker_id,
         driver_id: prefillLoad.driver_id,
         driver_gross: prefillLoad.rate,
         dispatch_pct: prefillLoad.dispatch_pct ?? 7,
@@ -79,7 +81,7 @@ export function InvoiceModal({ invoice, prefillLoad, onSave, onClose }: Props) {
     if (load) {
       const fee = recalcFee(load.rate, load.dispatch_pct)
       setForm(p => ({
-        ...p, load_id: load.id, driver_id: load.driver_id,
+        ...p, load_id: load.id, broker_id: load.broker_id, driver_id: load.driver_id,
         driver_gross: load.rate, dispatch_pct: load.dispatch_pct ?? p.dispatch_pct,
         dispatch_fee: fee, week_ending: load.delivery_date ?? p.week_ending,
       }))
@@ -138,6 +140,12 @@ export function InvoiceModal({ invoice, prefillLoad, onSave, onClose }: Props) {
                 <select className={inp} value={form.driver_id ?? ''} onChange={e => setForm(p => ({ ...p, driver_id: e.target.value ? +e.target.value : null }))}>
                   <option value=''>None</option>
                   {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </Field>
+              <Field label='Broker' icon={<FileText size={10} />}>
+                <select className={inp} value={form.broker_id ?? ''} onChange={e => setForm(p => ({ ...p, broker_id: e.target.value ? +e.target.value : null }))}>
+                  <option value=''>None</option>
+                  {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </Field>
               <Field label='Week Ending' icon={<Calendar size={10} />}>

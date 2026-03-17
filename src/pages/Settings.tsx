@@ -11,7 +11,7 @@ interface BackupEntry {
 }
 
 export function Settings() {
-  const { theme, setTheme, companyName, ownerName, ownerEmail, defaultDispatchPct } = useSettingsStore()
+  const { theme, setTheme, companyName, ownerName, ownerEmail, defaultDispatchPct, persistSetting, loadFromStore } = useSettingsStore()
   const [backups, setBackups]         = useState<BackupEntry[]>([])
   const [creatingBackup, setCreating] = useState(false)
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
@@ -27,8 +27,23 @@ export function Settings() {
   const [seedBusy,       setSeedBusy]       = useState(false)
   const [seedMsg,        setSeedMsg]        = useState('')
   const [clearBusy,      setClearBusy]      = useState(false)
+  const [clearConfirm,   setClearConfirm]   = useState(false)
   const [docReseedBusy,  setDocReseedBusy]  = useState(false)
   const [docReseedMsg,   setDocReseedMsg]   = useState('')
+
+  // Business Info local edit state
+  const [bizCompany,     setBizCompany]     = useState(companyName)
+  const [bizOwner,       setBizOwner]       = useState(ownerName)
+  const [bizEmail,       setBizEmail]       = useState(ownerEmail)
+  const [bizPct,         setBizPct]         = useState(String(defaultDispatchPct))
+  const [bizSaved,       setBizSaved]       = useState(false)
+
+  useEffect(() => {
+    setBizCompany(companyName)
+    setBizOwner(ownerName)
+    setBizEmail(ownerEmail)
+    setBizPct(String(defaultDispatchPct))
+  }, [companyName, ownerName, ownerEmail, defaultDispatchPct])
 
   useEffect(() => {
     loadBackups()
@@ -37,6 +52,17 @@ export function Settings() {
     window.api.settings.get('fmcsa_search_terms').then(v => { if (v) setFmcsaTerms(String(v)) }).catch(() => {})
     window.api.settings.get('claude_api_key').then(v => { if (v) setClaudeKey(String(v)) }).catch(() => {})
   }, [])
+
+  async function handleSaveBizInfo() {
+    const pct = parseFloat(bizPct)
+    await persistSetting('companyName', bizCompany.trim())
+    await persistSetting('ownerName',   bizOwner.trim())
+    await persistSetting('ownerEmail',  bizEmail.trim())
+    await persistSetting('defaultDispatchPct', isNaN(pct) ? 7 : pct)
+    await loadFromStore()
+    setBizSaved(true)
+    setTimeout(() => setBizSaved(false), 2500)
+  }
 
   async function loadBackups() {
     try {
@@ -91,7 +117,7 @@ export function Settings() {
     setDocReseedBusy(true)
     setDocReseedMsg('')
     try {
-      await (window.api.dev as any).reseedDocs()
+      await window.api.dev.reseedDocs()
       setDocReseedMsg('Document library rebuilt — 20 documents updated in Documents.')
     } catch {
       setDocReseedMsg('Failed. Check the console for details.')
@@ -101,7 +127,8 @@ export function Settings() {
   }
 
   async function handleClearSeedData() {
-    if (!window.confirm('Remove all sample brokers, drivers, loads, leads, and invoices? Tasks and documents will not be affected.')) return
+    if (!clearConfirm) { setClearConfirm(true); return }
+    setClearConfirm(false)
     setClearBusy(true)
     setSeedMsg('')
     try {
@@ -131,7 +158,7 @@ export function Settings() {
     setBackfillBusy(true)
     setBackfillMsg(null)
     try {
-      const r = await (window.api.leads as any).backfillLeadData()
+      const r = await window.api.leads.backfillLeadData()
       const hasErrors = r.errors && r.errors.length > 0
       setBackfillMsg({
         ok: !hasErrors,
@@ -180,10 +207,58 @@ export function Settings() {
       {/* Business info */}
       <Section title='Business Information' icon={<User size={16} />}>
         <div className='grid grid-cols-2 gap-4'>
-          <ReadField label='Company' value={companyName} />
-          <ReadField label='Owner'   value={ownerName} />
-          <ReadField label='Email'   value={ownerEmail} />
-          <ReadField label='Default Dispatch %' value={String(defaultDispatchPct) + '%'} />
+          <div>
+            <Label>Company Name</Label>
+            <input
+              type='text'
+              value={bizCompany}
+              onChange={e => setBizCompany(e.target.value)}
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
+          <div>
+            <Label>Owner Name</Label>
+            <input
+              type='text'
+              value={bizOwner}
+              onChange={e => setBizOwner(e.target.value)}
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
+          <div>
+            <Label>Email</Label>
+            <input
+              type='email'
+              value={bizEmail}
+              onChange={e => setBizEmail(e.target.value)}
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
+          <div>
+            <Label>Default Dispatch %</Label>
+            <input
+              type='number'
+              min='1'
+              max='25'
+              step='0.5'
+              value={bizPct}
+              onChange={e => setBizPct(e.target.value)}
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
+        </div>
+        <div className='flex items-center gap-3 mt-4'>
+          <button
+            onClick={handleSaveBizInfo}
+            className='text-xs px-4 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+          >
+            Save
+          </button>
+          {bizSaved && (
+            <span className='text-xs text-green-400 flex items-center gap-1'>
+              <CheckCircle size={12} /> Saved
+            </span>
+          )}
         </div>
       </Section>
 
@@ -453,13 +528,31 @@ export function Settings() {
                 Deletes sample brokers, drivers, loads, leads, and invoices (id ≥ 101).
                 Tasks and documents are not affected.
               </p>
-              <button
-                onClick={handleClearSeedData}
-                disabled={seedBusy || clearBusy}
-                className='text-xs px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50'
-              >
-                {clearBusy ? 'Removing…' : 'Remove Sample Data'}
-              </button>
+              {clearConfirm ? (
+                <div className='flex items-center gap-2'>
+                  <span className='text-2xs text-yellow-400'>Confirm?</span>
+                  <button
+                    onClick={handleClearSeedData}
+                    className='text-2xs px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded transition-colors'
+                  >
+                    Yes, remove it
+                  </button>
+                  <button
+                    onClick={() => setClearConfirm(false)}
+                    className='text-2xs text-gray-500 hover:text-gray-300'
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleClearSeedData}
+                  disabled={seedBusy || clearBusy}
+                  className='text-xs px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50'
+                >
+                  {clearBusy ? 'Removing…' : 'Remove Sample Data'}
+                </button>
+              )}
             </div>
           </div>
         </div>

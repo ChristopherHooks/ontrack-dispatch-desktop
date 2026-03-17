@@ -1,7 +1,48 @@
-import { useEffect } from 'react'
+import { useEffect, Component, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { useSettingsStore } from './store/settingsStore'
+
+// ---------------------------------------------------------------------------
+// ErrorBoundary — catches unhandled React render errors so the whole app
+// does not go blank. Renders a minimal recovery screen instead.
+// ---------------------------------------------------------------------------
+
+interface EBState { hasError: boolean; message: string }
+
+class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, message: '' }
+  }
+  static getDerivedStateFromError(err: unknown): EBState {
+    return { hasError: true, message: err instanceof Error ? err.message : String(err) }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className='min-h-screen bg-surface-800 flex items-center justify-center p-8'>
+          <div className='max-w-lg w-full bg-surface-700 border border-red-800/50 rounded-xl p-6 space-y-4'>
+            <h1 className='text-red-400 font-semibold text-lg'>Something went wrong</h1>
+            <p className='text-gray-400 text-sm'>An unexpected error occurred. Reload the window to recover.</p>
+            {this.state.message && (
+              <pre className='text-xs text-gray-500 bg-surface-600 rounded p-3 overflow-auto max-h-40 whitespace-pre-wrap'>
+                {this.state.message}
+              </pre>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              className='text-sm px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // Pages
 import { Operations }      from './pages/Operations'
@@ -30,6 +71,7 @@ export function App() {
   }, [loadFromStore])
 
   return (
+    <ErrorBoundary>
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path='/' element={<AppShell />}>
@@ -54,5 +96,6 @@ export function App() {
         </Route>
       </Routes>
     </HashRouter>
+    </ErrorBoundary>
   )
 }

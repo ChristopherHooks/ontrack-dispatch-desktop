@@ -147,7 +147,7 @@ export function getRecommendations(
         miles:          load.miles,
         rpm,
         deadhead_miles: deadheadMiles,
-        total_revenue:  load.rate,
+        gross_rate:     load.rate,
         score,
         broker_name:    load.broker_name,
         broker_flag:    load.broker_flag,

@@ -10,25 +10,14 @@ import { computeLeadScore } from '../lib/leadScore'
 import { openSaferMc, openSaferDot } from '../lib/saferUrl'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
-import type { Task, Driver, Load, Lead, CheckCallRow } from '../types/models'
+import type {
+  Task, Driver, Load, Lead, CheckCallRow,
+  OperationsData, DriverOpportunity, LeadHeat, GroupPerformance, BrokerLane, ProfitRadarData,
+} from '../types/models'
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (local only — not shared across modules)
 // ---------------------------------------------------------------------------
-
-interface OperationsData {
-  fbConvNew:           number
-  fbConvActive:        number
-  driversNeedingLoads: number
-  loadsInTransit:      number
-  overdueLeads:        number
-  todaysGroupCount:    number
-  outstandingInvoices: number
-  warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
-  availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
-  todayTasks:    Task[]
-  completedToday: number[]
-}
 
 interface ScoredLead extends Lead {
   _score:    number
@@ -52,50 +41,6 @@ const EMPTY: OperationsData = {
   warmLeads: [], availableDrivers: [], todayTasks: [], completedToday: [],
 }
 
-// ---------------------------------------------------------------------------
-// Profit Radar types (mirrors profitRadar.ts)
-// ---------------------------------------------------------------------------
-
-interface DriverOpportunity {
-  driverId:  number
-  name:      string
-  truckType: string | null
-  homeBase:  string | null
-  location:  string | null
-  score:     number
-}
-interface LeadHeat {
-  convId:      number
-  name:        string
-  stage:       string
-  lastMessage: string | null
-  followUpAt:  string | null
-  phone:       string | null
-  nextAction:  string
-  score:       number
-}
-interface GroupPerformance {
-  groupId:        number
-  name:           string
-  leadsGenerated: number
-  signedDrivers:  number
-  priority:       string
-  lastPostedAt:   string | null
-  score:          number
-}
-interface BrokerLane {
-  originState: string
-  destState:   string
-  avgRpm:      number
-  loads:       number
-  score:       number
-}
-interface ProfitRadarData {
-  idleDrivers: DriverOpportunity[]
-  leadHeat:    LeadHeat[]
-  topGroups:   GroupPerformance[]
-  topLanes:    BrokerLane[]
-}
 const RADAR_EMPTY: ProfitRadarData = { idleDrivers: [], leadHeat: [], topGroups: [], topLanes: [] }
 
 // ---------------------------------------------------------------------------

@@ -177,7 +177,7 @@ export function getLaneIntelAll(db: Database): LaneIntelRow[] {
     FROM loads
     WHERE origin_state IS NOT NULL
       AND dest_state   IS NOT NULL
-      AND status IN ('Booked','Picked Up','In Transit','Delivered','Invoiced','Paid')
+      AND status IN ('Delivered','Invoiced','Paid')
     GROUP BY origin_state, dest_state
     ORDER BY loads_count DESC, avg_rpm DESC
   `).all() as Array<{

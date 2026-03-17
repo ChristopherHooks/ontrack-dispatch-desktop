@@ -595,10 +595,42 @@ const migration016: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 017 -- Add broker_id to invoices
+//
+// Invoices had no linkage to the brokers table. Adding broker_id so invoices
+// can be filtered and attributed per broker without joining through loads.
+// ---------------------------------------------------------------------------
+
+const migration017: Migration = {
+  version: 17,
+  description: 'Add broker_id FK to invoices table',
+  up: (db) => {
+    addColumnIfMissing(db, 'invoices', 'broker_id', 'INTEGER REFERENCES brokers(id) ON DELETE SET NULL')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (17)")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migration 018 -- Add trailer_type to loads
+//
+// Loads did not record the trailer type required by the load. Adding this
+// field enables driver-to-load equipment matching in Load Match.
+// ---------------------------------------------------------------------------
+
+const migration018: Migration = {
+  version: 18,
+  description: 'Add trailer_type column to loads table',
+  up: (db) => {
+    addColumnIfMissing(db, 'loads', 'trailer_type', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (18)")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions
@@ -615,7 +647,7 @@ export function runMigrations(db: Database.Database): void {
   for (const m of MIGRATIONS) {
     if (!applied.has(m.version)) {
       console.log('[DB] Applying migration', m.version, ':', m.description)
-      m.up(db)
+      db.transaction(() => m.up(db))()
     }
   }
 }

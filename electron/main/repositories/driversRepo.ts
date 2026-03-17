@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import type { Driver, CreateDriverDto, UpdateDriverDto } from '../../../src/types/models'
+import { logAudit } from './auditRepo'
 
 export function listDrivers(db: Database.Database, status?: string): Driver[] {
   if (status) {
@@ -24,7 +25,9 @@ export function createDriver(db: Database.Database, dto: CreateDriverDto): Drive
     dto.preferred_lanes ?? null, dto.min_rpm ?? null, dto.dispatch_percent,
     dto.factoring_company ?? null, dto.insurance_expiry ?? null, dto.start_date ?? null,
     dto.status, dto.notes ?? null)
-  return db.prepare('SELECT * FROM drivers WHERE id = ?').get(r.lastInsertRowid as number) as Driver
+  const newId = r.lastInsertRowid as number
+  logAudit(db, 1, 'driver', newId, 'create', undefined, dto)
+  return db.prepare('SELECT * FROM drivers WHERE id = ?').get(newId) as Driver
 }
 
 export function updateDriver(db: Database.Database, id: number, dto: UpdateDriverDto): Driver | undefined {
@@ -41,9 +44,14 @@ export function updateDriver(db: Database.Database, id: number, dto: UpdateDrive
     m.phone, m.email, m.truck_type, m.trailer_type, m.home_base, m.preferred_lanes,
     m.min_rpm, m.dispatch_percent, m.factoring_company, m.insurance_expiry,
     m.start_date, m.status, m.notes, now, id)
+  logAudit(db, 1, 'driver', id, 'update', existing, dto)
   return getDriver(db, id)
 }
 
 export function deleteDriver(db: Database.Database, id: number): boolean {
-  return db.prepare('DELETE FROM drivers WHERE id = ?').run(id).changes > 0
+  const existing = getDriver(db, id)
+  if (!existing) return false
+  const changed = db.prepare('DELETE FROM drivers WHERE id = ?').run(id).changes > 0
+  if (changed) logAudit(db, 1, 'driver', id, 'delete', existing, undefined)
+  return changed
 }

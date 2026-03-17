@@ -61,10 +61,11 @@ declare global {
         create:      (dto: CreateLeadDto) => Promise<Lead>
         update:      (id: number, dto: UpdateLeadDto) => Promise<Lead | undefined>
         delete:      (id: number) => Promise<boolean>
-        importFmcsa:  () => Promise<FmcsaImportResult>
-        importStatus: () => Promise<FmcsaImportStatus>
-        importCsv:    () => Promise<CsvImportResult | null>
-        importPaste:  (text: string) => Promise<CsvImportResult>
+        importFmcsa:      () => Promise<FmcsaImportResult>
+        importStatus:     () => Promise<FmcsaImportStatus>
+        importCsv:        () => Promise<CsvImportResult | null>
+        importPaste:      (text: string) => Promise<CsvImportResult>
+        backfillLeadData: () => Promise<{ reprioritized: number; enriched: number; errors: string[] }>
       }
       drivers: {
         list:   (status?: string) => Promise<Driver[]>
@@ -211,6 +212,7 @@ declare global {
         seedMissing:   () => Promise<{ ok: boolean }>
         seedTasksOnly: () => Promise<{ ok: boolean }>
         clearSeedData: () => Promise<{ ok: boolean }>
+        reseedDocs:    () => Promise<{ ok: boolean }>
       }
     }
   }

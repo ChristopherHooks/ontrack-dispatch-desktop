@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import type { Broker, CreateBrokerDto, UpdateBrokerDto } from '../../../src/types/models'
+import { logAudit } from './auditRepo'
 
 export function listBrokers(db: Database.Database): Broker[] {
   return db.prepare('SELECT * FROM brokers ORDER BY name ASC').all() as Broker[]
@@ -15,7 +16,9 @@ export function createBroker(db: Database.Database, dto: CreateBrokerDto): Broke
     'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(dto.name, dto.mc_number ?? null, dto.phone ?? null, dto.email ?? null,
     dto.payment_terms, dto.credit_rating ?? null, dto.avg_days_pay ?? null, dto.flag, dto.notes ?? null)
-  return db.prepare('SELECT * FROM brokers WHERE id = ?').get(r.lastInsertRowid as number) as Broker
+  const newId = r.lastInsertRowid as number
+  logAudit(db, 1, 'broker', newId, 'create', undefined, dto)
+  return db.prepare('SELECT * FROM brokers WHERE id = ?').get(newId) as Broker
 }
 
 export function updateBroker(db: Database.Database, id: number, dto: UpdateBrokerDto): Broker | undefined {
@@ -25,9 +28,14 @@ export function updateBroker(db: Database.Database, id: number, dto: UpdateBroke
   const m = { ...existing, ...dto }
   db.prepare('UPDATE brokers SET name=?,mc_number=?,phone=?,email=?,payment_terms=?,credit_rating=?,avg_days_pay=?,flag=?,notes=?,updated_at=? WHERE id=?')
     .run(m.name, m.mc_number, m.phone, m.email, m.payment_terms, m.credit_rating, m.avg_days_pay, m.flag, m.notes, now, id)
+  logAudit(db, 1, 'broker', id, 'update', existing, dto)
   return getBroker(db, id)
 }
 
 export function deleteBroker(db: Database.Database, id: number): boolean {
-  return db.prepare('DELETE FROM brokers WHERE id = ?').run(id).changes > 0
+  const existing = getBroker(db, id)
+  if (!existing) return false
+  const changed = db.prepare('DELETE FROM brokers WHERE id = ?').run(id).changes > 0
+  if (changed) logAudit(db, 1, 'broker', id, 'delete', existing, undefined)
+  return changed
 }

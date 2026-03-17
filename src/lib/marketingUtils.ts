@@ -265,31 +265,57 @@ export function suggestGroupsForPost(
 ): MarketingGroupMin[] {
   const active = groups.filter(g => g.active !== 0)
 
-  return active
-    .map(g => {
-      const tags: string[] = (() => { try { return JSON.parse(g.truck_type_tags) } catch { return [] } })()
-      const tagMatch = truckType ? tags.includes(truckType) : true
-      const tagMatchAll = tags.length === 0  // no tags = show for any post
+  // Score every active group by recency only (category selection handles distribution)
+  const scored = active.map(g => {
+    const tags: string[] = (() => { try { return JSON.parse(g.truck_type_tags) } catch { return [] } })()
 
-      // Days since last post (null = never = highest priority)
-      const daysSince = g.last_posted_at
-        ? Math.floor((new Date(today).getTime() - new Date(g.last_posted_at).getTime()) / 86400000)
-        : 999
+    const daysSince = g.last_posted_at
+      ? Math.floor((new Date(today).getTime() - new Date(g.last_posted_at).getTime()) / 86400000)
+      : 999
 
-      const postedToday = g.last_posted_at === today
+    const postedToday = g.last_posted_at === today
 
-      let score = 0
-      if (tagMatch || tagMatchAll) score += 5
-      if (daysSince >= 2) score += 3
-      if (daysSince >= 5) score += 2
-      if (!postedToday) score += 2
+    let score = 0
+    if (daysSince >= 2) score += 3
+    if (daysSince >= 5) score += 2
+    if (!postedToday) score += 2
 
-      return { group: g, score, daysSince, postedToday }
-    })
-    .filter(({ postedToday, score }) => !postedToday && score > 0)
-    .sort((a, b) => b.score - a.score || b.daysSince - a.daysSince)
-    .slice(0, maxResults)
-    .map(({ group }) => group)
+    return { group: g, score, daysSince, postedToday, tags }
+  }).filter(s => !s.postedToday)
+
+  const picked: MarketingGroupMin[] = []
+  const usedIds = new Set<number>()
+
+  const bestFor = (filter: (tags: string[]) => boolean) =>
+    scored
+      .filter(s => !usedIds.has(s.group.id) && filter(s.tags))
+      .sort((a, b) => b.score - a.score || b.daysSince - a.daysSince)[0]
+
+  const pick = (candidate: ReturnType<typeof bestFor>) => {
+    if (candidate) {
+      picked.push(candidate.group)
+      usedIds.add(candidate.group.id)
+    }
+  }
+
+  // One slot per truck-type category — current template's type goes first
+  const orderedCategories = truckType
+    ? [truckType, ...TRUCK_TYPES.filter(t => t !== truckType)]
+    : [...TRUCK_TYPES]
+
+  for (const cat of orderedCategories) {
+    if (picked.length >= maxResults) break
+    pick(bestFor(tags => tags.includes(cat)))
+  }
+
+  // Fill any remaining slots with untagged general groups (tagged for all audiences)
+  while (picked.length < maxResults) {
+    const next = bestFor(tags => tags.length === 0)
+    if (!next) break
+    pick(next)
+  }
+
+  return picked
 }
 
 export function fmtDaysSince(d: string | null, today: string): string {

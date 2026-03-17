@@ -1,5 +1,8 @@
 import Database from 'better-sqlite3'
 import type { Load, CreateLoadDto, UpdateLoadDto } from '../../../src/types/models'
+import { logAudit } from './auditRepo'
+
+const ACTIVE_STATUSES = ['Booked', 'Picked Up', 'In Transit']
 
 export function listLoads(db: Database.Database, status?: string): Load[] {
   if (status) {
@@ -16,13 +19,15 @@ export function createLoad(db: Database.Database, dto: CreateLoadDto): Load {
   const r = db.prepare(
     'INSERT INTO loads (load_id, driver_id, broker_id, origin_city, origin_state,' +
     'dest_city, dest_state, pickup_date, delivery_date, miles, rate, dispatch_pct,' +
-    'commodity, status, invoiced, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    'trailer_type, commodity, status, invoiced, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).run(dto.load_id ?? null, dto.driver_id ?? null, dto.broker_id ?? null,
     dto.origin_city ?? null, dto.origin_state ?? null, dto.dest_city ?? null,
     dto.dest_state ?? null, dto.pickup_date ?? null, dto.delivery_date ?? null,
     dto.miles ?? null, dto.rate ?? null, dto.dispatch_pct ?? null,
-    dto.commodity ?? null, dto.status, dto.invoiced ?? 0, dto.notes ?? null)
-  return db.prepare('SELECT * FROM loads WHERE id = ?').get(r.lastInsertRowid as number) as Load
+    dto.trailer_type ?? null, dto.commodity ?? null, dto.status, dto.invoiced ?? 0, dto.notes ?? null)
+  const newId = r.lastInsertRowid as number
+  logAudit(db, 1, 'load', newId, 'create', undefined, dto)
+  return db.prepare('SELECT * FROM loads WHERE id = ?').get(newId) as Load
 }
 
 export function updateLoad(db: Database.Database, id: number, dto: UpdateLoadDto): Load | undefined {
@@ -33,13 +38,22 @@ export function updateLoad(db: Database.Database, id: number, dto: UpdateLoadDto
   db.prepare(
     'UPDATE loads SET load_id=?,driver_id=?,broker_id=?,origin_city=?,origin_state=?,' +
     'dest_city=?,dest_state=?,pickup_date=?,delivery_date=?,miles=?,rate=?,dispatch_pct=?,' +
-    'commodity=?,status=?,invoiced=?,notes=?,updated_at=? WHERE id=?'
+    'trailer_type=?,commodity=?,status=?,invoiced=?,notes=?,updated_at=? WHERE id=?'
   ).run(m.load_id, m.driver_id, m.broker_id, m.origin_city, m.origin_state,
     m.dest_city, m.dest_state, m.pickup_date, m.delivery_date, m.miles,
-    m.rate, m.dispatch_pct, m.commodity, m.status, m.invoiced, m.notes, now, id)
+    m.rate, m.dispatch_pct, m.trailer_type, m.commodity, m.status, m.invoiced, m.notes, now, id)
+  logAudit(db, 1, 'load', id, 'update', existing, dto)
   return getLoad(db, id)
 }
 
 export function deleteLoad(db: Database.Database, id: number): boolean {
-  return db.prepare('DELETE FROM loads WHERE id = ?').run(id).changes > 0
+  const existing = getLoad(db, id)
+  if (!existing) return false
+  // Guard: refuse to delete a load that is actively in transit
+  if (ACTIVE_STATUSES.includes(existing.status)) {
+    throw new Error(`Cannot delete load #${id} — status is "${existing.status}". Change status to Searching or Delivered first.`)
+  }
+  const changed = db.prepare('DELETE FROM loads WHERE id = ?').run(id).changes > 0
+  if (changed) logAudit(db, 1, 'load', id, 'delete', existing, undefined)
+  return changed
 }

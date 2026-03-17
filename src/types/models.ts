@@ -119,6 +119,7 @@ export interface Load {
   miles: number | null
   rate: number | null             // total gross rate in dollars
   dispatch_pct: number | null
+  trailer_type: string | null
   commodity: string | null
   status: LoadStatus
   invoiced: 0 | 1
@@ -150,6 +151,7 @@ export interface Invoice {
   id: number
   invoice_number: string
   load_id: number | null          // FK -> loads.id
+  broker_id: number | null
   driver_id: number | null
   week_ending: string | null      // YYYY-MM-DD
   driver_gross: number | null
@@ -518,7 +520,7 @@ export interface LoadRecommendation {
   miles:          number | null    // loaded miles
   rpm:            number | null
   deadhead_miles: number
-  total_revenue:  number | null
+  gross_rate:     number | null   // raw rate from the load — mislabeled total_revenue previously
   score:          number
   broker_name:    string | null
   broker_flag:    BrokerFlag | null
@@ -530,4 +532,61 @@ export interface ScannerRecommendation {
   driver_name:     string
   home_base:       string | null
   recommendations: LoadRecommendation[]
+}
+
+// -- Operations Dashboard --
+export interface OperationsData {
+  fbConvNew:           number
+  fbConvActive:        number
+  driversNeedingLoads: number
+  loadsInTransit:      number
+  overdueLeads:        number
+  todaysGroupCount:    number
+  outstandingInvoices: number
+  warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
+  availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
+  todayTasks:    Task[]
+  completedToday: number[]
+}
+
+// -- Profit Radar --
+export interface DriverOpportunity {
+  driverId:  number
+  name:      string
+  truckType: string | null
+  homeBase:  string | null
+  location:  string | null
+  score:     number
+}
+export interface LeadHeat {
+  convId:      number
+  name:        string
+  stage:       string
+  lastMessage: string | null
+  followUpAt:  string | null
+  phone:       string | null
+  nextAction:  string
+  score:       number
+}
+export interface GroupPerformance {
+  groupId:        number
+  name:           string
+  leadsGenerated: number
+  signedDrivers:  number
+  priority:       string
+  lastPostedAt:   string | null
+  score:          number
+}
+export interface BrokerLane {
+  originState: string
+  destState:   string
+  avgRpm:      number
+  loads:       number
+  score:       number
+}
+export interface ProfitRadarData {
+  idleDrivers: DriverOpportunity[]
+  leadHeat:    LeadHeat[]
+  topGroups:   GroupPerformance[]
+  topLanes:    BrokerLane[]
 }

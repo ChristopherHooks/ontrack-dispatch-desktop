@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron'
 import { join } from 'path'
 import { initDatabase, getDataDir, getDb } from './db'
 import { registerDbHandlers } from './ipcHandlers'
@@ -82,6 +82,26 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Content-Security-Policy — only enforced in packaged builds.
+  // Dev mode uses Vite HMR (inline scripts + WebSocket) which strict CSP would block.
+  if (app.isPackaged) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self'; " +
+            "object-src 'none'",
+          ],
+        },
+      })
+    })
+  }
   const customDataPath = store.get('dataPath') as string
   const resolvedDataDir = (customDataPath && customDataPath !== '')
     ? customDataPath

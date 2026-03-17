@@ -119,9 +119,12 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     return result.ok ? result.content.trim() : null
   })
 
-  // -- Generic DB query (dev/debug only — disabled in packaged builds) --
+  // -- Generic DB query (dev/debug only — disabled in packaged builds, SELECT-only) --
   if (!app.isPackaged) {
     ipcMain.handle('db:query', (_e, sql: string, params?: unknown[]) => {
+      if (typeof sql !== 'string' || !sql.trim().toUpperCase().startsWith('SELECT')) {
+        return { data: null, error: 'Only SELECT statements are permitted on this channel' }
+      }
       try {
         const data = getDb().prepare(sql).all(...(params ?? []))
         return { data, error: null }
@@ -421,7 +424,13 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   })
 
   // -- Shell utilities --
-  ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
+  ipcMain.handle('shell:openExternal', (_e, url: string) => {
+    if (typeof url !== 'string') return
+    let parsed: URL
+    try { parsed = new URL(url) } catch { return }
+    if (!['https:', 'http:', 'mailto:'].includes(parsed.protocol)) return
+    shell.openExternal(url)
+  })
 
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',          () => { runSeedIfEmpty(getDb());      return { ok: true } })

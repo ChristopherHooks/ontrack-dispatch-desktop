@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { importFmcsaLeads, writeImportMeta } from './fmcsaImport'
 
-export type JobName = 'fmcsa-scraper' | 'daily-briefing' | 'marketing-queue'
+export type JobName = 'fmcsa-scraper'
 
 interface JobConfig {
   name: JobName
@@ -38,25 +38,15 @@ async function runFmcsScraper(): Promise<void> {
   console.log('[Scheduler] FMCSA import done. Added:', result.leadsAdded, '/ Found:', result.leadsFound)
 }
 
-async function runDailyBriefing(): Promise<void> {
-  console.log('[Scheduler] 06:00 Daily briefing stub')
-  // TODO: build summary of today tasks + loads in transit + follow-ups due
-  //       and optionally push to a notification / log file
-}
-
-async function runMarketingQueue(): Promise<void> {
-  console.log('[Scheduler] Monday 07:00 Weekly marketing queue stub')
-  // TODO: build Facebook/DAT post queue from open leads, log to app_settings
-}
+// runDailyBriefing and runMarketingQueue are planned for a future session.
+// Not registered in JOBS until implemented so they do not fire on a schedule.
 
 // ---------------------------------------------------------------------------
 // Job registry
 // ---------------------------------------------------------------------------
 
 const JOBS: JobConfig[] = [
-  { name: 'fmcsa-scraper',   hour: 5, minute: 0,              handler: runFmcsScraper   },
-  { name: 'daily-briefing',  hour: 6, minute: 0,              handler: runDailyBriefing  },
-  { name: 'marketing-queue', hour: 7, minute: 0, dayOfWeek: 1, handler: runMarketingQueue },
+  { name: 'fmcsa-scraper', hour: 5, minute: 0, handler: runFmcsScraper },
 ]
 
 // ---------------------------------------------------------------------------

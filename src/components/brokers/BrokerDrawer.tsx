@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight } from 'lucide-react'
-import type { Broker, BrokerFlag, Load, Note } from '../../types/models'
+import type { Broker, BrokerFlag, BrokerRating, Load, Note } from '../../types/models'
 import { FLAG_STYLES, BROKER_FLAGS } from './constants'
 import { LOAD_STATUS_STYLES } from '../loads/constants'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -28,20 +28,32 @@ function Sec({ title }: { title: string }) {
   return <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>{title}</p>
 }
 
+const INTEL_RATING_STYLE: Record<BrokerRating, string> = {
+  Preferred: 'bg-green-500/15 text-green-400 border-green-500/25',
+  Strong:    'bg-green-500/10 text-green-400 border-green-500/20',
+  Neutral:   'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  Caution:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+  Avoid:     'bg-red-500/15 text-red-400 border-red-500/25',
+}
+
 export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }: Props) {
-  const [loads, setLoads] = useState<Load[]>([])
-  const [notes, setNotes] = useState<Note[]>([])
-  const [noteText, setNoteText] = useState('')
-  const [addNote, setAddNote] = useState(false)
-  const [confirmDel, setConf] = useState(false)
+  const [loads,       setLoads]       = useState<Load[]>([])
+  const [notes,       setNotes]       = useState<Note[]>([])
+  const [noteText,    setNoteText]    = useState('')
+  const [addNote,     setAddNote]     = useState(false)
+  const [confirmDel,  setConf]        = useState(false)
+  const [intelRating, setIntelRating] = useState<BrokerRating>('Neutral')
 
   useEffect(() => {
     Promise.all([
-      window.api.db.query('SELECT * FROM loads WHERE broker_id = ? ORDER BY created_at DESC', [broker.id]),
+      window.api.loads.list(),
       window.api.notes.list('broker', broker.id),
-    ]).then(([loadsRes, notesData]) => {
-      setLoads((loadsRes.data as Load[]) ?? [])
+      window.api.intel.allBrokers(),
+    ]).then(([allLoads, notesData, intelData]) => {
+      setLoads(allLoads.filter(l => l.broker_id === broker.id))
       setNotes(notesData)
+      const row = intelData.find(r => r.broker_id === broker.id)
+      if (row) setIntelRating(row.rating)
     })
   }, [broker.id])
 
@@ -59,29 +71,6 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
   const slowPayDiff = broker.avg_days_pay != null ? broker.avg_days_pay - broker.payment_terms : null
   const payScore = slowPayDiff == null ? null : slowPayDiff <= 0 ? 'On Time' : slowPayDiff <= 7 ? 'Slightly Late' : slowPayDiff <= 14 ? 'Slow' : 'Very Slow'
   const payColor = payScore === 'On Time' ? 'text-green-400' : payScore === 'Slightly Late' ? 'text-yellow-400' : payScore ? 'text-red-400' : 'text-gray-600'
-
-  // Broker intelligence rating — deterministic, same logic as brokerIntelligence.ts
-  const intelRating = (() => {
-    const flag = broker.flag
-    if (flag === 'Blacklisted' || flag === 'Avoid') return 'Avoid'
-    let score = 50
-    if (avgRpm > 0) score += Math.max(-20, Math.min(20, (avgRpm - 2.0) * 15))
-    score += Math.min(completedLoads.length * 3, 15)
-    if (flag === 'Preferred') score += 25
-    if (flag === 'Slow Pay')  score -= 20
-    score = Math.max(0, Math.min(100, Math.round(score)))
-    if (score >= 65) return flag === 'Preferred' ? 'Preferred' : 'Strong'
-    if (score >= 40) return 'Neutral'
-    if (score >= 20) return 'Caution'
-    return 'Avoid'
-  })()
-  const INTEL_RATING_STYLE: Record<string, string> = {
-    Preferred: 'bg-green-500/15 text-green-400 border-green-500/25',
-    Strong:    'bg-green-500/10 text-green-400 border-green-500/20',
-    Neutral:   'bg-gray-500/10 text-gray-400 border-gray-500/20',
-    Caution:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
-    Avoid:     'bg-red-500/15 text-red-400 border-red-500/25',
-  }
 
   return (
     <div className='fixed inset-0 z-50 flex'>

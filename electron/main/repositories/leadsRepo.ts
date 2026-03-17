@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import type { Lead, CreateLeadDto, UpdateLeadDto } from '../../../src/types/models'
+import { logAudit } from './auditRepo'
 
 export function listLeads(db: Database.Database, status?: string): Lead[] {
   if (status) {
@@ -21,7 +22,9 @@ export function createLead(db: Database.Database, dto: CreateLeadDto): Lead {
     dto.email ?? null, dto.city ?? null, dto.state ?? null, dto.trailer_type ?? null,
     dto.authority_date ?? null, dto.fleet_size ?? null, dto.source ?? null, dto.status, dto.priority,
     dto.follow_up_date ?? null, dto.notes ?? null)
-  return db.prepare('SELECT * FROM leads WHERE id = ?').get(r.lastInsertRowid as number) as Lead
+  const newId = r.lastInsertRowid as number
+  logAudit(db, 1, 'lead', newId, 'create', undefined, dto)
+  return db.prepare('SELECT * FROM leads WHERE id = ?').get(newId) as Lead
 }
 
 export function updateLead(db: Database.Database, id: number, dto: UpdateLeadDto): Lead | undefined {
@@ -36,9 +39,14 @@ export function updateLead(db: Database.Database, id: number, dto: UpdateLeadDto
   ).run(m.name, m.company, m.mc_number, m.phone, m.email, m.city, m.state,
     m.trailer_type, m.authority_date, m.fleet_size ?? null, m.source, m.status, m.priority,
     m.follow_up_date, m.notes, now, id)
+  logAudit(db, 1, 'lead', id, 'update', existing, dto)
   return getLead(db, id)
 }
 
 export function deleteLead(db: Database.Database, id: number): boolean {
-  return db.prepare('DELETE FROM leads WHERE id = ?').run(id).changes > 0
+  const existing = getLead(db, id)
+  if (!existing) return false
+  const changed = db.prepare('DELETE FROM leads WHERE id = ?').run(id).changes > 0
+  if (changed) logAudit(db, 1, 'lead', id, 'delete', existing, undefined)
+  return changed
 }

@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-03-16 (Session 18)
+2026-03-16 (Session 20)
 
 ## Current Branch
 
@@ -16,6 +16,83 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 20 — Audit Fixes Continued (complete)
+
+Completed remaining audit fixes from the Session 18 comprehensive audit. All changes pass `tsc --noEmit` with zero errors.
+
+**CAT-A — Audit log writes (all 5 entity repos):**
+- `loadsRepo.ts`: `createLoad` + `updateLoad` + `deleteLoad` each call `logAudit()`; `deleteLoad` now fetches the existing row first and throws if load status is Booked/Picked Up/In Transit
+- `invoicesRepo.ts`: `createInvoice` + `updateInvoice` + `deleteInvoice` all call `logAudit()`
+- `brokersRepo.ts`: `createBroker` + `updateBroker` + `deleteBroker` all call `logAudit()`
+- `driversRepo.ts`: `createDriver` + `updateDriver` + `deleteDriver` all call `logAudit()`
+- `leadsRepo.ts`: `createLead` + `updateLead` + `deleteLead` all call `logAudit()`
+- All calls use hardcoded `userId = 1` (admin user; single-user app); `AuditAction` type used throughout
+
+**H-8 + migration 017 — broker_id on invoices:**
+- `migrations.ts`: migration 017 adds `broker_id INTEGER REFERENCES brokers(id) ON DELETE SET NULL` to invoices via `addColumnIfMissing()`
+
+**migration 018 — trailer_type on loads:**
+- `migrations.ts`: migration 018 adds `trailer_type TEXT` to loads via `addColumnIfMissing()`
+
+**H-3 — BrokerDrawer production bug + scoring deduplication:**
+- `BrokerDrawer.tsx`: replaced `window.api.db.query()` (dev-only channel, silently empty in packaged builds) with `window.api.loads.list()` filtered by `broker_id`
+- Added `window.api.intel.allBrokers()` to the `useEffect` Promise.all; finds broker by id and sets `intelRating` state
+- Removed the inline IIFE (~15 lines) that duplicated the exact scoring logic from `brokerIntelligence.ts`
+- `INTEL_RATING_STYLE` moved from inside component body to module level; typed as `Record<BrokerRating, string>` for TypeScript exhaustiveness
+
+**M-8 — Export shared interfaces from models.ts:**
+- Added `OperationsData`, `DriverOpportunity`, `LeadHeat`, `GroupPerformance`, `BrokerLane`, `ProfitRadarData` to `src/types/models.ts`
+- `Operations.tsx` now imports these types instead of defining them locally; `ScoredLead` and `NextAction` remain local (not reused elsewhere)
+
+**M-9 — Content-Security-Policy header:**
+- `electron/main/index.ts`: `session` imported from electron; CSP header injected via `session.defaultSession.webRequest.onHeadersReceived`, gated behind `app.isPackaged` (dev mode skipped — Vite HMR uses inline scripts + WebSocket that strict CSP blocks)
+- Policy: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'`
+- `'unsafe-inline'` on `style-src` required for Tailwind CSS inline styles
+
+### Session 19 — Audit Fixes (complete)
+
+Applied all Critical + High + selected Medium/Low fixes from the Session 18 audit. All fixes pass `tsc --noEmit` with zero errors.
+
+**H-5 — Lane intel data quality fix (`brokerIntelligence.ts`):**
+- `getLaneIntelAll` status filter changed from `Booked/Picked Up/In Transit/Delivered/Invoiced/Paid` to `Delivered/Invoiced/Paid` only
+- Removes unconfirmed revenue (Booked loads haven't moved yet) from lane avgRpm calculations
+
+**H-7 — URL protocol validation (`ipcHandlers.ts`):**
+- `shell:openExternal` now validates the URL with `new URL()` and restricts protocol to `https:`, `http:`, `mailto:` only
+- Non-URL strings or `file:`, `javascript:` etc. are silently dropped — prevents renderer-injected shell escapes
+
+**H-2 — SELECT-only guard on `db:query` (`ipcHandlers.ts`):**
+- The dev-only IPC query channel now rejects any SQL that does not start with `SELECT`
+- Returns `{ data: null, error: '...' }` for write attempts rather than executing them
+
+**H-4 — ErrorBoundary (`App.tsx`):**
+- Class-based `ErrorBoundary` added above `HashRouter`; wraps entire app
+- Renders a recovery screen (error message + Reload button) instead of a blank white screen on unhandled render errors
+
+**H-6 — Migration transaction wrapping (`schema/migrations.ts`):**
+- Each migration `up()` call is now wrapped in `db.transaction(() => m.up(db))()`
+- Failed migrations now fully roll back instead of leaving a partial schema
+
+**CAT-C — Remove unimplemented scheduler stubs (`scheduler.ts`):**
+- `runDailyBriefing` and `runMarketingQueue` stub functions removed
+- `JobName` type narrowed to `'fmcsa-scraper'` only; JOBS array contains only the FMCSA scraper
+- Comment added explaining the two planned jobs will be added when implemented
+
+**L-5 — Remove `as any` casts; add missing type declarations (`global.d.ts`, `Settings.tsx`):**
+- `window.api.dev.reseedDocs()` typed in `global.d.ts` → `(window.api.dev as any).reseedDocs()` cast removed in Settings.tsx
+- `window.api.leads.backfillLeadData()` typed in `global.d.ts` → `(window.api.leads as any).backfillLeadData()` cast removed in Settings.tsx
+
+**M-6 — Rename `total_revenue` → `gross_rate` in LoadRecommendation (`loadScanner.ts`, `models.ts`):**
+- Field was mislabeled — it holds the load's gross rate (single load), not total revenue across loads
+- Renamed in `LoadRecommendation` interface in `models.ts` and in `loadScanner.ts` return object
+
+**CAT-B / M-2 — Business Information editable; hardcoded identity removed:**
+- `settingsStore.ts`: initial state and `loadFromStore` fallbacks changed from hardcoded `'Chris Hooks'` / `'dispatch@ontrackhaulingsolutions.com'` to empty strings
+- `Settings.tsx` Business Information section: `ReadField` components replaced with editable inputs (Company, Owner Name, Email, Default Dispatch %) + Save button; saves via `persistSetting` → electron-store + calls `loadFromStore` to sync
+
+**L-4 — Replace `window.confirm()` with inline confirm (`Settings.tsx`):**
+- Remove Sample Data button now uses inline two-step confirm (Confirm/Cancel buttons) instead of `window.confirm()` — consistent with the Restore two-step pattern used in Backup section
 
 ### Session 18 — Broker Intelligence + Lane Memory (complete)
 
@@ -355,15 +432,47 @@ None. Build is clean.
 
 ## Recommended Next Steps (Priority Order)
 
-1. Start the outreach loop — the app is ready. Import FMCSA leads, start calling, work the FB pipeline
-2. Add loads to the system in Searching status so Load Match has candidates to surface
-3. Email/SMTP integration for invoices (replace mailto: with real send)
-4. Driver document expiry push notifications (badge alerts exist, OS push does not)
-5. Real deadhead estimation — Load Match currently uses a placeholder (same city = 10mi, same state = 75mi, cross-state = 250mi); a real API (PC Miler, Google Maps) would improve match quality
+1. Fill in Settings > Business Information — company name, your name, email, dispatch % are now editable and save to electron-store
+2. Start the outreach loop — Import FMCSA leads, start calling, work the FB pipeline
+3. Add loads to the system in Searching status so Load Match has candidates to surface
+4. Email/SMTP integration for invoices (replace mailto: with real send)
+5. Driver document expiry push notifications (badge alerts exist, OS push does not)
+6. Real deadhead estimation — Load Match currently uses a placeholder (same city = 10mi, same state = 75mi, cross-state = 250mi); a real API (PC Miler, Google Maps) would improve match quality
+7. Surface broker_id and trailer_type in the UI — migration 017/018 added these columns; InvoiceModal and LoadModal do not yet expose them for editing
 
 ---
 
-## Files Touched in Most Recent Session (17)
+## Files Touched in Most Recent Session (20)
+
+### Modified:
+- `electron/main/repositories/loadsRepo.ts` — CAT-A: audit log on create/update/delete; ACTIVE_STATUSES guard on delete
+- `electron/main/repositories/invoicesRepo.ts` — CAT-A: audit log on create/update/delete
+- `electron/main/repositories/brokersRepo.ts` — CAT-A: audit log on create/update/delete
+- `electron/main/repositories/driversRepo.ts` — CAT-A: audit log on create/update/delete
+- `electron/main/repositories/leadsRepo.ts` — CAT-A: audit log on create/update/delete
+- `electron/main/schema/migrations.ts` — migration 017 (broker_id on invoices); migration 018 (trailer_type on loads)
+- `electron/main/index.ts` — M-9: session CSP header via webRequest.onHeadersReceived; import session from electron
+- `src/components/brokers/BrokerDrawer.tsx` — H-3: replace db.query with loads.list + intel.allBrokers; remove scoring IIFE; move INTEL_RATING_STYLE to module level
+- `src/types/models.ts` — M-8: add OperationsData, DriverOpportunity, LeadHeat, GroupPerformance, BrokerLane, ProfitRadarData
+- `src/pages/Operations.tsx` — M-8: import shared types from models.ts; remove local interface definitions
+
+## Files Touched in Most Recent Session (19)
+
+### Modified:
+- `electron/main/brokerIntelligence.ts` — H-5: lane intel status filter fix
+- `electron/main/ipcHandlers.ts` — H-7: URL protocol validation; H-2: SELECT-only guard on db:query
+- `electron/main/schema/migrations.ts` — H-6: wrap migration up() in db.transaction()
+- `electron/main/scheduler.ts` — CAT-C: remove runDailyBriefing and runMarketingQueue stubs; narrow JobName; trim JOBS array
+- `electron/main/loadScanner.ts` — M-6: rename total_revenue → gross_rate
+- `src/types/models.ts` — M-6: rename total_revenue → gross_rate in LoadRecommendation
+- `src/types/global.d.ts` — L-5: add backfillLeadData to leads namespace; add reseedDocs to dev namespace
+- `src/App.tsx` — H-4: add ErrorBoundary class component; wrap HashRouter
+- `src/store/settingsStore.ts` — CAT-B: remove hardcoded personal identity defaults
+- `src/pages/Settings.tsx` — CAT-B/M-2: Business Info editable inputs + Save; L-5: remove as any casts; L-4: inline confirm for Remove Sample Data
+
+---
+
+## Files Touched in Session (17)
 
 ### New files:
 - `electron/main/repositories/loadTimelineRepo.ts`

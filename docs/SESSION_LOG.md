@@ -1,5 +1,122 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-16 — Session 20: Audit Fixes Continued
+
+### Work Completed
+
+Completed the remaining audit fixes from the Session 18 comprehensive audit. All changes pass `tsc --noEmit` with zero errors. 18 migrations total (017 + 018 added this session).
+
+**CAT-A — Audit log writes (all 5 entity repos):**
+- `logAudit()` calls added to create/update/delete in: `loadsRepo.ts`, `invoicesRepo.ts`, `brokersRepo.ts`, `driversRepo.ts`, `leadsRepo.ts`
+- `deleteLoad()` now guards against deleting a load with status Booked/Picked Up/In Transit (throws `Error` with message explaining why)
+- All delete functions now fetch the existing row first to capture old values for the audit entry
+- User ID hardcoded to 1 (single admin user) — appropriate for local single-user app
+
+**H-8 + migrations 017/018:**
+- Migration 017: `broker_id INTEGER REFERENCES brokers(id) ON DELETE SET NULL` added to `invoices` table
+- Migration 018: `trailer_type TEXT` added to `loads` table
+- Both use the existing `addColumnIfMissing()` helper — safe to run on databases with existing data
+
+**H-3 — BrokerDrawer production fix + scoring deduplication:**
+- Root cause: `BrokerDrawer.tsx` was calling `window.api.db.query()` which is gated behind `!app.isPackaged` in the main process — silently returns nothing in packaged/production builds
+- Fix: replaced with `window.api.loads.list()` filtered client-side by `broker_id`
+- Added `window.api.intel.allBrokers()` to the `useEffect` Promise.all; broker's rating now comes directly from the intelligence service instead of a duplicated inline IIFE
+- Removed ~15-line IIFE that replicated exact scoring logic from `brokerIntelligence.ts`
+- `INTEL_RATING_STYLE` moved to module level and typed as `Record<BrokerRating, string>`
+
+**M-8 — Shared interfaces exported from models.ts:**
+- `OperationsData`, `DriverOpportunity`, `LeadHeat`, `GroupPerformance`, `BrokerLane`, `ProfitRadarData` added to `src/types/models.ts`
+- `Operations.tsx` updated to import them — local copies removed; `ScoredLead` and `NextAction` stay local as they are page-specific
+
+**M-9 — Content-Security-Policy header:**
+- `electron/main/index.ts`: `session.defaultSession.webRequest.onHeadersReceived` injects a CSP header — gated behind `app.isPackaged` so it does not run in dev mode (Vite HMR uses inline scripts + WebSocket which strict CSP blocks)
+- Policy: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'`
+- `'unsafe-inline'` required for `style-src` due to Tailwind CSS utility classes
+
+### Files Changed
+- `electron/main/repositories/loadsRepo.ts`
+- `electron/main/repositories/invoicesRepo.ts`
+- `electron/main/repositories/brokersRepo.ts`
+- `electron/main/repositories/driversRepo.ts`
+- `electron/main/repositories/leadsRepo.ts`
+- `electron/main/schema/migrations.ts` (migrations 017, 018)
+- `electron/main/index.ts` (CSP + session import)
+- `src/components/brokers/BrokerDrawer.tsx`
+- `src/types/models.ts`
+- `src/pages/Operations.tsx`
+
+### Skipped / Deferred
+- M-7: auto-update `marketing_groups.last_posted_at` on post log create — requires reading Marketing.tsx post-save flow; deferred
+- M-1: split `ipcHandlers.ts` into domain files — too large a structural refactor for this session
+- H-1: `sandbox: false` → `sandbox: true` — intentionally deferred; preload uses `contextBridge` + `ipcRenderer` only but was flagged as risky without test coverage
+- L-1/L-2/L-3: README + ARCHITECTURE + DECISIONS doc updates for sessions 16-20 — deferred to dedicated doc-sweep session
+
+---
+
+## 2026-03-16 — Session 19: Audit Fixes
+
+### Work Completed
+
+Applied all Critical + High + selected Medium/Low fixes from the full application audit delivered in Session 18. All 10 changes pass `tsc --noEmit` with zero errors.
+
+**H-5 — Lane intel status filter (`brokerIntelligence.ts`):**
+- `getLaneIntelAll` was including Booked/Picked Up/In Transit loads in avgRpm — unconfirmed revenue
+- Fixed to `Delivered/Invoiced/Paid` only — lane strength now reflects actual completed loads
+
+**H-7 — `shell:openExternal` URL validation (`ipcHandlers.ts`):**
+- Handler now parses the URL with `new URL()` and restricts protocol to `https:`, `http:`, `mailto:`
+- Silently returns on invalid URLs or disallowed protocols
+
+**H-2 — `db:query` SELECT-only guard (`ipcHandlers.ts`):**
+- Dev-only IPC channel now rejects any SQL that does not begin with `SELECT`
+- Returns `{ data: null, error: '...' }` instead of executing writes
+
+**H-4 — React ErrorBoundary (`App.tsx`):**
+- Class-based `ErrorBoundary` wraps the entire app above `HashRouter`
+- Catches React render errors; shows minimal error screen with message + Reload button instead of blank white window
+
+**H-6 — Migration transaction wrapping (`schema/migrations.ts`):**
+- All migration `up()` calls now execute inside `db.transaction(() => m.up(db))()`
+- Failed migrations now roll back atomically; no more partial schema states on error
+
+**CAT-C — Remove scheduler stubs (`scheduler.ts`):**
+- `runDailyBriefing` and `runMarketingQueue` stub functions removed entirely
+- `JOBS` array reduced to just `fmcsa-scraper`; `JobName` type narrowed accordingly
+- These jobs will be added back when actually implemented
+
+**L-5 — Type declarations + remove `as any` (`global.d.ts`, `Settings.tsx`):**
+- `global.d.ts`: added `backfillLeadData()` to `leads` namespace; added `reseedDocs()` to `dev` namespace
+- `Settings.tsx`: both `(window.api.dev as any).reseedDocs()` and `(window.api.leads as any).backfillLeadData()` casts removed
+
+**M-6 — Rename `total_revenue` → `gross_rate` in `LoadRecommendation`:**
+- `LoadRecommendation.total_revenue` was the load's single gross rate, not total revenue across multiple loads
+- Renamed to `gross_rate` in `models.ts` and `loadScanner.ts`
+
+**CAT-B / M-2 — Business Information editable; remove hardcoded identity:**
+- `settingsStore.ts`: initial state defaults and `loadFromStore` fallbacks changed from `'Chris Hooks'` / `'dispatch@ontrackhaulingsolutions.com'` to empty strings
+- `Settings.tsx` Business Information section: converted from read-only `ReadField` display to four editable inputs (Company Name, Owner Name, Email, Default Dispatch %) with a Save button
+- Save calls `persistSetting` for each field then re-runs `loadFromStore` to sync Zustand state
+
+**L-4 — Inline confirm for Remove Sample Data (`Settings.tsx`):**
+- Replaced `window.confirm()` with inline two-step confirm (Confirm/Cancel buttons) matching the existing Backup Restore UI pattern
+
+### Files Modified (10)
+- `electron/main/brokerIntelligence.ts`
+- `electron/main/ipcHandlers.ts`
+- `electron/main/schema/migrations.ts`
+- `electron/main/scheduler.ts`
+- `electron/main/loadScanner.ts`
+- `src/types/models.ts`
+- `src/types/global.d.ts`
+- `src/App.tsx`
+- `src/store/settingsStore.ts`
+- `src/pages/Settings.tsx`
+
+### Build Status
+`tsc --noEmit` — exit 0, zero errors
+
+---
+
 ## 2026-03-16 — Session 18: Broker Intelligence + Lane Memory
 
 ### Work Completed
