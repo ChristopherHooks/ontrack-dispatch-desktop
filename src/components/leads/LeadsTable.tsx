@@ -81,6 +81,7 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
             <Th col='status' label='Status' />
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3 whitespace-nowrap'>MC / DOT</th>
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>Phone</th>
+            <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>State</th>
             <th className='text-left text-2xs font-medium text-gray-500 pb-2.5 pr-3'>Trailer</th>
             <Th col='fleet_size' label='Fleet' />
             <Th col='authority_date' label='Auth Age' />
@@ -123,6 +124,7 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                     ? <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className='flex items-center gap-1 text-xs text-gray-400 hover:text-orange-400'><Phone size={10} />{lead.phone}</a>
                     : <span className='text-xs text-gray-700'>—</span>}
                 </td>
+                <td className='pr-3 py-2.5'><span className='text-xs text-gray-400'>{lead.state ?? '—'}</span></td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-400'>{lead.trailer_type ?? '—'}</span></td>
                 <td className='pr-3 py-2.5'>
                   {lead.fleet_size != null

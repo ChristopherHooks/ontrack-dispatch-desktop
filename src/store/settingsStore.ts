@@ -10,6 +10,7 @@ interface SettingsState {
   companyName: string
   ownerName: string
   ownerEmail: string
+  ownerPhone: string
   defaultDispatchPct: number
   // Actions
   setTheme: (theme: Theme) => void
@@ -26,6 +27,7 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
   companyName: '',
   ownerName: '',
   ownerEmail: '',
+  ownerPhone: '',
   defaultDispatchPct: 7,
 
   setTheme: (theme) => {
@@ -54,6 +56,7 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
       companyName:        typeof all.companyName  === 'string' ? all.companyName  : '',
       ownerName:          typeof all.ownerName    === 'string' ? all.ownerName    : '',
       ownerEmail:         typeof all.ownerEmail   === 'string' ? all.ownerEmail   : '',
+      ownerPhone:         typeof all.ownerPhone   === 'string' ? all.ownerPhone   : '',
       defaultDispatchPct: typeof all.defaultDispatchPct === 'number' ? all.defaultDispatchPct : 7,
     })
     applyTheme(theme)

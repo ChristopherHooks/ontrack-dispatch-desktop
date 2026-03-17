@@ -50,7 +50,7 @@ export function DocumentPopout() {
   }
 
   return (
-    <div className='min-h-screen bg-surface-800 flex flex-col'>
+    <div className='h-screen bg-surface-800 flex flex-col'>
       {/* Header */}
       <div className='bg-surface-700 border-b border-surface-400 px-6 py-3 flex items-center gap-3 shrink-0'>
         <h1 className='text-sm font-semibold text-gray-100 flex-1 truncate'>{doc.title}</h1>

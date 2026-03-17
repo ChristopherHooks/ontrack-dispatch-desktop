@@ -10,6 +10,7 @@ export type ThemePreference = "dark" | "light" | "system"
 export type LeadStatus   =
   | "New"
   | "Attempted"
+  | "Voicemail Left"
   | "Contacted"
   | "Interested"
   | "Call Back Later"

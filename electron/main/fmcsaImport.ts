@@ -155,6 +155,7 @@ export function readImportStatus(db: Database.Database): FmcsaImportStatus {
 export interface BackfillResult {
   reprioritized: number  // leads whose priority was updated from existing data
   enriched:      number  // leads that received new fleet_size (or auth date) from SAFER
+  repaired:      number  // leads whose name was corrected from SAFER legal name
   errors:        string[]
 }
 
@@ -185,14 +186,14 @@ export async function backfillLeadData(db: Database.Database): Promise<BackfillR
   }
   const reprioritized = allFmcsa.length
 
-  // ── Phase 2: SAFER scrape for leads missing fleet_size ──────────────────
-  type NeedsEnrichRow = { id: number; dot_number: string; authority_date: string | null }
+  // ── Phase 2: SAFER scrape for leads missing fleet_size or state ─────────
+  type NeedsEnrichRow = { id: number; dot_number: string; authority_date: string | null; state: string | null }
   const needsEnrich = db.prepare(
-    "SELECT id, dot_number, authority_date FROM leads WHERE dot_number IS NOT NULL AND fleet_size IS NULL"
+    "SELECT id, dot_number, authority_date, state FROM leads WHERE dot_number IS NOT NULL AND (fleet_size IS NULL OR state IS NULL OR state = '')"
   ).all() as NeedsEnrichRow[]
 
   const setEnriched = db.prepare(
-    "UPDATE leads SET fleet_size = ?, authority_date = COALESCE(authority_date, ?), priority = ? WHERE id = ?"
+    "UPDATE leads SET fleet_size = ?, authority_date = COALESCE(authority_date, ?), state = COALESCE(NULLIF(state, ''), ?), priority = ? WHERE id = ?"
   )
 
   let enriched = 0
@@ -203,8 +204,9 @@ export async function backfillLeadData(db: Database.Database): Promise<BackfillR
         ? parseMcs150Date(safer.mcs150Date)
         : lead.authority_date
       const fleetSize = safer.fleetSize
+      const state     = safer.state ?? lead.state
       const priority  = computePriority(authorityDate, fleetSize)
-      setEnriched.run(fleetSize, authorityDate, priority, lead.id)
+      setEnriched.run(fleetSize, authorityDate, state, priority, lead.id)
       enriched++
       // Brief pause — be polite to the government server
       await new Promise(r => setTimeout(r, 150))
@@ -214,8 +216,44 @@ export async function backfillLeadData(db: Database.Database): Promise<BackfillR
     }
   }
 
-  console.log('[FMCSA] Backfill complete. Reprioritized:', reprioritized, 'Enriched:', enriched)
-  return { reprioritized, enriched, errors }
+  // ── Phase 3: Name repair for leads with corrupted or missing name data ───
+  // Targets leads whose name is blank, only 1-2 chars, or matches a known
+  // field value (trailer type, status, state code) instead of a real carrier name.
+  const KNOWN_BAD = new Set([
+    'dry van', 'reefer', 'flatbed', 'tanker', 'step deck', 'rgn', 'lowboy',
+    'new', 'contacted', 'interested', 'attempted', 'rejected', 'signed', 'converted',
+    'high', 'medium', 'low', 'fmcsa', 'csv import', 'spreadsheet',
+  ])
+  type NeedsNameRow = { id: number; dot_number: string; name: string }
+  const needsName = (db.prepare(
+    "SELECT id, dot_number, name FROM leads WHERE dot_number IS NOT NULL"
+  ).all() as NeedsNameRow[]).filter(r => {
+    const n = (r.name ?? '').trim()
+    return n.length <= 2 || KNOWN_BAD.has(n.toLowerCase())
+  })
+
+  const setName = db.prepare("UPDATE leads SET name = ? WHERE id = ?")
+  let repaired = 0
+  for (const lead of needsName) {
+    try {
+      const safer = await getCarrierSafer(Number(lead.dot_number))
+      if (safer.legalName) {
+        const fixed = safer.legalName
+          .split(' ')
+          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(' ')
+        setName.run(fixed, lead.id)
+        repaired++
+      }
+      await new Promise(r => setTimeout(r, 150))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push('Name repair DOT ' + lead.dot_number + ': ' + msg)
+    }
+  }
+
+  console.log('[FMCSA] Backfill complete. Reprioritized:', reprioritized, 'Enriched:', enriched, 'Names repaired:', repaired)
+  return { reprioritized, enriched, repaired, errors }
 }
 
 // ---------------------------------------------------------------------------

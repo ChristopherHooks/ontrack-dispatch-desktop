@@ -57,6 +57,8 @@ export interface ApiSaferData {
   phone:      string | null   // raw digits/formatting as shown on SAFER
   mcs150Date: string | null   // "MM/DD/YYYY" — MCS-150 form date
   fleetSize:  number | null   // Power Units count; null if not listed
+  state:      string | null   // 2-letter state abbreviation from physical address
+  legalName:  string | null   // carrier legal name as shown on SAFER
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────
@@ -213,12 +215,27 @@ export async function getCarrierSafer(dotNumber: number): Promise<ApiSaferData> 
       if (!isNaN(n) && n >= 0) fleetSize = n
     }
 
-    console.log('[FMCSA] SAFER DOT ' + dotNumber + ':', { phone, mcs150Date, fleetSize })
-    return { phone, mcs150Date, fleetSize }
+    // State — 2-letter abbreviation extracted from physical address line
+    // SAFER renders addresses as "CITY,  TX  75001" after tag-stripping
+    let state: string | null = null
+    const stateMatch = /,\s+([A-Z]{2})\s+\d{5}/.exec(text)
+    if (stateMatch) state = stateMatch[1]
+
+    // Legal name — appears as "Legal Name:\n  CARRIER NAME LLC" after tag-stripping
+    let legalName: string | null = null
+    const nameMatch = /Legal Name[:\s]+\n\s*([A-Z0-9][^\n]{1,80})/.exec(text)
+    if (nameMatch) {
+      const candidate = nameMatch[1].trim()
+      // Reject if it looks like a field value rather than a real name
+      if (candidate.length >= 3 && !/^\d+$/.test(candidate)) legalName = candidate
+    }
+
+    console.log('[FMCSA] SAFER DOT ' + dotNumber + ':', { phone, mcs150Date, fleetSize, state, legalName })
+    return { phone, mcs150Date, fleetSize, state, legalName }
   } catch (err) {
     console.warn('[FMCSA] getCarrierSafer failed for DOT ' + dotNumber + ':',
       err instanceof Error ? err.message : String(err))
-    return { phone: null, mcs150Date: null, fleetSize: null }
+    return { phone: null, mcs150Date: null, fleetSize: null, state: null, legalName: null }
   }
 }
 

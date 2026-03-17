@@ -2,7 +2,7 @@
   "name": "ontrack-dispatch-dashboard",
   "version": "1.0.0",
   "description": "OnTrack Hauling Solutions — Dispatch Management Dashboard",
-  "main": "out/main/index.mjs",
+  "main": "out/main/index.js",
   "author": "Chris Hooks <dispatch@ontrackhaulingsolutions.com>",
   "private": true,
   "scripts": {
@@ -36,7 +36,7 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.3",
-    "vite": "^8.0.0"
+    "vite": "^7.3.1"
   },
   "build": {
     "appId": "com.ontrackhauling.dashboard",

@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Phone, Mail, MapPin, Truck, Calendar, Tag, Trash2,
          Plus, PhoneCall, ChevronDown, AlertTriangle, Check,
-         Zap, UserPlus } from 'lucide-react'
+         Zap, UserPlus, Send } from 'lucide-react'
 import type { Lead, LeadStatus, LeadPriority, Note } from '../../types/models'
+import { useSettingsStore } from '../../store/settingsStore'
 import { LeadScoreBadge } from './LeadScoreBadge'
 import { computeLeadScore } from '../../lib/leadScore'
 import { STATUS_STYLES, STATUS_DOTS, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES, CONTACT_METHODS } from './constants'
@@ -44,6 +45,48 @@ const dateOffset = (days: number): string => {
   const d = new Date()
   d.setDate(d.getDate() + days)
   return d.toISOString().split('T')[0]
+}
+
+function buildIntroMailUrl(to: string, driverName: string, fromEmail: string, fromPhone: string): string {
+  const subject = 'OnTrack Hauling Solutions -- Dispatch Services Overview'
+  const firstName = driverName.split(' ')[0] || driverName
+  const phone = fromPhone || '[Your Phone Number]'
+  const body = [
+    `Hi ${firstName},`,
+    '',
+    'Great speaking with you. Here is a quick overview of what I offer.',
+    '',
+    'I am an independent freight dispatcher working with owner-operators to find loads, negotiate rates, and handle all broker paperwork. My fee is 7% per load, charged only when I book a load for you. No monthly fees, nothing upfront.',
+    '',
+    'What I do for you:',
+    '- Search load boards and call brokers daily for loads that fit your lanes and equipment',
+    '- Negotiate rates above the posted price whenever possible',
+    '- Send and review rate confirmations before you commit to anything',
+    '- Handle carrier packet submissions to new brokers on your behalf',
+    '- Follow up on PODs and delivered loads',
+    '',
+    'You keep full control -- I never book a load without your approval.',
+    '',
+    'If this sounds like a fit, give me a call and we can go over the details. Takes about 15 minutes.',
+    '',
+    'Best,',
+    'Chris Hooks',
+    'OnTrack Hauling Solutions',
+    fromEmail || 'dispatch@ontrackhaulingsolutions.com',
+    phone,
+  ].join('\r\n')
+  // Use Gmail compose URL with authuser so it always opens in the correct account
+  if (fromEmail) {
+    return (
+      'https://mail.google.com/mail/?authuser=' + encodeURIComponent(fromEmail) +
+      '&view=cm&fs=1' +
+      '&to=' + encodeURIComponent(to) +
+      '&su=' + encodeURIComponent(subject) +
+      '&body=' + encodeURIComponent(body)
+    )
+  }
+  // Fallback: standard mailto if no email is configured in settings
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
 function Row({ icon, label, value, mono = false }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
@@ -164,6 +207,7 @@ function InlineSelect({ icon, label, value, options, onSave }:
 
 export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, onDelete }: Props) {
   const navigate = useNavigate()
+  const { ownerEmail, ownerPhone } = useSettingsStore()
   const [notes, setNotes]           = useState<Note[]>([])
   const [calls, setCalls]           = useState<CallEntry[]>([])
   const [noteText, setNoteText]     = useState('')
@@ -498,7 +542,23 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             <div className='grid grid-cols-2 gap-3'>
               <InlineText icon={<Phone size={12} />} label='Phone' value={lead.phone} placeholder='Add phone'
                 onSave={v => saveField('phone', v || null)} />
-              {lead.email && <Row icon={<Mail size={12} />} label='Email' value={lead.email} />}
+              {lead.email && (
+                <div className='flex items-start gap-2.5'>
+                  <span className='text-gray-600 mt-0.5 shrink-0'><Mail size={12} /></span>
+                  <div>
+                    <p className='text-2xs text-gray-600'>Email</p>
+                    <p className='text-sm text-gray-300 break-all'>{lead.email}</p>
+                    <button
+                      onClick={() => (window.api as any).shell.openExternal(buildIntroMailUrl(lead.email!, lead.name, ownerEmail, ownerPhone))}
+                      className='mt-1 flex items-center gap-1 text-2xs text-orange-400 hover:text-orange-300 transition-colors'
+                      title='Open intro email template in your mail client'
+                    >
+                      <Send size={10} />
+                      Send Intro Email
+                    </button>
+                  </div>
+                </div>
+              )}
               {location   && <Row icon={<MapPin size={12} />} label='Location' value={location} />}
               <InlineSelect icon={<Truck size={12} />} label='Trailer' value={lead.trailer_type}
                 options={TRAILER_TYPES} onSave={v => saveField('trailer_type', v || null)} />
@@ -511,9 +571,15 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                   <span className='text-gray-600 mt-0.5 shrink-0'><Tag size={12} /></span>
                   <div>
                     <p className='text-2xs text-gray-600'>MC #</p>
-                    <button onClick={e => openSaferMc(lead.mc_number, e)}
+                    <button
+                      onClick={e => {
+                        const num = lead.mc_number.replace(/^MC-?/i, '').trim()
+                        navigator.clipboard.writeText(num).catch(() => {})
+                        openSaferMc(lead.mc_number, e)
+                      }}
                       className='text-sm font-mono text-gray-300 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
-                      title='View on FMCSA SAFER'>{lead.mc_number}</button>
+                      title='Open FMCSA SAFER + copy MC to clipboard'
+                    >{lead.mc_number}</button>
                   </div>
                 </div>
               )}

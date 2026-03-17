@@ -723,14 +723,15 @@ function TaskRow({ task, initialDone, todayIso, onDocLink }: {
 // ---------------------------------------------------------------------------
 
 const LEAD_STATUS_OPTIONS: LeadStatus[] = [
-  'New', 'Attempted', 'Contacted', 'Interested', 'Call Back Later',
+  'New', 'Attempted', 'Voicemail Left', 'Contacted', 'Interested', 'Call Back Later',
   'Not Interested', 'Bad Fit', 'Converted',
 ]
 
 const STATUS_CLS: Record<string, string> = {
-  New:             'text-blue-400',
-  Attempted:       'text-gray-400',
-  Contacted:       'text-yellow-500',
+  New:              'text-blue-400',
+  Attempted:        'text-gray-400',
+  'Voicemail Left': 'text-violet-400',
+  Contacted:        'text-yellow-500',
   Interested:      'text-green-400',
   'Call Back Later': 'text-sky-400',
   'Not Interested':  'text-gray-500',

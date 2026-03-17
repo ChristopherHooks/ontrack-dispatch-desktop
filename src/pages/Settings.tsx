@@ -11,7 +11,7 @@ interface BackupEntry {
 }
 
 export function Settings() {
-  const { theme, setTheme, companyName, ownerName, ownerEmail, defaultDispatchPct, persistSetting, loadFromStore } = useSettingsStore()
+  const { theme, setTheme, companyName, ownerName, ownerEmail, ownerPhone, defaultDispatchPct, persistSetting, loadFromStore } = useSettingsStore()
   const [backups, setBackups]         = useState<BackupEntry[]>([])
   const [creatingBackup, setCreating] = useState(false)
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
@@ -35,6 +35,7 @@ export function Settings() {
   const [bizCompany,     setBizCompany]     = useState(companyName)
   const [bizOwner,       setBizOwner]       = useState(ownerName)
   const [bizEmail,       setBizEmail]       = useState(ownerEmail)
+  const [bizPhone,       setBizPhone]       = useState(ownerPhone)
   const [bizPct,         setBizPct]         = useState(String(defaultDispatchPct))
   const [bizSaved,       setBizSaved]       = useState(false)
 
@@ -42,8 +43,9 @@ export function Settings() {
     setBizCompany(companyName)
     setBizOwner(ownerName)
     setBizEmail(ownerEmail)
+    setBizPhone(ownerPhone)
     setBizPct(String(defaultDispatchPct))
-  }, [companyName, ownerName, ownerEmail, defaultDispatchPct])
+  }, [companyName, ownerName, ownerEmail, ownerPhone, defaultDispatchPct])
 
   useEffect(() => {
     loadBackups()
@@ -58,6 +60,7 @@ export function Settings() {
     await persistSetting('companyName', bizCompany.trim())
     await persistSetting('ownerName',   bizOwner.trim())
     await persistSetting('ownerEmail',  bizEmail.trim())
+    await persistSetting('ownerPhone',  bizPhone.trim())
     await persistSetting('defaultDispatchPct', isNaN(pct) ? 7 : pct)
     await loadFromStore()
     setBizSaved(true)
@@ -162,7 +165,7 @@ export function Settings() {
       const hasErrors = r.errors && r.errors.length > 0
       setBackfillMsg({
         ok: !hasErrors,
-        text: `Re-prioritized ${r.reprioritized} leads · enriched ${r.enriched} with fleet size` +
+        text: `Re-prioritized ${r.reprioritized} leads · enriched ${r.enriched} with fleet size · repaired ${r.repaired ?? 0} names` +
               (hasErrors ? ` · ${r.errors.length} error(s)` : ''),
       })
     } catch (e) {
@@ -231,6 +234,16 @@ export function Settings() {
               type='email'
               value={bizEmail}
               onChange={e => setBizEmail(e.target.value)}
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
+          <div>
+            <Label>Phone</Label>
+            <input
+              type='tel'
+              value={bizPhone}
+              onChange={e => setBizPhone(e.target.value)}
+              placeholder='e.g. 405-300-0433'
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
           </div>

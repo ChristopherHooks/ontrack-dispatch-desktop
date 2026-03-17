@@ -18,6 +18,7 @@ const store = new Store<{
   companyName?: string
   ownerName?: string
   ownerEmail?: string
+  ownerPhone?: string
   defaultDispatchPct?: number
 }>({
   defaults: {
@@ -75,7 +76,7 @@ function createWindow(): void {
     frame: true,
     backgroundColor: '#141416',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
@@ -87,6 +88,14 @@ function createWindow(): void {
       const b = mainWindow.getBounds()
       store.set('windowBounds', { width: b.width, height: b.height, x: b.x, y: b.y })
     }
+    // Close all pop-out windows when the main window closes
+    BrowserWindow.getAllWindows().forEach(w => {
+      if (w !== mainWindow) w.destroy()
+    })
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
   })
 
   mainWindow.on('ready-to-show', () => { mainWindow?.show() })
@@ -166,7 +175,7 @@ app.whenReady().then(() => {
       backgroundColor: '#141416',
       title: 'OnTrack — Document',
       webPreferences: {
-        preload: join(__dirname, '../preload/index.mjs'),
+        preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         contextIsolation: true,
         nodeIntegration: false,
