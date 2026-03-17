@@ -94,10 +94,10 @@ export function Dashboard() {
 
       {/* KPI Cards */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-        <KpiCard label='Drivers Needing Loads'    value={loading?'—':String(stats.driversNeedingLoads.c)} icon={<Truck size={18}/>}    accent={stats.driversNeedingLoads.c>0}/>
-        <KpiCard label='Loads In Transit'          value={loading?'—':String(stats.loadsInTransit.c)}      icon={<Package size={18}/>}  />
-        <KpiCard label='Leads Awaiting Follow-Up'  value={loading?'—':String(stats.leadsFollowUp.c)}       icon={<Users size={18}/>}    accent={stats.leadsFollowUp.c>0}/>
-        <KpiCard label='Outstanding Invoices'      value={loading?'—':String(stats.outstandingInvoices.c)} icon={<FileText size={18}/>} accent={stats.outstandingInvoices.c>0}/>
+        <KpiCard label='Drivers Needing Loads'    value={loading?'—':String(stats.driversNeedingLoads.c)} icon={<Truck size={18}/>}    accent={stats.driversNeedingLoads.c>0}  onClick={() => navigate('/drivers')}/>
+        <KpiCard label='Loads In Transit'          value={loading?'—':String(stats.loadsInTransit.c)}      icon={<Package size={18}/>}                                              onClick={() => navigate('/loads')}/>
+        <KpiCard label='Leads Awaiting Follow-Up'  value={loading?'—':String(stats.leadsFollowUp.c)}       icon={<Users size={18}/>}    accent={stats.leadsFollowUp.c>0}         onClick={() => navigate('/leads')}/>
+        <KpiCard label='Outstanding Invoices'      value={loading?'—':String(stats.outstandingInvoices.c)} icon={<FileText size={18}/>} accent={stats.outstandingInvoices.c>0}   onClick={() => navigate('/invoices')}/>
       </div>
 
       {/* Body grid — Tasks + Dispatch Board */}
@@ -201,13 +201,16 @@ export function Dashboard() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, icon, accent = false }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
+function KpiCard({ label, value, icon, accent = false, onClick }: { label: string; value: string; icon: React.ReactNode; accent?: boolean; onClick?: () => void }) {
   return (
-    <div className={['bg-surface-700 rounded-xl border p-4 shadow-card hover:shadow-card-hover transition-shadow', accent ? 'border-orange-600/40' : 'border-surface-400'].join(' ')}>
+    <button
+      onClick={onClick}
+      className={['w-full text-left bg-surface-700 rounded-xl border p-4 shadow-card hover:shadow-card-hover hover:bg-surface-600 transition-all', accent ? 'border-orange-600/40' : 'border-surface-400'].join(' ')}
+    >
       <div className={['mb-2', accent ? 'text-orange-500' : 'text-gray-500'].join(' ')}>{icon}</div>
       <p className='text-2xl font-bold text-gray-100'>{value}</p>
       <p className='text-xs text-gray-500 mt-1 leading-tight'>{label}</p>
-    </div>
+    </button>
   )
 }
 
