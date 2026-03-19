@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, session, dialog, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, session, dialog, screen, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { initDatabase, getDataDir, getDb } from './db'
 import { registerDbHandlers } from './ipcHandlers'
@@ -44,6 +44,19 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false  // set true only when user chooses Quit from the tray menu
+
+// Tray icons — embedded so no external file dependency
+// Normal: 16x16 orange square
+const TRAY_ICON_NORMAL_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGN4FcFDEmIY1TCqYfhqAABvEE4QA9VaIgAAAABJRU5ErkJggg=='
+// Badge: orange square with red dot top-right (overdue leads present)
+const TRAY_ICON_BADGE_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVR4nGN4FcHzn1h8R00NjmFiDORoRjaEKAOwaYbhIWIAxWFAlVjAhUcNGDUAhAGjk0eh2g7SdQAAAABJRU5ErkJggg=='
+// Overlay: 16x16 red circle with white exclamation (Windows taskbar badge)
+const TRAY_OVERLAY_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAATElEQVR4nGNgoDW4o6b2nyxNuDDJmkGAaEOw2YjNAKyG4HIyLgMwDBlYA/CFOj4DiDKEYi8QnSYoNoDidECKS3BqJsYQgpqxGYZPHgCyjE9r39Q1RAAAAABJRU5ErkJggg=='
 
 // Clamp saved window bounds to a visible display area.
 // Guards against the window reopening off-screen after a monitor is disconnected.
@@ -60,6 +73,43 @@ function clampBounds(
   if (onScreen) return saved
   const wa = screen.getPrimaryDisplay().workArea
   return { width: saved.width, height: saved.height, x: wa.x + 40, y: wa.y + 40 }
+}
+
+// Queries overdue leads and updates the tray icon + taskbar overlay accordingly.
+// "Overdue" = follow_up_date is in the past and lead is still active.
+function updateTrayBadge(): void {
+  if (!tray) return
+  let overdueCount = 0
+  try {
+    const db = getDb()
+    const row = db.prepare(
+      "SELECT COUNT(*) as n FROM leads " +
+      "WHERE follow_up_date < date('now') " +
+      "AND follow_up_date IS NOT NULL " +
+      "AND status NOT IN ('Converted','Not Interested','Bad Fit','Inactive MC','Signed','Rejected')"
+    ).get() as { n: number }
+    overdueCount = row?.n ?? 0
+  } catch {
+    return // DB not ready yet
+  }
+
+  if (overdueCount > 0) {
+    tray.setImage(nativeImage.createFromDataURL('data:image/png;base64,' + TRAY_ICON_BADGE_B64))
+    tray.setToolTip(`OnTrack Hauling Solutions — ${overdueCount} overdue follow-up${overdueCount !== 1 ? 's' : ''}`)
+    // Windows taskbar overlay badge
+    if (mainWindow) {
+      mainWindow.setOverlayIcon(
+        nativeImage.createFromDataURL('data:image/png;base64,' + TRAY_OVERLAY_B64),
+        `${overdueCount} overdue follow-up${overdueCount !== 1 ? 's' : ''}`
+      )
+    }
+  } else {
+    tray.setImage(nativeImage.createFromDataURL('data:image/png;base64,' + TRAY_ICON_NORMAL_B64))
+    tray.setToolTip('OnTrack Hauling Solutions')
+    if (mainWindow) {
+      mainWindow.setOverlayIcon(null, '')
+    }
+  }
 }
 
 function createWindow(): void {
@@ -84,12 +134,18 @@ function createWindow(): void {
     },
   })
 
-  mainWindow.on('close', () => {
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      // Minimize to tray instead of closing — keeps scheduler + reminders alive
+      e.preventDefault()
+      mainWindow?.hide()
+      return
+    }
+    // Actual quit: save bounds and close pop-outs
     if (mainWindow) {
       const b = mainWindow.getBounds()
       store.set('windowBounds', { width: b.width, height: b.height, x: b.x, y: b.y })
     }
-    // Close all pop-out windows when the main window closes
     BrowserWindow.getAllWindows().forEach(w => {
       if (w !== mainWindow) w.destroy()
     })
@@ -100,6 +156,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => { mainWindow?.show() })
+  mainWindow.on('show', () => updateTrayBadge())
 
   // F12 toggles DevTools (always available — useful in both dev and prod for support)
   mainWindow.webContents.on('before-input-event', (_event, input) => {
@@ -190,6 +247,49 @@ app.whenReady().then(() => {
     }
   })
 
+  // System tray — keeps the app alive (scheduler + reminders) after window close
+  const trayIcon = nativeImage.createFromDataURL('data:image/png;base64,' + TRAY_ICON_NORMAL_B64)
+  tray = new Tray(trayIcon)
+  tray.setToolTip('OnTrack Hauling Solutions')
+  const trayMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open Dashboard',
+      click: () => {
+        if (!mainWindow) {
+          createWindow()
+        } else {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit OnTrack',
+      click: () => {
+        isQuitting = true
+        if (mainWindow) {
+          const b = mainWindow.getBounds()
+          store.set('windowBounds', { width: b.width, height: b.height, x: b.x, y: b.y })
+        }
+        app.quit()
+      },
+    },
+  ])
+  tray.setContextMenu(trayMenu)
+  tray.on('click', () => {
+    if (!mainWindow) {
+      createWindow()
+    } else {
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+
+  // Check overdue leads immediately, then every 60 seconds
+  updateTrayBadge()
+  setInterval(updateTrayBadge, 60_000)
+
   startScheduler(
     () => { const { getDb } = require('./db'); return getDb() },
     (key) => store.get(key as any),
@@ -208,8 +308,19 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  // Do not quit — app lives in the system tray so the scheduler and
+  // follow-up reminders keep running. Use "Quit OnTrack" in the tray menu
+  // to exit completely.
+  //
+  // macOS: app.quit() is still the correct path when the Dock icon is Cmd+Q'd,
+  // which is handled via the before-quit event below.
+})
+
+app.on('before-quit', () => {
+  // Triggered by Cmd+Q on macOS or programmatic app.quit() from tray menu.
+  // Mark as quitting so the close handler does not prevent the window from closing.
+  isQuitting = true
   stopScheduler()
   stopWebServer()
   stopPeriodicBackup()
-  if (process.platform !== 'darwin') app.quit()
 })
