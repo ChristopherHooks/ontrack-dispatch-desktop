@@ -166,7 +166,7 @@ export function Operations() {
   ].filter(Boolean) as NextAction[]
 
   const completedCount = ops.todayTasks.filter(t =>
-    ops.completedToday.includes(t.id) || t.status === 'Done'
+    ops.completedToday.includes(t.id)
   ).length
 
   const handleLeadStatusChange = async (leadId: number, status: LeadStatus) => {
@@ -517,7 +517,7 @@ export function Operations() {
                 <TaskRow
                   key={task.id}
                   task={task}
-                  initialDone={ops.completedToday.includes(task.id) || task.status === 'Done'}
+                  initialDone={ops.completedToday.includes(task.id)}
                   todayIso={todayIso}
                   onDocLink={setDocModal}
                 />

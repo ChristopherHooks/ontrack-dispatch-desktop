@@ -263,7 +263,10 @@ export async function getCarrierDetail(
 
 /**
  * Fetch docket numbers (MC / MX numbers) for a carrier by DOT number.
- * Returns an empty array if the carrier has no dockets or the request fails.
+ * Returns an empty array if the carrier has no dockets.
+ * Throws on network/API errors so callers can distinguish "no dockets" from
+ * "lookup failed" — this function is intended to be called inside
+ * Promise.allSettled, which handles rejections gracefully.
  */
 export async function getCarrierDockets(
   webKey:    string,
@@ -271,11 +274,6 @@ export async function getCarrierDockets(
 ): Promise<ApiDocketEntry[]> {
   const url = BASE_URL + '/carriers/' + dotNumber + '/docket-numbers' +
               '?webKey=' + encodeURIComponent(webKey)
-  try {
-    const data = await httpGet(url) as { content?: ApiDocketEntry[] }
-    return Array.isArray(data?.content) ? data.content : []
-  } catch (err) {
-    console.warn('[FMCSA] getCarrierDockets failed for DOT ' + dotNumber + ':', err instanceof Error ? err.message : String(err))
-    return []
-  }
+  const data = await httpGet(url) as { content?: ApiDocketEntry[] }
+  return Array.isArray(data?.content) ? data.content : []
 }

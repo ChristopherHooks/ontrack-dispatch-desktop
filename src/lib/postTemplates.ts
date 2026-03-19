@@ -104,6 +104,54 @@ export const POST_TEMPLATES: PostTemplate[] = [
     hashtags: ['#owneroperator', '#truckingbusiness', '#dispatch', '#trucking'],
   },
 
+  // ── Driver Recruitment — Short Form / Box Truck + Cargo Van (6) ──────────
+  // Direct, specific posts designed to display fully without a "See more"
+  // cutoff on Facebook. Lead with role, state equipment and pay up front,
+  // close with a single action. Targets box truck and cargo van operators
+  // across Box Truck Hub, Box Truck Owners, and similar groups.
+  {
+    id: 'rec-11',
+    category: 'Driver Recruitment',
+    bestFor: 'Facebook — Box Truck Groups',
+    text: `Dispatcher here. I need box trucks and cargo vans for consistent daily loads. Weekly gross runs around $6,000 depending on your availability. If you are interested, send me a direct message on messenger and I will get you details on the lanes.`,
+    hashtags: ['#boxtruck', '#cargovan', '#dispatch', '#trucking'],
+  },
+  {
+    id: 'rec-12',
+    category: 'Driver Recruitment',
+    bestFor: 'Facebook — Box Truck Groups',
+    text: `Looking to add box truck operators to our dispatch roster. I have freight moving daily and I am short on capacity right now. Pay is honest, loads are consistent, and I handle all the broker calls so you stay on the road. Message me with your truck size and where you are based.`,
+    hashtags: ['#boxtruck', '#boxtruckowner', '#dispatch', '#trucking'],
+  },
+  {
+    id: 'rec-13',
+    category: 'Driver Recruitment',
+    bestFor: 'Facebook — Box Truck and Cargo Van Groups',
+    text: `[COMPANY] is a dispatcher looking for cargo van and box truck operators. I currently have capacity for a limited number of new drivers. Loads run Monday through Friday with weekend availability on some lanes. Weekly gross for most of our drivers is between $5,000 and $7,000. Send me a message here if you want to talk.`,
+    hashtags: ['#cargovan', '#boxtruck', '#dispatch', '#truckdriver'],
+  },
+  {
+    id: 'rec-14',
+    category: 'Driver Recruitment',
+    bestFor: 'Facebook — Box Truck and Cargo Van Groups',
+    text: `Dispatcher seeking box truck and sprinter van operators. I negotiate your rates, handle shipper and broker communication, and make sure you are not sitting empty between loads. You drive, I handle the rest. DM me your equipment size and home state.`,
+    hashtags: ['#boxtruck', '#sprintervan', '#dispatch', '#owneroperator'],
+  },
+  {
+    id: 'rec-15',
+    category: 'Driver Recruitment',
+    bestFor: 'Facebook — Box Truck Groups',
+    text: `Box truck operators — if your truck is not running as much as it should be, that is worth a conversation. I dispatch box trucks and cargo vans with consistent daily freight. I am upfront about rates and I do not take a cut on top of a cut. Message me directly and I will walk you through exactly how we work.`,
+    hashtags: ['#boxtruck', '#boxtruckowner', '#dispatch', '#trucking'],
+  },
+  {
+    id: 'rec-16',
+    category: 'Driver Recruitment',
+    bestFor: 'Facebook — Box Truck Groups',
+    text: `Need reliable box truck drivers who want to run daily. I am a dispatcher with steady freight in the Southeast corridor and I am expanding capacity. If you are an owner-operator with a 16, 20, or 26-foot box truck and you want consistent work, send me a message here on messenger.`,
+    hashtags: ['#boxtruck', '#dispatch', '#trucking', '#owneroperator'],
+  },
+
   // ── Value Prop (8) ─────────────────────────────────────────────────────────
   {
     id: 'val-01',

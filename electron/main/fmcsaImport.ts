@@ -359,25 +359,31 @@ export async function importFmcsaLeads(
             saferResult.reason instanceof Error ? saferResult.reason.message : String(saferResult.reason))
         }
 
+        // docketsLookupFailed = true means the API call threw (timeout, 500, etc.)
+        // docketsLookupFailed = false means the call succeeded but may have returned []
+        let docketsLookupFailed = false
         if (docketsResult.status === 'fulfilled') {
           const mcDocket = docketsResult.value.find(d => d.prefix === 'MC')
           if (mcDocket) mcNumber = 'MC-' + mcDocket.docketNumber
         } else {
+          docketsLookupFailed = true
           console.warn('[FMCSA] Dockets lookup failed for DOT ' + dotStr + ' (non-fatal):',
             docketsResult.reason instanceof Error ? docketsResult.reason.message : String(docketsResult.reason))
         }
 
         console.log(
           '[FMCSA] Enriched DOT', dotStr,
-          '| MC:', mcNumber ?? 'none',
+          '| MC:', mcNumber ?? (docketsLookupFailed ? 'lookup-failed' : 'none'),
           '| Phone:', rawPhone ?? 'none',
           '| AuthDate:', authorityDate ?? 'none',
           '| FleetSize:', fleetSize ?? 'unknown',
         )
 
-        // Skip carriers with no MC docket — they have no operating authority
-        // and cannot be dispatched for hire. Also filters out private carriers.
-        if (!mcNumber) { duplicatesSkipped++; continue }
+        // Skip carriers with no MC docket only when the lookup SUCCEEDED and
+        // confirmed there is no MC docket. If the lookup failed (timeout, API
+        // error) we give the carrier the benefit of the doubt — it has active
+        // common authority, so it is likely for-hire and worth importing.
+        if (!docketsLookupFailed && !mcNumber) { duplicatesSkipped++; continue }
 
         // Skip carriers outside the 30–180 day new-authority window when
         // onlyNewAuthorities is set. Carriers with no authority date are kept

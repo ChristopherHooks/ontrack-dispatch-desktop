@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { importFmcsaLeads, writeImportMeta } from './fmcsaImport'
 
-export type JobName = 'fmcsa-scraper'
+export type JobName = 'fmcsa-scraper' | 'task-daily-reset'
 
 interface JobConfig {
   name: JobName
@@ -38,6 +38,36 @@ async function runFmcsScraper(): Promise<void> {
   console.log('[Scheduler] FMCSA import done. Added:', result.leadsAdded, '/ Found:', result.leadsFound)
 }
 
+/**
+ * Resets the status column back to 'Pending' for all recurring and daily tasks
+ * so the Operations checklist starts fresh each morning.
+ *
+ * Targets tasks where:
+ *   due_date = 'Daily'                        — repeats every day
+ *   due_date IN ('Monday' … 'Sunday')         — repeats on a set day of the week
+ *   recurring = 1                             — explicitly flagged as recurring
+ *
+ * One-time tasks with a specific YYYY-MM-DD due_date are intentionally left
+ * alone — their 'Done' status is permanent.
+ *
+ * The task_completions table already tracks completions per-date, so this
+ * only corrects the legacy tasks.status column used by the Tasks management UI.
+ */
+async function runDailyTaskReset(): Promise<void> {
+  if (!_getDb) {
+    console.warn('[Scheduler] task-daily-reset: not yet initialised — skipping')
+    return
+  }
+  const db = _getDb()
+  const result = db.prepare(
+    "UPDATE tasks SET status = 'Pending' WHERE " +
+    "due_date = 'Daily' OR " +
+    "due_date IN ('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday') OR " +
+    "recurring = 1"
+  ).run()
+  console.log('[Scheduler] task-daily-reset: reset', result.changes, 'recurring tasks to Pending')
+}
+
 // runDailyBriefing and runMarketingQueue are planned for a future session.
 // Not registered in JOBS until implemented so they do not fire on a schedule.
 
@@ -46,7 +76,10 @@ async function runFmcsScraper(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const JOBS: JobConfig[] = [
-  { name: 'fmcsa-scraper', hour: 5, minute: 0, handler: runFmcsScraper },
+  // Fires at 12:00 AM local time (system clock, expected CST for OnTrack).
+  // Resets recurring/daily task status so the Operations checklist starts fresh.
+  { name: 'task-daily-reset', hour: 0, minute: 0, handler: runDailyTaskReset },
+  { name: 'fmcsa-scraper',    hour: 5, minute: 0, handler: runFmcsScraper   },
 ]
 
 // ---------------------------------------------------------------------------

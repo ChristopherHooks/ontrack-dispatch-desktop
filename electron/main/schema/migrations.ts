@@ -648,10 +648,117 @@ const migration019: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 020 -- Add Facebook Group Post Protocol document + daily task
+//
+// Creates a reference document listing algorithm-training search terms to use
+// before posting in Facebook groups each day, and a recurring Daily task that
+// walks through the steps with an inline [[doc link]] to open the document
+// from the Operations page without leaving the checklist.
+//
+// Both inserts are guarded with WHERE NOT EXISTS so re-running is safe.
+// ---------------------------------------------------------------------------
+
+const FB_PROTOCOL_DOC = `# Facebook Group Post Protocol
+
+Before posting in any group, spend 2-3 minutes searching relevant terms in that group's search bar. This signals to the algorithm that your account is active in that content category before your post appears, which improves early distribution.
+
+## Steps (per group, per post)
+
+1. Open the group
+2. Use the group's internal search bar — not Facebook's main search bar
+3. Search 2-3 terms from the list below
+4. Like or leave a brief comment on 1-2 recent results
+5. Wait 1-2 minutes, then post your content for that group
+6. Log the post on the Marketing page to update the group's last posted date
+
+## Search Terms
+
+**Dispatch and services**
+- looking for a dispatcher
+- need a dispatcher
+- dispatcher services
+- dispatch help
+
+**Freight and loads**
+- freight available
+- loads available
+- load board
+- spot market
+- rates are down
+
+**Owner operators**
+- owner operator
+- running my own authority
+- new authority
+- got my MC number
+- owner op looking for loads
+- need loads
+
+**Reefer**
+- reefer loads
+- temperature controlled freight
+- reefer dispatch
+
+**Dry van**
+- dry van loads
+- dry van lanes
+- 53 foot available
+
+**Flatbed and specialized**
+- flatbed loads
+- step deck available
+- flatbed dispatch
+
+**Hotshot**
+- hotshot loads
+- hotshot dispatch
+- CDL hotshot
+
+**General engagement**
+- trucking business
+- freight market
+- trucking community
+- trucking tips`
+
+const FB_PROTOCOL_TASK_NOTES =
+  '- Open the Marketing page and check today\'s 5 suggested groups [[Facebook Group Post Protocol]]\n' +
+  '- In each group: search 2-3 terms from the protocol before posting\n' +
+  '- Post your template for the group\n' +
+  '- Log each post on the Marketing page to update last posted date'
+
+const migration020: Migration = {
+  version: 20,
+  description: 'Add Facebook Group Post Protocol document and daily group posting task',
+  up: (db) => {
+    db.prepare(
+      'INSERT INTO documents (title, category, content) ' +
+      'SELECT ?, ?, ? WHERE NOT EXISTS (' +
+      '  SELECT 1 FROM documents WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))' +
+      ')'
+    ).run('Facebook Group Post Protocol', 'SOP', FB_PROTOCOL_DOC, 'Facebook Group Post Protocol')
+
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    db.prepare(
+      'INSERT INTO tasks (title, category, priority, due_date, time_of_day, recurring, status, notes, updated_at) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (' +
+      '  SELECT 1 FROM tasks WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))' +
+      ')'
+    ).run(
+      'Post in today\'s 5 Facebook groups', 'Marketing', 'Medium',
+      'Daily', '9:00 AM', 1, 'Pending',
+      FB_PROTOCOL_TASK_NOTES, now,
+      'Post in today\'s 5 Facebook groups'
+    )
+
+    db.exec('INSERT OR IGNORE INTO schema_version (version) VALUES (20)')
+  },
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

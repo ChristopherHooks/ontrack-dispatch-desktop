@@ -3,6 +3,7 @@ import { join } from 'path'
 import { initDatabase, getDataDir, getDb } from './db'
 import { registerDbHandlers } from './ipcHandlers'
 import { startScheduler, stopScheduler } from './scheduler'
+import { startWebServer, stopWebServer } from './webServer'
 import { applyPendingRestore, stopPeriodicBackup } from './backup'
 import Store from 'electron-store'
 
@@ -194,6 +195,11 @@ app.whenReady().then(() => {
     (key) => store.get(key as any),
   )
 
+  startWebServer(
+    () => { const { getDb } = require('./db'); return getDb() },
+    (key) => store.get(key as any),
+  )
+
   createWindow()
 
   app.on('activate', () => {
@@ -203,6 +209,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopScheduler()
+  stopWebServer()
   stopPeriodicBackup()
   if (process.platform !== 'darwin') app.quit()
 })

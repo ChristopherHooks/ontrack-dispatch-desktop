@@ -76,11 +76,11 @@ export const FACEBOOK_GROUPS: FbGroupSeedEntry[] = [
   { name: 'Box truck and Hotshot loads',                                   url: null, category: 'box_truck',      priority: 'High',   active: true,  notes: null },
   { name: 'Box Truck and Sprinter Vans Beginners',                         url: null, category: 'box_truck',      priority: 'Low',    active: true,  notes: 'Beginner audience, lower conversion' },
   { name: 'Box Truck Carriers United \u2013 24ft\u201328ft | Dispatch & Lease-On', url: null, category: 'box_truck', priority: 'High', active: true,  notes: 'Dispatcher-seeking audience in this group' },
-  { name: 'Box Truck Hub',                                                 url: null, category: 'box_truck',      priority: 'Medium', active: true,  notes: null },
+  { name: 'Box Truck Hub',                                                 url: 'https://www.facebook.com/groups/1062302007664835/', category: 'box_truck', priority: 'High', active: true, notes: '167K members — one of the largest box truck communities on Facebook' },
   { name: 'Box truck loads',                                               url: null, category: 'box_truck',      priority: 'High',   active: true,  notes: null },
   { name: 'Box Truck Loads And Contracting Opportunities',                 url: null, category: 'box_truck',      priority: 'High',   active: true,  notes: null },
   { name: 'BOX TRUCK LOADS, ALL TRUCK TYPE LOADS. OWNER OPERATOR/CARRIERS, BROKERS', url: null, category: 'box_truck', priority: 'High', active: true, notes: null },
-  { name: 'Box Truck Owners',                                              url: null, category: 'box_truck',      priority: 'Medium', active: true,  notes: null },
+  { name: 'Box Truck Owners',                                              url: 'https://www.facebook.com/groups/585575526070771/', category: 'box_truck', priority: 'High', active: true, notes: '207K members — drivers actively discuss dispatcher pay and consistent work' },
   { name: 'BOX TRUCK /LOAD HELP',                                         url: null, category: 'box_truck',      priority: 'Medium', active: true,  notes: null },
 
   // ── Hotshot ──────────────────────────────────────────────────────────────────
