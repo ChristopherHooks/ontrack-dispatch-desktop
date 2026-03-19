@@ -9,7 +9,7 @@ const BLANK: CreateLeadDto = {
   name: '', company: null, mc_number: null, phone: null, email: null,
   city: null, state: null, trailer_type: null, authority_date: null,
   fleet_size: null, source: null, status: 'New', priority: 'Medium',
-  follow_up_date: null, notes: null,
+  follow_up_date: null, follow_up_time: null, notes: null,
   last_contact_date: null, contact_attempt_count: 0,
   contact_method: null, outreach_outcome: null, follow_up_notes: null,
 }
@@ -136,7 +136,13 @@ export function LeadModal({ lead, onSave, onClose }: Props) {
 
               <div className='col-span-2'>
                 <Field label='Follow-Up Date' icon={<Calendar size={10} />}>
-                  <input className={`${inp} max-w-xs`} type='date' value={form.follow_up_date ?? ''} onChange={e => set('follow_up_date', e.target.value)} />
+                  <div className='flex items-center gap-2 flex-wrap'>
+                    <input className={`${inp} max-w-xs`} type='date' value={form.follow_up_date ?? ''} onChange={e => set('follow_up_date', e.target.value)} />
+                    <div className='flex items-center gap-1.5'>
+                      <label className='text-2xs text-gray-500 whitespace-nowrap'>Reminder time</label>
+                      <input className={`${inp} w-32`} type='time' value={form.follow_up_time ?? ''} onChange={e => set('follow_up_time', e.target.value)} />
+                    </div>
+                  </div>
                 </Field>
               </div>
               <div className='col-span-2'>

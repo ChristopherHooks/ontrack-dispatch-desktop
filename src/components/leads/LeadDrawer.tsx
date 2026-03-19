@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Phone, Mail, MapPin, Truck, Calendar, Tag, Trash2,
          Plus, PhoneCall, ChevronDown, AlertTriangle, Check,
-         Zap, UserPlus, Send } from 'lucide-react'
+         Zap, UserPlus, Send, Bell } from 'lucide-react'
 import type { Lead, LeadStatus, LeadPriority, Note } from '../../types/models'
 import { useSettingsStore } from '../../store/settingsStore'
 import { LeadScoreBadge } from './LeadScoreBadge'
@@ -137,15 +137,48 @@ function InlineText({ icon, label, value, placeholder, mono = false, onSave }:
   )
 }
 
-// Inline date picker
-function InlineDate({ icon, label, value, onSave }:
-  { icon: React.ReactNode; label: string; value: string | null; onSave: (v: string | null) => void }) {
-  const [editing, setEditing] = useState(false)
-  const inputRef              = useRef<HTMLInputElement>(null)
+// Inline date + time picker for follow-up reminders
+function InlineDatetime({ icon, label, date, time, onSaveDate, onSaveTime }:
+  { icon: React.ReactNode; label: string; date: string | null; time: string | null
+    onSaveDate: (v: string | null) => void; onSaveTime: (v: string | null) => void }) {
+  const [editing, setEditing]   = useState(false)
+  const [draftDate, setDraftDate] = useState(date ?? '')
+  const [draftTime, setDraftTime] = useState(time ?? '')
+  const dateRef                 = useRef<HTMLInputElement>(null)
 
-  const activate = () => { setEditing(true); setTimeout(() => inputRef.current?.showPicker?.(), 50) }
-  const commit   = (v: string) => { setEditing(false); onSave(v || null) }
-  const cancel   = () => setEditing(false)
+  const activate = () => {
+    setDraftDate(date ?? '')
+    setDraftTime(time ?? '')
+    setEditing(true)
+    setTimeout(() => dateRef.current?.showPicker?.(), 50)
+  }
+
+  const commit = () => {
+    setEditing(false)
+    const newDate = draftDate || null
+    const newTime = draftTime || null
+    if (newDate !== date) onSaveDate(newDate)
+    if (newTime !== time) onSaveTime(newTime)
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setDraftDate(date ?? '')
+    setDraftTime(time ?? '')
+  }
+
+  const clearTime = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onSaveTime(null)
+  }
+
+  const fmtTime = (t: string) => {
+    const [hStr, mStr] = t.split(':')
+    const h = parseInt(hStr, 10)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const h12 = h % 12 || 12
+    return `${h12}:${mStr} ${ampm}`
+  }
 
   return (
     <div className='flex items-start gap-2.5'>
@@ -153,18 +186,49 @@ function InlineDate({ icon, label, value, onSave }:
       <div className='flex-1 min-w-0'>
         <p className='text-2xs text-gray-600'>{label}</p>
         {editing ? (
-          <input ref={inputRef} type='date' defaultValue={value ?? ''}
-            onChange={e => commit(e.target.value)}
-            onBlur={cancel}
-            onKeyDown={e => { if (e.key === 'Escape') cancel() }}
-            className='bg-surface-600 border border-orange-600/50 rounded px-2 py-0.5 text-sm text-gray-100 outline-none' />
+          <div className='flex flex-col gap-1 mt-0.5'>
+            <input ref={dateRef} type='date' value={draftDate}
+              onChange={e => setDraftDate(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') cancel() }}
+              className='bg-surface-600 border border-orange-600/50 rounded px-2 py-0.5 text-sm text-gray-100 outline-none w-full' />
+            <div className='flex items-center gap-1'>
+              <Bell size={10} className='text-gray-600 shrink-0' />
+              <input type='time' value={draftTime}
+                onChange={e => setDraftTime(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') cancel() }}
+                className='bg-surface-600 border border-surface-400 rounded px-2 py-0.5 text-sm text-gray-100 outline-none flex-1' />
+              <span className='text-2xs text-gray-600'>reminder</span>
+            </div>
+            <div className='flex gap-1 mt-0.5'>
+              <button onClick={commit}
+                className='px-2 py-0.5 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors'>
+                Save
+              </button>
+              <button onClick={cancel}
+                className='px-2 py-0.5 text-2xs text-gray-500 hover:text-gray-300 rounded transition-colors'>
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
-          <button onClick={activate}
-            className='text-sm text-left text-gray-300 hover:text-orange-300 transition-colors group'
-            title='Click to change date'>
-            <span>{value ? fmtDate(value) : <span className='text-gray-600 italic'>Set date</span>}</span>
-            <span className='ml-1 opacity-0 group-hover:opacity-60 text-2xs text-orange-500'>[edit]</span>
-          </button>
+          <div className='flex items-center gap-1.5'>
+            <button onClick={activate}
+              className='text-sm text-left text-gray-300 hover:text-orange-300 transition-colors group'
+              title='Click to change date / set reminder time'>
+              <span>{date ? fmtDate(date) : <span className='text-gray-600 italic'>Set date</span>}</span>
+              <span className='ml-1 opacity-0 group-hover:opacity-60 text-2xs text-orange-500'>[edit]</span>
+            </button>
+            {time && (
+              <span className='flex items-center gap-0.5 text-2xs text-orange-400 bg-orange-900/20 border border-orange-700/30 px-1.5 py-0.5 rounded'
+                title={`Reminder set for ${fmtTime(time)}`}>
+                <Bell size={9} />
+                {fmtTime(time)}
+                <button onClick={clearTime} className='ml-0.5 hover:text-red-400 transition-colors' title='Clear reminder time'>
+                  <X size={8} />
+                </button>
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -420,7 +484,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
 
           {/* Standard action bar */}
           <div className='flex items-center gap-1.5 px-5 py-3 border-b border-surface-600 flex-wrap shrink-0'>
-            {lead.phone && <a href={`tel:${lead.phone}`} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Phone size={11} /> Call</a>}
+            {lead.phone && <button onClick={() => (window.api as any).shell.openExternal(`https://voice.google.com/calls?a=nc,${encodeURIComponent(lead.phone)}`)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Phone size={11} /> Call</button>}
             <button onClick={() => onEdit(lead)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'>Full Edit</button>
             <div className='flex-1' />
             {!confirmDel
@@ -596,8 +660,10 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               )}
               <Row icon={<Calendar size={12} />} label='Authority Age' value={authAge(lead.authority_date)} />
               {lead.source && <Row icon={<Tag size={12} />} label='Source' value={lead.source} />}
-              <InlineDate icon={<Calendar size={12} />} label='Follow-Up'
-                value={lead.follow_up_date} onSave={v => saveField('follow_up_date', v)} />
+              <InlineDatetime icon={<Calendar size={12} />} label='Follow-Up'
+                date={lead.follow_up_date} time={lead.follow_up_time ?? null}
+                onSaveDate={v => saveField('follow_up_date', v)}
+                onSaveTime={v => saveField('follow_up_time', v)} />
               <InlineSelect icon={<PhoneCall size={12} />} label='Last Method'
                 value={lead.contact_method} options={CONTACT_METHODS}
                 onSave={v => saveField('contact_method', v || null)} />

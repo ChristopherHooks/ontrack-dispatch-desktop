@@ -121,7 +121,7 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                 </td>
                 <td className='pr-3 py-2.5'>
                   {lead.phone
-                    ? <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className='flex items-center gap-1 text-xs text-gray-400 hover:text-orange-400'><Phone size={10} />{lead.phone}</a>
+                    ? <button onClick={e => { e.stopPropagation(); (window.api as any).shell.openExternal(`https://voice.google.com/calls?a=nc,${encodeURIComponent(lead.phone)}`) }} className='flex items-center gap-1 text-xs text-gray-400 hover:text-orange-400'><Phone size={10} />{lead.phone}</button>
                     : <span className='text-xs text-gray-700'>—</span>}
                 </td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-400'>{lead.state ?? '—'}</span></td>

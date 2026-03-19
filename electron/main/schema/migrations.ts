@@ -755,10 +755,23 @@ const migration020: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 021 — follow-up time reminders
+// ---------------------------------------------------------------------------
+
+const migration021: Migration = {
+  version: 21,
+  description: 'Add follow_up_time to leads for time-specific follow-up reminders',
+  up: (db) => {
+    addColumnIfMissing(db, 'leads', 'follow_up_time', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (21)")
+  },
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

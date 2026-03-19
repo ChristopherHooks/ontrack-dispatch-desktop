@@ -1,3 +1,4 @@
+import { Notification } from 'electron'
 import type Database from 'better-sqlite3'
 import { importFmcsaLeads, writeImportMeta } from './fmcsaImport'
 
@@ -68,6 +69,56 @@ async function runDailyTaskReset(): Promise<void> {
   console.log('[Scheduler] task-daily-reset: reset', result.changes, 'recurring tasks to Pending')
 }
 
+// ---------------------------------------------------------------------------
+// Lead follow-up reminder checker (runs every tick, not via JOBS array)
+// ---------------------------------------------------------------------------
+
+// In-memory set prevents duplicate notifications within the same app session.
+// Key format: `${leadId}_${YYYY-MM-DD}_${HH:MM}`
+const _notifiedReminders = new Set<string>()
+
+interface LeadReminderRow {
+  id: number
+  name: string
+  follow_up_time: string
+  phone: string | null
+}
+
+function checkLeadReminders(db: Database.Database): void {
+  if (!Notification.isSupported()) return
+
+  const today = todayStr()
+  const now   = new Date()
+  const hh    = String(now.getHours()).padStart(2, '0')
+  const mm    = String(now.getMinutes()).padStart(2, '0')
+  const currentTime = `${hh}:${mm}`
+
+  const leads = db.prepare(
+    'SELECT id, name, follow_up_time, phone FROM leads ' +
+    'WHERE follow_up_date = ? AND follow_up_time IS NOT NULL'
+  ).all(today) as LeadReminderRow[]
+
+  for (const lead of leads) {
+    const reminderTime = lead.follow_up_time.slice(0, 5) // normalize to HH:MM
+    if (reminderTime !== currentTime) continue
+
+    const key = `${lead.id}_${today}_${reminderTime}`
+    if (_notifiedReminders.has(key)) continue
+    _notifiedReminders.add(key)
+
+    const body = lead.phone
+      ? `${lead.name} — ${lead.phone}`
+      : lead.name
+
+    new Notification({
+      title: 'Follow-Up Reminder',
+      body,
+    }).show()
+
+    console.log('[Scheduler] Reminder fired for lead:', lead.id, lead.name)
+  }
+}
+
 // runDailyBriefing and runMarketingQueue are planned for a future session.
 // Not registered in JOBS until implemented so they do not fire on a schedule.
 
@@ -114,11 +165,17 @@ async function tick(getDb: () => Database.Database): Promise<void> {
   const dow = now.getDay()
   const today = todayStr()
 
+  // Run lead follow-up reminders every tick
+  let db: Database.Database
+  try {
+    db = getDb()
+    checkLeadReminders(db)
+  } catch { /* DB not ready yet — skip */ }
+
   for (const job of JOBS) {
     if (h !== job.hour || m !== job.minute) continue
     if (job.dayOfWeek !== undefined && job.dayOfWeek !== dow) continue
 
-    let db: Database.Database
     try { db = getDb() } catch { continue }
 
     if (getLastRun(db, job.name) === today) continue // already ran

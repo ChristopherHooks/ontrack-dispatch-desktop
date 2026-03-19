@@ -68,6 +68,7 @@ export interface Lead {
   status: LeadStatus
   priority: LeadPriority
   follow_up_date: string | null
+  follow_up_time: string | null  // HH:MM — triggers OS reminder at that time on follow_up_date (migration 021)
   notes: string | null
   // Outreach tracking (migration 019)
   last_contact_date:     string | null  // YYYY-MM-DD of last outreach
