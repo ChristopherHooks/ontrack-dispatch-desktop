@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Phone, Edit2, Trash2, Plus, AlertTriangle } from 'lucide-react'
+import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText } from 'lucide-react'
 import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -26,6 +26,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [addNote,setAddNote]   = useState(false)
   const [addDoc,setAddDoc]     = useState(false)
   const [docForm,setDocForm]   = useState({ title:'',doc_type:'CDL' as DriverDocType,expiry_date:'',notes:'' })
+  const [pendingFile,setPendingFile] = useState<{ storedPath:string; displayName:string }|null>(null)
   const [confirmDel,setConf]   = useState(false)
 
   useEffect(() => {
@@ -46,13 +47,20 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
     setNotes(p=>[n,...p]); setNoteText(''); setAddNote(false)
   }
   const delNote = async (id:number) => { await window.api.notes.delete(id); setNotes(p=>p.filter(n=>n.id!==id)) }
+  const pickFile = async () => {
+    const result = await window.api.driverDocs.pickFile(driver.id)
+    if (result) setPendingFile(result)
+  }
   const saveDoc = async () => {
     if (!docForm.title.trim()) return
     const d = await window.api.driverDocs.create({
       driver_id:driver.id,title:docForm.title.trim(),doc_type:docForm.doc_type,
-      file_path:null,expiry_date:docForm.expiry_date||null,notes:docForm.notes||null,
+      file_path:pendingFile?.storedPath??null,expiry_date:docForm.expiry_date||null,notes:docForm.notes||null,
     })
-    setDocs(p=>[d,...p]); setDocForm({title:'',doc_type:'CDL',expiry_date:'',notes:''}); setAddDoc(false)
+    setDocs(p=>[d,...p])
+    setDocForm({title:'',doc_type:'CDL',expiry_date:'',notes:''})
+    setPendingFile(null)
+    setAddDoc(false)
   }
   const delDoc = async (id:number) => { await window.api.driverDocs.delete(id); setDocs(p=>p.filter(d=>d.id!==id)) }
 
@@ -175,9 +183,15 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                   <input type='date' value={docForm.expiry_date} onChange={e=>setDocForm(p=>({...p,expiry_date:e.target.value}))}
                     className='h-7 px-2 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-300 focus:outline-none'/>
                 </div>
-                <div className='flex gap-2'>
+                <div className='flex items-center gap-2'>
+                  <button onClick={pickFile}
+                    className='flex items-center gap-1 px-2.5 py-1 text-2xs text-gray-400 hover:text-orange-400 bg-surface-600 hover:bg-surface-500 rounded-lg transition-colors border border-surface-400'>
+                    <Paperclip size={10}/>
+                    {pendingFile ? <span className='truncate max-w-[120px]'>{pendingFile.displayName}</span> : 'Attach File'}
+                  </button>
+                  <div className='flex-1'/>
                   <button onClick={saveDoc} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'>Save</button>
-                  <button onClick={()=>setAddDoc(false)} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                  <button onClick={()=>{setAddDoc(false);setPendingFile(null)}} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
                 </div>
               </div>
             )}
@@ -194,6 +208,12 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                       <p className={`text-2xs mt-0.5 ${isExp(doc.expiry_date)?'text-orange-400':'text-gray-600'}`}>
                         {isExp(doc.expiry_date)&&'⚠ '}Exp: {fmt(doc.expiry_date)}
                       </p>
+                    )}
+                    {doc.file_path&&(
+                      <button onClick={()=>window.api.driverDocs.openAttachment(doc.file_path!)}
+                        className='flex items-center gap-1 text-2xs text-orange-400 hover:text-orange-300 mt-0.5 transition-colors'>
+                        <FileText size={10}/>Open file
+                      </button>
                     )}
                   </div>
                   <button onClick={()=>delDoc(doc.id)} className='opacity-0 group-hover/doc:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10}/></button>

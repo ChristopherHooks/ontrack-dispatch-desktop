@@ -1,6 +1,6 @@
 import { IpcMain, dialog, app, shell } from 'electron'
-import { join } from 'path'
-import { readFileSync } from 'fs'
+import { join, basename, extname } from 'path'
+import { readFileSync, mkdirSync, copyFileSync, existsSync } from 'fs'
 import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
 import {
@@ -438,6 +438,41 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     if (typeof relativePath !== 'string') return
     const fullPath = join(app.getAppPath(), relativePath)
     shell.openPath(fullPath)
+  })
+
+  // Opens a driver document attachment by absolute path
+  ipcMain.handle('driverDocs:openAttachment', (_e, absolutePath: string) => {
+    if (typeof absolutePath !== 'string') return
+    if (!existsSync(absolutePath)) return
+    shell.openPath(absolutePath)
+  })
+
+  // Opens file picker, copies chosen file into userData/driver-docs/{driverId}/,
+  // returns { storedPath, displayName } or null if user cancelled
+  ipcMain.handle('driverDocs:pickFile', async (_e, driverId: number) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Attach Document',
+      buttonLabel: 'Attach',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documents', extensions: ['pdf','doc','docx','jpg','jpeg','png','tif','tiff'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const src = result.filePaths[0]
+    const destDir = join(app.getPath('userData'), 'driver-docs', String(driverId))
+    mkdirSync(destDir, { recursive: true })
+
+    const ts      = Date.now()
+    const origName = basename(src)
+    const ext      = extname(src)
+    const safeName = `${ts}_${origName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const dest     = join(destDir, safeName)
+
+    copyFileSync(src, dest)
+    return { storedPath: dest, displayName: origName.replace(ext, '') + ext }
   })
 
   // -- Dev Seed (non-packaged builds only) --

@@ -75,11 +75,13 @@ declare global {
         delete: (id: number) => Promise<boolean>
       }
       driverDocs: {
-        list:   (driverId: number) => Promise<DriverDocument[]>
-        get:    (id: number) => Promise<DriverDocument | undefined>
-        create: (dto: CreateDriverDocumentDto) => Promise<DriverDocument>
-        update: (id: number, dto: UpdateDriverDocumentDto) => Promise<DriverDocument | undefined>
-        delete: (id: number) => Promise<boolean>
+        list:           (driverId: number) => Promise<DriverDocument[]>
+        get:            (id: number) => Promise<DriverDocument | undefined>
+        create:         (dto: CreateDriverDocumentDto) => Promise<DriverDocument>
+        update:         (id: number, dto: UpdateDriverDocumentDto) => Promise<DriverDocument | undefined>
+        delete:         (id: number) => Promise<boolean>
+        pickFile:       (driverId: number) => Promise<{ storedPath: string; displayName: string } | null>
+        openAttachment: (absolutePath: string) => Promise<void>
       }
       loads: {
         list:   (status?: string) => Promise<Load[]>
@@ -211,6 +213,7 @@ declare global {
         openExternal: (url: string) => Promise<void>
         openFile:     (relativePath: string) => Promise<void>
       }
+
       dev: {
         seed:          () => Promise<{ ok: boolean }>
         reseed:        () => Promise<{ ok: boolean }>

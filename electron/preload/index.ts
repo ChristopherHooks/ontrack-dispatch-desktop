@@ -55,11 +55,13 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Driver Documents --
   driverDocs: {
-    list:   (driverId: number) => ipcRenderer.invoke('driverDocs:list', driverId),
-    get:    (id: number) => ipcRenderer.invoke('driverDocs:get', id),
-    create: (dto: unknown) => ipcRenderer.invoke('driverDocs:create', dto),
-    update: (id: number, dto: unknown) => ipcRenderer.invoke('driverDocs:update', id, dto),
-    delete: (id: number) => ipcRenderer.invoke('driverDocs:delete', id),
+    list:            (driverId: number) => ipcRenderer.invoke('driverDocs:list', driverId),
+    get:             (id: number) => ipcRenderer.invoke('driverDocs:get', id),
+    create:          (dto: unknown) => ipcRenderer.invoke('driverDocs:create', dto),
+    update:          (id: number, dto: unknown) => ipcRenderer.invoke('driverDocs:update', id, dto),
+    delete:          (id: number) => ipcRenderer.invoke('driverDocs:delete', id),
+    pickFile:        (driverId: number) => ipcRenderer.invoke('driverDocs:pickFile', driverId),
+    openAttachment:  (absolutePath: string) => ipcRenderer.invoke('driverDocs:openAttachment', absolutePath),
   },
 
   // -- Loads --
