@@ -62,6 +62,7 @@ export interface Lead {
   city: string | null
   state: string | null
   trailer_type: string | null
+  trailer_length: string | null // e.g. "48'", "53'", "36' Gooseneck"
   authority_date: string | null
   fleet_size: number | null     // Power Units from SAFER (FMCSA-imported leads only)
   source: string | null
@@ -95,6 +96,7 @@ export interface Driver {
   email: string | null
   truck_type: string | null
   trailer_type: string | null
+  trailer_length: string | null // e.g. "48'", "53'", "36' Gooseneck"
   home_base: string | null
   current_location: string | null  // temporary position; cleared on load assignment
   preferred_lanes: string | null

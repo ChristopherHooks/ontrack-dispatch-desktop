@@ -9,6 +9,8 @@ export function inlineMd(s: string): string {
   return s
     // [[Document Title]] → clickable cross-reference
     .replace(/\[\[(.+?)\]\]/g, '<a data-doc-link="$1" class="text-orange-400 hover:text-orange-300 underline cursor-pointer font-medium">$1</a>')
+    // [Label](resources/templates/file.pdf) → clickable local file link
+    .replace(/\[([^\]]+)\]\((resources\/templates\/[^)]+)\)/g, '<a data-file-link="$2" class="text-orange-400 hover:text-orange-300 underline cursor-pointer font-medium">$1</a>')
     // Pipe-separated doc links: [[A]] | [[B]] — handled by the above already
     .replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-100 font-semibold">$1</strong>')
     .replace(/\*(.+?)\*/g,     '<em class="text-gray-400">$1</em>')

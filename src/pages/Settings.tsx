@@ -121,7 +121,7 @@ export function Settings() {
     setDocReseedMsg('')
     try {
       await window.api.dev.reseedDocs()
-      setDocReseedMsg('Document library rebuilt — 20 documents updated in Documents.')
+      setDocReseedMsg('Document library rebuilt — 26 documents updated. Check Documents for W-9 and Dispatch Agreement.')
     } catch {
       setDocReseedMsg('Failed. Check the console for details.')
     } finally {
@@ -306,8 +306,8 @@ export function Settings() {
             <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
               <p className='text-xs font-semibold text-gray-300'>Rebuild Document Library</p>
               <p className='text-xs text-gray-500'>
-                Writes all 20 expanded SOPs, scripts, training docs, and reference guides to the Documents page.
-                Overwrites existing documents 101-108 and adds new ones. Safe to run anytime.
+                Writes all 26 SOPs, scripts, training docs, templates, and reference guides to the Documents page.
+                Includes W-9 (Blank) and Dispatch Agreement with Open PDF buttons. Safe to run anytime.
               </p>
               <button
                 onClick={handleReseedDocs}

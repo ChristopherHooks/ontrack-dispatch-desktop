@@ -145,6 +145,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
             <div className='grid grid-cols-2 gap-3'>
               <Row label='Truck Type' value={driver.truck_type??'—'}/>
               <Row label='Trailer Type' value={driver.trailer_type??'—'}/>
+              <Row label='Trailer Length' value={driver.trailer_length??'—'}/>
               <Row label='Min RPM' value={driver.min_rpm!=null?`$${driver.min_rpm.toFixed(2)}/mi`:'—'}/>
               <Row label='Dispatch %' value={`${driver.dispatch_percent}%`}/>
               <Row label='Factoring Co.' value={driver.factoring_company??'—'}/>

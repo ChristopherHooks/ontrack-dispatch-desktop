@@ -626,6 +626,9 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               {location   && <Row icon={<MapPin size={12} />} label='Location' value={location} />}
               <InlineSelect icon={<Truck size={12} />} label='Trailer' value={lead.trailer_type}
                 options={TRAILER_TYPES} onSave={v => saveField('trailer_type', v || null)} />
+              {lead.trailer_length && (
+                <Row icon={<Truck size={12} />} label='Trailer Length' value={lead.trailer_length} />
+              )}
               {lead.fleet_size != null && (
                 <Row icon={<Truck size={12} />} label='Fleet Size'
                   value={lead.fleet_size + ' truck' + (lead.fleet_size !== 1 ? 's' : '')} />

@@ -1,4 +1,5 @@
 import { IpcMain, dialog, app, shell } from 'electron'
+import { join } from 'path'
 import { readFileSync } from 'fs'
 import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
@@ -430,6 +431,13 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     try { parsed = new URL(url) } catch { return }
     if (!['https:', 'http:', 'mailto:'].includes(parsed.protocol)) return
     shell.openExternal(url)
+  })
+
+  // Opens a local file (relative to app root) in the OS default application
+  ipcMain.handle('shell:openFile', (_e, relativePath: string) => {
+    if (typeof relativePath !== 'string') return
+    const fullPath = join(app.getAppPath(), relativePath)
+    shell.openPath(fullPath)
   })
 
   // -- Dev Seed (non-packaged builds only) --

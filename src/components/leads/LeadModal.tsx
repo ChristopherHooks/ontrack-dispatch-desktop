@@ -7,7 +7,7 @@ interface Props { lead: Lead | null; onSave: (l: Lead) => void; onClose: () => v
 
 const BLANK: CreateLeadDto = {
   name: '', company: null, mc_number: null, phone: null, email: null,
-  city: null, state: null, trailer_type: null, authority_date: null,
+  city: null, state: null, trailer_type: null, trailer_length: null, authority_date: null,
   fleet_size: null, source: null, status: 'New', priority: 'Medium',
   follow_up_date: null, follow_up_time: null, notes: null,
   last_contact_date: null, contact_attempt_count: 0,
@@ -105,6 +105,9 @@ export function LeadModal({ lead, onSave, onClose }: Props) {
                   <option value=''>Select type…</option>
                   {TRAILER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
+              </Field>
+              <Field label="Trailer Length" icon={<Truck size={10} />}>
+                <input className={inp} value={form.trailer_length ?? ''} onChange={e => set('trailer_length', e.target.value)} placeholder="e.g. 48', 53', 36' Gooseneck" />
               </Field>
               <Field label='Fleet Size (# of Trucks)' icon={<Truck size={10} />}>
                 <input

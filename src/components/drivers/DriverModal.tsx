@@ -7,7 +7,7 @@ interface Props { driver: Driver | null; onSave: (d: Driver) => void; onClose: (
 
 const BLANK: CreateDriverDto = {
   name: '', company: null, mc_number: null, dot_number: null, cdl_number: null,
-  cdl_expiry: null, phone: null, email: null, truck_type: null, trailer_type: null,
+  cdl_expiry: null, phone: null, email: null, truck_type: null, trailer_type: null, trailer_length: null,
   home_base: null, current_location: null, preferred_lanes: null, min_rpm: null, dispatch_percent: 7,
   factoring_company: null, insurance_expiry: null, start_date: null, status: 'Active', notes: null,
 }
@@ -123,6 +123,9 @@ export function DriverModal({ driver, onSave, onClose }: Props) {
                   <option value=''>Select type...</option>
                   {TRAILER_TYPES_DRV.map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
+              </Field>
+              <Field label='Trailer Length' icon={<Truck size={10} />}>
+                <input className={inp} value={form.trailer_length??''} onChange={e=>str('trailer_length',e.target.value)} placeholder="e.g. 48', 53', 36' Gooseneck" />
               </Field>
               <Sec title='Dispatch Settings' />
               <Field label='Min RPM ($/mi)' icon={<DollarSign size={10} />}>

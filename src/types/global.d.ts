@@ -207,6 +207,10 @@ declare global {
         generateVariation:(payload: { content: string })         => Promise<ClaudeResponse>
         suggestReplies:   (payload: { content: string })         => Promise<ClaudeResponse>
       }
+      shell: {
+        openExternal: (url: string) => Promise<void>
+        openFile:     (relativePath: string) => Promise<void>
+      }
       dev: {
         seed:          () => Promise<{ ok: boolean }>
         reseed:        () => Promise<{ ok: boolean }>

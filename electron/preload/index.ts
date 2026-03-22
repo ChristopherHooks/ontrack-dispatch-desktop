@@ -262,6 +262,7 @@ contextBridge.exposeInMainWorld('api', {
   // -- Shell utilities --
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+    openFile:     (relativePath: string) => ipcRenderer.invoke('shell:openFile', relativePath),
   },
 
   // -- Dev Utilities (non-packaged builds only) --

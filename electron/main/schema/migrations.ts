@@ -767,11 +767,21 @@ const migration021: Migration = {
   },
 }
 
+const migration022: Migration = {
+  version: 22,
+  description: 'Add trailer_length to leads and drivers tables',
+  up: (db) => {
+    addColumnIfMissing(db, 'leads',   'trailer_length', 'TEXT')
+    addColumnIfMissing(db, 'drivers', 'trailer_length', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (22)")
+  },
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

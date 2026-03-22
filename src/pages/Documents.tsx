@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FolderOpen, Plus, Search, Edit2, Trash2, FileText, X, Save, ExternalLink } from 'lucide-react'
+import { FolderOpen, Plus, Search, Edit2, Trash2, FileText, X, Save, ExternalLink, FileDown } from 'lucide-react'
 import type { SopDocument, CreateSopDocumentDto, DocCategory } from '../types/models'
 import { DOC_CATEGORIES } from '../data/helpArticles'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -165,6 +165,14 @@ export function Documents() {
                 <h2 className='text-base font-semibold text-gray-100 truncate'>{selected.title}</h2>
                 <span className={'text-2xs px-1.5 py-0.5 rounded border ' + (CATEGORY_COLORS[selected.category] ?? CATEGORY_COLORS.Other)}>{selected.category}</span>
               </div>
+              {selected.file_path && (
+                <button
+                  onClick={() => window.api.shell.openFile(selected.file_path!)}
+                  title='Open PDF file'
+                  className='flex items-center gap-1 px-3 py-1.5 text-xs border border-surface-400 text-gray-400 hover:text-orange-400 hover:border-orange-600/40 rounded-lg transition-colors'>
+                  <FileDown size={12}/> Open PDF
+                </button>
+              )}
               <button onClick={() => window.api.documents.popout(selected.id)}
                 title='Open in new window'
                 className='flex items-center gap-1 px-3 py-1.5 text-xs border border-surface-400 text-gray-400 hover:text-orange-400 hover:border-orange-600/40 rounded-lg transition-colors'>
@@ -183,12 +191,15 @@ export function Documents() {
                 <div
                   dangerouslySetInnerHTML={{ __html: renderMd(selected.content) }}
                   onClick={async (e) => {
-                    // Use closest() so clicks on any child element inside the <a> still resolve
-                    const link = (e.target as HTMLElement).closest('[data-doc-link]') as HTMLElement | null
-                    const title = link?.getAttribute('data-doc-link')
+                    const el = (e.target as HTMLElement).closest('a') as HTMLElement | null
+                    if (!el) return
+                    // Local PDF file link
+                    const filePath = el.getAttribute('data-file-link')
+                    if (filePath) { e.preventDefault(); window.api.shell.openFile(filePath); return }
+                    // Cross-reference doc link
+                    const title = el.getAttribute('data-doc-link')
                     if (!title) return
                     e.preventDefault()
-                    // Always fetch fresh list — avoids stale in-memory docs state
                     try {
                       const all = await window.api.documents.list()
                       const target = all.find((d: SopDocument) => d.title.toLowerCase() === title.toLowerCase())
