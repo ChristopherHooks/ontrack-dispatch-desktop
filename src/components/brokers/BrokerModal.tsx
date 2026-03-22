@@ -9,6 +9,7 @@ const BLANK: CreateBrokerDto = {
   name: '', mc_number: null, phone: null, email: null,
   payment_terms: 30, credit_rating: null, avg_days_pay: null,
   flag: 'None', notes: null,
+  new_authority: 0, min_authority_days: null,
 }
 
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
@@ -91,6 +92,24 @@ export function BrokerModal({ broker, onSave, onClose }: Props) {
                     onChange={e => setForm(p => ({ ...p, avg_days_pay: e.target.value ? parseInt(e.target.value) : null }))} placeholder='e.g. 32' />
                 </Field>
               </div>
+              <Field label='Works With New Authorities' icon={<Star size={10} />}>
+                <select className={inp} value={form.new_authority ? 'yes' : 'no'}
+                  onChange={e => setForm(p => ({ ...p, new_authority: e.target.value === 'yes' ? 1 : 0, min_authority_days: e.target.value === 'yes' ? p.min_authority_days : null }))}>
+                  <option value='no'>No</option>
+                  <option value='yes'>Yes</option>
+                </select>
+              </Field>
+              <Field label='Min Authority Age' icon={<Tag size={10} />}>
+                <select className={inp} disabled={!form.new_authority}
+                  value={form.min_authority_days ?? ''}
+                  onChange={e => setForm(p => ({ ...p, min_authority_days: e.target.value ? parseInt(e.target.value) : null }))}>
+                  <option value=''>Any age OK</option>
+                  <option value='30'>30+ days</option>
+                  <option value='60'>60+ days</option>
+                  <option value='90'>90+ days</option>
+                  <option value='180'>180+ days</option>
+                </select>
+              </Field>
               <div className='col-span-2'>
                 <Field label='Notes' icon={<FileText size={10} />}>
                   <textarea className={`${inp} h-16 py-2 resize-none`} value={form.notes ?? ''} onChange={e => str('notes', e.target.value)} placeholder='Internal notes about this broker...' />

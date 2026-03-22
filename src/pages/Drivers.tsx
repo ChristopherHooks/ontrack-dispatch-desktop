@@ -47,6 +47,15 @@ export function Drivers() {
   const openEdit = (drv: Driver) => { setEditDrv(drv); setModal(true) }
   const openAdd  = () => { setEditDrv(null); setModal(true) }
 
+  const handleFetchAuthority = async (drv: Driver) => {
+    if (!drv.mc_number) return
+    const updated = await window.api.drivers.fetchAuthorityDate(drv.id, drv.mc_number)
+    if (updated) {
+      setDrivers(p => p.map(d => d.id === updated.id ? updated : d))
+      if (selected?.id === updated.id) setSelected(updated)
+    }
+  }
+
   const filtered = useMemo(() => {
     let r = drivers
     if (search) {
@@ -72,7 +81,7 @@ export function Drivers() {
         <p className='text-sm text-gray-500 mt-0.5'>Manage carrier profiles, documents, and dispatch settings</p>
       </div>
       <DriversToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} total={filtered.length} onAdd={openAdd}/>
-      <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit}/>
+      <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority}/>
       {selected&&<DriverDrawer driver={selected} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete}/>}
       {modal&&<DriverModal driver={editDrv} onClose={()=>{setModal(false);setEditDrv(null)}} onSave={handleSave}/>}
     </div>

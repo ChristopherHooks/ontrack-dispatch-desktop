@@ -10,6 +10,18 @@ interface Props {
 }
 const EXPIRY_WARN = 60 * 24 * 3600 * 1000
 const isExp = (d: string | null) => d != null && new Date(d).getTime() < Date.now() + EXPIRY_WARN
+
+// Returns human-readable MC age and the raw day count (null if no authority_date set)
+function mcAge(authorityDate: string | null): { label: string; days: number } | null {
+  if (!authorityDate) return null
+  const days = Math.floor((Date.now() - new Date(authorityDate).getTime()) / (1000 * 3600 * 24))
+  if (days < 0) return null
+  if (days < 30)  return { label: `${days}d`, days }
+  if (days < 365) return { label: `${Math.floor(days / 30)}mo`, days }
+  const yrs = Math.floor(days / 365)
+  const rem = Math.floor((days % 365) / 30)
+  return { label: rem > 0 ? `${yrs}yr ${rem}mo` : `${yrs}yr`, days }
+}
 const fmt = (d: string | null) => { if (!d) return '—'; const [y,m,day]=d.split('-'); return `${m}/${day}/${y}` }
 const fmtDT = (dt: string) => new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
 function Row({ label, value, mono=false }: { label:string; value:string; mono?:boolean }) {
@@ -132,6 +144,24 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                   </div>
                 : <Row label='MC #' value='—' mono/>}
               <Row label='DOT #' value={driver.dot_number??'—'} mono/>
+              {(() => {
+                const age = mcAge(driver.authority_date)
+                return (
+                  <div>
+                    <p className='text-2xs text-gray-600'>MC Age</p>
+                    {age ? (
+                      <div className='flex items-center gap-1.5 mt-0.5'>
+                        <span className='text-sm font-mono text-gray-300'>{age.label}</span>
+                        {age.days < 90 && (
+                          <span className='text-2xs px-1.5 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-400 font-medium'>
+                            New Auth
+                          </span>
+                        )}
+                      </div>
+                    ) : <span className='text-sm text-gray-700'>—</span>}
+                  </div>
+                )
+              })()}
               <Row label='CDL #' value={driver.cdl_number??'—'} mono/>
               <div>
                 <p className='text-2xs text-gray-600'>CDL Expiry</p>

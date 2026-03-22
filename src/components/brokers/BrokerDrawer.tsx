@@ -121,6 +121,49 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               {payScore && <div><p className='text-2xs text-gray-600'>Payer Score</p><p className={`text-sm mt-0.5 font-semibold ${payColor}`}>{payScore}</p></div>}
             </div>
           </div>
+          {/* New Authority Policy */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <Sec title='New Authority Policy' />
+            <div className='flex items-center gap-3 flex-wrap'>
+              <div>
+                <p className='text-2xs text-gray-600 mb-1'>Works With New Auth</p>
+                <select
+                  value={broker.new_authority ? 'yes' : 'no'}
+                  onChange={async e => {
+                    const val = e.target.value === 'yes' ? 1 : 0
+                    await window.api.brokers.update(broker.id, { new_authority: val, min_authority_days: val ? broker.min_authority_days : null })
+                    broker.new_authority = val
+                    if (!val) broker.min_authority_days = null
+                  }}
+                  className='h-7 px-2 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-300 focus:outline-none focus:border-orange-600/50'>
+                  <option value='no'>No</option>
+                  <option value='yes'>Yes</option>
+                </select>
+              </div>
+              {!!broker.new_authority && (
+                <div>
+                  <p className='text-2xs text-gray-600 mb-1'>Min Authority Age</p>
+                  <select
+                    value={broker.min_authority_days ?? ''}
+                    onChange={async e => {
+                      const val = e.target.value ? parseInt(e.target.value) : null
+                      await window.api.brokers.update(broker.id, { min_authority_days: val })
+                      broker.min_authority_days = val
+                    }}
+                    className='h-7 px-2 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-300 focus:outline-none focus:border-orange-600/50'>
+                    <option value=''>Any age OK</option>
+                    <option value='30'>30+ days</option>
+                    <option value='60'>60+ days</option>
+                    <option value='90'>90+ days</option>
+                    <option value='180'>180+ days</option>
+                  </select>
+                </div>
+              )}
+              {!broker.new_authority && (
+                <p className='text-2xs text-gray-600 italic self-end pb-1'>This broker does not load new authorities.</p>
+              )}
+            </div>
+          </div>
           {/* Flag */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title='Relationship Flag' />

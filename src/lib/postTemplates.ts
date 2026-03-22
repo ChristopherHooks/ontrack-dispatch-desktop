@@ -668,15 +668,15 @@ export function renderTemplate(template: PostTemplate, companyName: string): str
 }
 
 export const CATEGORY_COLORS: Record<PostCategory, string> = {
-  'Driver Recruitment': 'bg-orange-900/40 text-orange-400 border-orange-700/40',
-  'Value Prop':         'bg-blue-900/40 text-blue-400 border-blue-700/40',
-  'Engagement':         'bg-green-900/40 text-green-400 border-green-700/40',
-  'New Authority':      'bg-purple-900/40 text-purple-400 border-purple-700/40',
-  'Trust':              'bg-yellow-900/30 text-yellow-500 border-yellow-700/30',
-  'Freight Market':     'bg-cyan-900/30 text-cyan-400 border-cyan-700/30',
-  'Dry Van':            'bg-sky-900/30 text-sky-400 border-sky-700/30',
-  'Reefer':             'bg-teal-900/30 text-teal-400 border-teal-700/30',
-  'Flatbed':            'bg-amber-900/30 text-amber-400 border-amber-700/30',
-  'Step Deck':          'bg-rose-900/30 text-rose-400 border-rose-700/30',
-  'Hotshot':            'bg-indigo-900/30 text-indigo-400 border-indigo-700/30',
+  'Driver Recruitment': 'bg-orange-600 text-white border-orange-500',
+  'Value Prop':         'bg-blue-600 text-white border-blue-500',
+  'Engagement':         'bg-green-600 text-white border-green-500',
+  'New Authority':      'bg-purple-600 text-white border-purple-500',
+  'Trust':              'bg-amber-500 text-white border-amber-400',
+  'Freight Market':     'bg-cyan-600 text-white border-cyan-500',
+  'Dry Van':            'bg-sky-600 text-white border-sky-500',
+  'Reefer':             'bg-teal-600 text-white border-teal-500',
+  'Flatbed':            'bg-amber-600 text-white border-amber-500',
+  'Step Deck':          'bg-rose-600 text-white border-rose-500',
+  'Hotshot':            'bg-indigo-600 text-white border-indigo-500',
 }

@@ -8,6 +8,7 @@ interface Props { driver: Driver | null; onSave: (d: Driver) => void; onClose: (
 const BLANK: CreateDriverDto = {
   name: '', company: null, mc_number: null, dot_number: null, cdl_number: null,
   cdl_expiry: null, phone: null, email: null, truck_type: null, trailer_type: null, trailer_length: null,
+  authority_date: null,
   home_base: null, current_location: null, preferred_lanes: null, min_rpm: null, dispatch_percent: 7,
   factoring_company: null, insurance_expiry: null, start_date: null, status: 'Active', notes: null,
 }
@@ -107,6 +108,9 @@ export function DriverModal({ driver, onSave, onClose }: Props) {
               </Field>
               <Field label='Insurance Expiry' icon={<Calendar size={10} />}>
                 <input className={inp} type='date' value={form.insurance_expiry??''} onChange={e=>str('insurance_expiry',e.target.value)} />
+              </Field>
+              <Field label='Authority Date (MC Granted)' icon={<Calendar size={10} />}>
+                <input className={inp} type='date' value={form.authority_date??''} onChange={e=>str('authority_date',e.target.value)} />
               </Field>
               <Field label='Start Date' icon={<Calendar size={10} />}>
                 <input className={inp} type='date' value={form.start_date??''} onChange={e=>str('start_date',e.target.value)} />

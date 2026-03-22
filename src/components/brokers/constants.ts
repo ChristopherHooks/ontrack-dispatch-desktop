@@ -1,11 +1,11 @@
 import type { BrokerFlag } from '../../types/models'
 
 export const FLAG_STYLES: Record<BrokerFlag, string> = {
-  None:        'bg-surface-600 border-surface-400 text-gray-500',
-  Preferred:   'bg-green-900/30 border-green-700/40 text-green-400',
-  Avoid:       'bg-orange-900/30 border-orange-700/40 text-orange-400',
-  'Slow Pay':  'bg-yellow-900/30 border-yellow-700/40 text-yellow-400',
-  Blacklisted: 'bg-red-900/30 border-red-700/40 text-red-400',
+  None:        'bg-surface-500 border-surface-400 text-gray-300',
+  Preferred:   'bg-green-600 border-green-500 text-white',
+  Avoid:       'bg-orange-600 border-orange-500 text-white',
+  'Slow Pay':  'bg-amber-500 border-amber-400 text-white',
+  Blacklisted: 'bg-red-600 border-red-500 text-white',
 }
 
 export const BROKER_FLAGS: BrokerFlag[] = ['None', 'Preferred', 'Slow Pay', 'Avoid', 'Blacklisted']

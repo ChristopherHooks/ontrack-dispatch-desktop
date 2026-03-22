@@ -68,11 +68,12 @@ declare global {
         backfillLeadData: () => Promise<{ reprioritized: number; enriched: number; errors: string[] }>
       }
       drivers: {
-        list:   (status?: string) => Promise<Driver[]>
-        get:    (id: number) => Promise<Driver | undefined>
-        create: (dto: CreateDriverDto) => Promise<Driver>
-        update: (id: number, dto: UpdateDriverDto) => Promise<Driver | undefined>
-        delete: (id: number) => Promise<boolean>
+        list:               (status?: string) => Promise<Driver[]>
+        get:                (id: number) => Promise<Driver | undefined>
+        create:             (dto: CreateDriverDto) => Promise<Driver>
+        update:             (id: number, dto: UpdateDriverDto) => Promise<Driver | undefined>
+        delete:             (id: number) => Promise<boolean>
+        fetchAuthorityDate: (driverId: number, mcNumber: string) => Promise<Driver | null>
       }
       driverDocs: {
         list:           (driverId: number) => Promise<DriverDocument[]>

@@ -416,18 +416,18 @@ export function Operations() {
                     className={[
                       'w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors group',
                       action.urgent
-                        ? 'border-orange-700/40 bg-orange-950/20 hover:bg-orange-950/40'
-                        : 'border-surface-500 bg-surface-600 hover:border-surface-300',
+                        ? 'border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:border-orange-500/70'
+                        : 'border-surface-400 bg-surface-600 hover:bg-surface-500 hover:border-surface-300',
                     ].join(' ')}
                   >
-                    <span className={action.urgent ? 'text-orange-400' : 'text-gray-500'}>{action.icon}</span>
+                    <span className={action.urgent ? 'text-orange-400' : 'text-gray-400'}>{action.icon}</span>
                     <div className='flex-1 min-w-0'>
-                      <p className={['text-xs font-medium truncate', action.urgent ? 'text-orange-300' : 'text-gray-300'].join(' ')}>
+                      <p className={['text-xs font-semibold truncate', action.urgent ? 'text-orange-300' : 'text-gray-200'].join(' ')}>
                         {action.label}
                       </p>
-                      <p className='text-2xs text-gray-600 truncate mt-0.5'>{action.detail}</p>
+                      <p className='text-2xs text-gray-400 truncate mt-0.5'>{action.detail}</p>
                     </div>
-                    <ArrowRight size={13} className='text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors'/>
+                    <ArrowRight size={13} className='text-gray-500 group-hover:text-gray-200 shrink-0 transition-colors'/>
                   </button>
                 </li>
               ))}

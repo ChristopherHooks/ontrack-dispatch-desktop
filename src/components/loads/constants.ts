@@ -1,13 +1,13 @@
 import type { LoadStatus } from '../../types/models'
 
 export const LOAD_STATUS_STYLES: Record<LoadStatus, string> = {
-  Searching:    'bg-yellow-900/30 border-yellow-700/40 text-yellow-400',
-  Booked:       'bg-blue-900/30 border-blue-700/40 text-blue-400',
-  'Picked Up':  'bg-orange-900/30 border-orange-700/40 text-orange-400',
-  'In Transit': 'bg-indigo-900/30 border-indigo-700/40 text-indigo-400',
-  Delivered:    'bg-teal-900/30 border-teal-700/40 text-teal-400',
-  Invoiced:     'bg-purple-900/30 border-purple-700/40 text-purple-400',
-  Paid:         'bg-green-900/30 border-green-700/40 text-green-400',
+  Searching:    'bg-amber-500 border-amber-400 text-white',
+  Booked:       'bg-blue-600 border-blue-500 text-white',
+  'Picked Up':  'bg-orange-600 border-orange-500 text-white',
+  'In Transit': 'bg-indigo-600 border-indigo-500 text-white',
+  Delivered:    'bg-teal-600 border-teal-500 text-white',
+  Invoiced:     'bg-purple-600 border-purple-500 text-white',
+  Paid:         'bg-green-600 border-green-500 text-white',
 }
 
 export const LOAD_STATUSES: LoadStatus[] = ['Searching', 'Booked', 'Picked Up', 'In Transit', 'Delivered', 'Invoiced', 'Paid']

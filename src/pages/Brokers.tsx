@@ -69,6 +69,22 @@ export function Brokers() {
     }
   }
 
+  const handleUpdateAuthority = async (b: Broker, newAuth: number, minDays: number | null) => {
+    const updated = await window.api.brokers.update(b.id, { new_authority: newAuth, min_authority_days: minDays })
+    if (updated) {
+      setBrokers(p => p.map(x => x.id === b.id ? updated : x))
+      if (selected?.id === b.id) setSelected(updated)
+    }
+  }
+
+  const handleUpdateBroker = async (b: Broker, patch: Partial<Broker>) => {
+    const updated = await window.api.brokers.update(b.id, patch)
+    if (updated) {
+      setBrokers(p => p.map(x => x.id === b.id ? updated : x))
+      if (selected?.id === b.id) setSelected(updated)
+    }
+  }
+
   return (
     <div className='flex flex-col h-full'>
       <BrokersToolbar
@@ -80,6 +96,8 @@ export function Brokers() {
         brokers={filtered} loading={loading}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
         onSelect={setSelected} onEdit={openEdit} onDelete={handleDelete}
+        onUpdateAuthority={handleUpdateAuthority}
+        onUpdateBroker={handleUpdateBroker}
       />
       {selected && (
         <BrokerDrawer

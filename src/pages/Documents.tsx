@@ -6,12 +6,13 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { renderMd } from '../lib/renderMd'
 
 const CATEGORY_COLORS: Record<string, string> = {
-  SOP:       'bg-blue-900/30 text-blue-400 border-blue-700/40',
-  Policy:    'bg-purple-900/30 text-purple-400 border-purple-700/40',
-  Training:  'bg-green-900/30 text-green-400 border-green-700/40',
-  Template:  'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
-  Reference: 'bg-teal-900/30 text-teal-400 border-teal-700/40',
-  Other:     'bg-surface-600 text-gray-400 border-surface-400',
+  SOP:             'bg-blue-600 text-white border-blue-500',
+  Policy:          'bg-purple-600 text-white border-purple-500',
+  Training:        'bg-green-600 text-white border-green-500',
+  Template:        'bg-amber-500 text-white border-amber-400',
+  Reference:       'bg-teal-600 text-white border-teal-500',
+  'New Authority': 'bg-orange-600 text-white border-orange-500',
+  Other:           'bg-surface-500 text-gray-300 border-surface-400',
 }
 
 
@@ -140,7 +141,7 @@ export function Documents() {
                 className='flex-1 bg-surface-600 border border-surface-400 rounded-lg px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-orange-600/60' />
               <select value={draft.category ?? 'SOP'} onChange={e => setDraft(d => ({ ...d, category: e.target.value as DocCategory }))}
                 className='bg-surface-600 border border-surface-400 rounded-lg px-2 py-1.5 text-sm text-gray-300 outline-none'>
-                {(['SOP','Policy','Training','Template','Reference','Other'] as DocCategory[]).map(c => (
+                {(['SOP','Policy','Training','Template','Reference','New Authority','Other'] as DocCategory[]).map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

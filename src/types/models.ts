@@ -96,7 +96,8 @@ export interface Driver {
   email: string | null
   truck_type: string | null
   trailer_type: string | null
-  trailer_length: string | null // e.g. "48'", "53'", "36' Gooseneck"
+  trailer_length: string | null  // e.g. "48'", "53'", "36' Gooseneck"
+  authority_date: string | null  // YYYY-MM-DD — date MC authority was granted (migration 023)
   home_base: string | null
   current_location: string | null  // temporary position; cleared on load assignment
   preferred_lanes: string | null
@@ -162,6 +163,8 @@ export interface Broker {
   avg_days_pay: number | null
   flag: BrokerFlag
   notes: string | null
+  new_authority: number           // 1 = will work with new authorities, 0 = no (migration 023)
+  min_authority_days: number | null // minimum MC age in days required (30/60/90/180 or null = any)
   created_at: string
   updated_at: string
 }
@@ -250,7 +253,7 @@ export interface AuditLogEntry {
 }
 
 // -- SOP / Markdown Documents --
-export type DocCategory = 'SOP' | 'Policy' | 'Training' | 'Template' | 'Reference' | 'Other'
+export type DocCategory = 'SOP' | 'Policy' | 'Training' | 'Template' | 'Reference' | 'New Authority' | 'Other'
 
 export interface SopDocument {
   id: number

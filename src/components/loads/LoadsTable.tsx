@@ -1,12 +1,79 @@
-import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, ArrowRight } from 'lucide-react'
-import type { Load, Driver } from '../../types/models'
-import { LOAD_STATUS_STYLES } from './constants'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, ArrowRight, ChevronDown as DropIcon } from 'lucide-react'
+import type { Load, Driver, LoadStatus } from '../../types/models'
+import { LOAD_STATUS_STYLES, LOAD_STATUSES } from './constants'
 
 interface Props {
   loads: Load[]; drivers: Driver[]; loading: boolean
   sortKey: keyof Load; sortDir: 'asc' | 'desc'
   onSort: (k: keyof Load) => void
   onSelect: (l: Load) => void; onEdit: (l: Load) => void
+  onStatusChange?: (l: Load, status: LoadStatus) => Promise<void>
+}
+
+function StatusDropdown({ load, onStatusChange }: { load: Load; onStatusChange?: (l: Load, s: LoadStatus) => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handle(e: MouseEvent) {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const cls = LOAD_STATUS_STYLES[load.status]
+
+  if (!onStatusChange) {
+    return <span className={`text-2xs px-2 py-0.5 rounded-full border ${cls}`}>{load.status}</span>
+  }
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+    setOpen(o => !o)
+  }
+
+  return (
+    <div onClick={e => e.stopPropagation()}>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className={`flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full border font-medium transition-colors hover:opacity-80 ${cls}`}>
+        {load.status}
+        <DropIcon size={9} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className='min-w-[140px] bg-surface-800 border border-surface-400 rounded-lg shadow-2xl overflow-hidden'>
+          {LOAD_STATUSES.map(s => (
+            <button
+              key={s}
+              onClick={async (e) => { e.stopPropagation(); await onStatusChange(load, s); setOpen(false) }}
+              className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors
+                ${s === load.status ? 'opacity-50 cursor-default' : 'text-gray-100 hover:bg-surface-600 hover:text-white'}`}>
+              <span className={`inline-block w-2 h-2 rounded-full mr-2 ${LOAD_STATUS_STYLES[s].split(' ')[0]}`} />
+              {s}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
 }
 
 const fmt = (d: string | null) => { if (!d) return '—'; const [y,m,day]=d.split('-'); return `${m}/${day}/${y.slice(2)}` }
@@ -26,7 +93,7 @@ const COLS: { label: string; key: keyof Load }[] = [
 ]
 const th = 'text-left text-2xs font-medium text-gray-600 uppercase tracking-wider pb-2 pr-3 select-none cursor-pointer hover:text-gray-400 transition-colors whitespace-nowrap'
 
-export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit }: Props) {
+export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onStatusChange }: Props) {
   if (loading) return <div className='space-y-2'>{Array.from({length:5}).map((_,i)=><div key={i} className='h-10 rounded-lg bg-surface-700 animate-pulse'/>)}</div>
   if (!loads.length) return <div className='py-16 text-center'><p className='text-sm text-gray-500'>No loads found.</p><p className='text-xs text-gray-700 mt-1'>Add your first load to get started.</p></div>
 
@@ -69,7 +136,7 @@ export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, 
                 <td className='pr-3 py-2.5 text-xs text-gray-500'>{fmt(l.pickup_date)}</td>
                 <td className='pr-3 py-2.5 text-xs text-gray-500'>{fmt(l.delivery_date)}</td>
                 <td className='pr-3 py-2.5'>
-                  <span className={`text-2xs px-2 py-0.5 rounded-full border ${LOAD_STATUS_STYLES[l.status]}`}>{l.status}</span>
+                  <StatusDropdown load={l} onStatusChange={onStatusChange} />
                 </td>
                 <td className='pr-3 py-2.5'>
                   <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>

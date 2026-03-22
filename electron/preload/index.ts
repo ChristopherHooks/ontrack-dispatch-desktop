@@ -46,11 +46,12 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Drivers --
   drivers: {
-    list:   (status?: string) => ipcRenderer.invoke('drivers:list', status),
-    get:    (id: number) => ipcRenderer.invoke('drivers:get', id),
-    create: (dto: unknown) => ipcRenderer.invoke('drivers:create', dto),
-    update: (id: number, dto: unknown) => ipcRenderer.invoke('drivers:update', id, dto),
-    delete: (id: number) => ipcRenderer.invoke('drivers:delete', id),
+    list:               (status?: string) => ipcRenderer.invoke('drivers:list', status),
+    get:                (id: number) => ipcRenderer.invoke('drivers:get', id),
+    create:             (dto: unknown) => ipcRenderer.invoke('drivers:create', dto),
+    update:             (id: number, dto: unknown) => ipcRenderer.invoke('drivers:update', id, dto),
+    delete:             (id: number) => ipcRenderer.invoke('drivers:delete', id),
+    fetchAuthorityDate: (driverId: number, mcNumber: string) => ipcRenderer.invoke('drivers:fetchAuthorityDate', driverId, mcNumber),
   },
 
   // -- Driver Documents --

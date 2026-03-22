@@ -82,7 +82,7 @@ export function Loads() {
       </div>
       <LoadsToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} view={view} onView={setView} total={filtered.length} onAdd={openAdd}/>
       {view === 'list'
-        ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit}/>
+        ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onStatusChange={handleStatus}/>
         : <DispatchBoard drivers={drivers} loads={loads} loading={loading} onLoadClick={setSelected}/>
       }
       {selected&&<LoadDrawer load={selected} drivers={drivers} brokers={brokers} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete}/>}

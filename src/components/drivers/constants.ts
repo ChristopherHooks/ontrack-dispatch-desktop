@@ -1,9 +1,9 @@
 import type { DriverStatus, DriverDocType } from '../../types/models'
 
 export const DRIVER_STATUS_STYLES: Record<DriverStatus, string> = {
-  Active:    'bg-green-900/30 border-green-700/40 text-green-400',
-  'On Load': 'bg-blue-900/30 border-blue-700/40 text-blue-400',
-  Inactive:  'bg-surface-600 border-surface-400 text-gray-500',
+  Active:    'bg-green-600 border-green-500 text-white',
+  'On Load': 'bg-blue-600 border-blue-500 text-white',
+  Inactive:  'bg-surface-500 border-surface-400 text-gray-300',
 }
 
 export const DRIVER_STATUSES: DriverStatus[] = ['Active', 'On Load', 'Inactive']

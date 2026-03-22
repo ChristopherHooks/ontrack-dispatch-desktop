@@ -29,12 +29,21 @@ function saferDotUrl(dot: string): string {
 export function openSaferMc(mc: string, e?: React.MouseEvent): void {
   e?.preventDefault()
   e?.stopPropagation()
-  ;(window.api as any).shell.openExternal(saferMcUrl(mc))
+  window.api.shell.openExternal(saferMcUrl(mc))
+}
+
+/** Opens the FMCSA SAFER company snapshot for an MC number and copies the MC# to clipboard. */
+export function openSaferMcWithCopy(mc: string, e?: React.MouseEvent): void {
+  e?.preventDefault()
+  e?.stopPropagation()
+  window.api.shell.openExternal(saferMcUrl(mc))
+  const num = mc.replace(/^MC-?/i, '').trim()
+  navigator.clipboard.writeText(num).catch(() => {/* clipboard not available — non-fatal */})
 }
 
 /** Opens the FMCSA SAFER company snapshot for a DOT number in the system browser. */
 export function openSaferDot(dot: string, e?: React.MouseEvent): void {
   e?.preventDefault()
   e?.stopPropagation()
-  ;(window.api as any).shell.openExternal(saferDotUrl(dot))
+  window.api.shell.openExternal(saferDotUrl(dot))
 }

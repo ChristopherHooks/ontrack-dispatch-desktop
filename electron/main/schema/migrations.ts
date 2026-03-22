@@ -777,11 +777,22 @@ const migration022: Migration = {
   },
 }
 
+const migration023: Migration = {
+  version: 23,
+  description: 'Add authority_date to drivers; new_authority and min_authority_days to brokers',
+  up: (db) => {
+    addColumnIfMissing(db, 'drivers', 'authority_date',    'TEXT')
+    addColumnIfMissing(db, 'brokers', 'new_authority',      'INTEGER NOT NULL DEFAULT 0')
+    addColumnIfMissing(db, 'brokers', 'min_authority_days', 'INTEGER')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (23)")
+  },
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

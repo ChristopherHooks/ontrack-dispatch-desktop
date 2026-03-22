@@ -28,6 +28,7 @@ import { createBackup, listBackups, stageRestore } from './backup'
 import { getAnalyticsStats } from './analytics'
 import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus, backfillLeadData } from './fmcsaImport'
+import { getAuthorityDateByMc } from './fmcsaApi'
 import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
 import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData, reseedDocuments } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
@@ -172,6 +173,14 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('drivers:create', (_e, dto: unknown) => createDriver(getDb(), dto as any))
   ipcMain.handle('drivers:update', (_e, id: number, dto: unknown) => updateDriver(getDb(), id, dto as any))
   ipcMain.handle('drivers:delete', (_e, id: number) => deleteDriver(getDb(), id))
+
+  // Fetch authority grant date from FMCSA SAFER by MC number and save to driver record
+  ipcMain.handle('drivers:fetchAuthorityDate', async (_e, driverId: number, mcNumber: string) => {
+    if (typeof mcNumber !== 'string' || !mcNumber.trim()) return null
+    const { authorityDate } = await getAuthorityDateByMc(mcNumber)
+    if (!authorityDate) return null
+    return updateDriver(getDb(), driverId, { authority_date: authorityDate } as any)
+  })
 
   // -- Driver Documents --
   ipcMain.handle('driverDocs:list',   (_e, driverId: number) => listDriverDocuments(getDb(), driverId))

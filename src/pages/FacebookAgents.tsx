@@ -16,22 +16,22 @@ import type {
 const STAGES: FbConvStage[] = ['New', 'Replied', 'Interested', 'Call Ready', 'Converted', 'Dead']
 
 const STAGE_STYLES: Record<FbConvStage, string> = {
-  'New':        'bg-surface-600 text-gray-400 border-surface-400',
-  'Replied':    'bg-blue-900/30 text-blue-400 border-blue-700/40',
-  'Interested': 'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
-  'Call Ready': 'bg-orange-900/30 text-orange-400 border-orange-700/40',
-  'Converted':  'bg-green-900/30 text-green-400 border-green-700/40',
-  'Dead':       'bg-surface-600 text-gray-700 border-surface-500',
+  'New':        'bg-surface-500 text-gray-300 border-surface-400',
+  'Replied':    'bg-blue-600 text-white border-blue-500',
+  'Interested': 'bg-amber-500 text-white border-amber-400',
+  'Call Ready': 'bg-orange-600 text-white border-orange-500',
+  'Converted':  'bg-green-600 text-white border-green-500',
+  'Dead':       'bg-surface-600 text-gray-400 border-surface-500',
 }
 
 const INTENT_STYLES: Record<string, string> = {
-  'Needs Dispatcher':               'bg-orange-900/30 text-orange-400 border-orange-700/40',
-  'Needs Load':                     'bg-blue-900/30 text-blue-400 border-blue-700/40',
-  'Empty Truck':                    'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
-  'Looking for Consistent Freight': 'bg-green-900/30 text-green-400 border-green-700/40',
-  'General Networking':             'bg-teal-900/30 text-teal-400 border-teal-700/40',
-  'Low Intent':                     'bg-surface-600 text-gray-500 border-surface-400',
-  'Ignore':                         'bg-surface-600 text-gray-700 border-surface-500',
+  'Needs Dispatcher':               'bg-orange-600 text-white border-orange-500',
+  'Needs Load':                     'bg-blue-600 text-white border-blue-500',
+  'Empty Truck':                    'bg-amber-500 text-white border-amber-400',
+  'Looking for Consistent Freight': 'bg-green-600 text-white border-green-500',
+  'General Networking':             'bg-teal-600 text-white border-teal-500',
+  'Low Intent':                     'bg-surface-500 text-gray-300 border-surface-400',
+  'Ignore':                         'bg-surface-600 text-gray-400 border-surface-500',
 }
 
 const CATEGORIES: FbContentCategory[] = [
@@ -40,13 +40,13 @@ const CATEGORIES: FbContentCategory[] = [
 ]
 
 const CATEGORY_STYLES: Record<string, string> = {
-  'Driver Recruitment':        'bg-orange-900/30 text-orange-400',
-  'Educational':               'bg-blue-900/30 text-blue-400',
-  'New Authority Tip':         'bg-green-900/30 text-green-400',
-  'Lane Availability':         'bg-yellow-900/30 text-yellow-400',
-  'Small Fleet Positioning':   'bg-purple-900/30 text-purple-400',
-  'Trust / Credibility':       'bg-teal-900/30 text-teal-400',
-  'Engagement Question':       'bg-pink-900/30 text-pink-400',
+  'Driver Recruitment':        'bg-orange-600 text-white',
+  'Educational':               'bg-blue-600 text-white',
+  'New Authority Tip':         'bg-green-600 text-white',
+  'Lane Availability':         'bg-amber-500 text-white',
+  'Small Fleet Positioning':   'bg-purple-600 text-white',
+  'Trust / Credibility':       'bg-teal-600 text-white',
+  'Engagement Question':       'bg-pink-600 text-white',
 }
 
 const fmtDate = (d: string | null) => {

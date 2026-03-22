@@ -262,6 +262,69 @@ export async function getCarrierDetail(
 }
 
 /**
+ * Look up the Common Authority grant date for a carrier by MC number.
+ *
+ * Scrapes the SAFER public CompanySnapshot page using the MC_MX query
+ * parameter — the same page that opens when you click a MC# link in the app.
+ * No API key required.
+ *
+ * Returns authorityDate as "YYYY-MM-DD" (converted from SAFER's MM/DD/YYYY)
+ * and dotNumber as a string if it can be parsed from the page.
+ * Both values are null on any failure or if SAFER does not list them.
+ */
+export async function getAuthorityDateByMc(
+  mcNumber: string,
+): Promise<{ authorityDate: string | null; dotNumber: string | null }> {
+  // Strip any "MC-" or "MC " prefix so the query string is numeric
+  const mc = mcNumber.replace(/^MC[-\s]?/i, '').trim()
+
+  const url = SAFER_BASE +
+    '/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot' +
+    '&query_param=MC_MX&query_string=' + encodeURIComponent(mc)
+
+  try {
+    const html = await httpGetText(url)
+
+    const text = html
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+
+    // DOT number — appears as "USDOT Number\n  1234567" on the snapshot page
+    let dotNumber: string | null = null
+    const dotMatch = /USDOT\s*Number[:\s]*\n?\s*(\d{6,8})/.exec(text)
+    if (dotMatch) dotNumber = dotMatch[1].trim()
+
+    // Common Authority grant date — SAFER renders the operating authority table
+    // as rows: "Common Authority  ACTIVE  10/15/2025  None".
+    // After tag-stripping there are newlines between values, so look for the
+    // first MM/DD/YYYY date that appears within ~400 chars of "Common Authority".
+    let authorityDate: string | null = null
+    const authSection = /Common\s+Authority([\s\S]{0,400})/.exec(text)
+    if (authSection) {
+      const dateMatch = /(\d{1,2}\/\d{1,2}\/\d{4})/.exec(authSection[1])
+      if (dateMatch) {
+        const parts = dateMatch[1].split('/')
+        const m = parts[0].padStart(2, '0')
+        const d = parts[1].padStart(2, '0')
+        const y = parts[2]
+        authorityDate = `${y}-${m}-${d}`
+      }
+    }
+
+    console.log('[FMCSA] MC authority lookup for MC-' + mc + ':', { authorityDate, dotNumber })
+    return { authorityDate, dotNumber }
+  } catch (err) {
+    console.warn('[FMCSA] getAuthorityDateByMc failed for MC-' + mc + ':',
+      err instanceof Error ? err.message : String(err))
+    return { authorityDate: null, dotNumber: null }
+  }
+}
+
+/**
  * Fetch docket numbers (MC / MX numbers) for a carrier by DOT number.
  * Returns an empty array if the carrier has no dockets.
  * Throws on network/API errors so callers can distinguish "no dockets" from

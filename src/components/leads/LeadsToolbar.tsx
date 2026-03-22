@@ -44,8 +44,8 @@ function QuickChip({ label, active, onClick }: { label: string; active: boolean;
       onClick={onClick}
       className={`h-7 px-2.5 rounded text-xs font-medium border transition-colors ${
         active
-          ? 'bg-orange-600/20 border-orange-600/50 text-orange-300'
-          : 'bg-surface-600 border-surface-400 text-gray-500 hover:text-gray-300 hover:border-surface-300'
+          ? 'bg-orange-600 border-orange-500 text-white'
+          : 'bg-surface-600 border-surface-400 text-gray-400 hover:text-gray-200 hover:border-surface-300'
       }`}
     >
       {label}
