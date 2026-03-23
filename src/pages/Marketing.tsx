@@ -10,8 +10,8 @@ import {
   type PostTemplate, type PostCategory,
 } from '../lib/postTemplates'
 import {
-  getTruckType, getImagePrompt, generateVariation, selectSuggestedTemplate,
-  suggestGroupsForPost, fmtDaysSince,
+  getTruckType, getImagePrompt, generateVariation, generateShortPost,
+  selectSuggestedTemplate, suggestGroupsForPost, fmtDaysSince,
   loadDailyTasks, saveDailyTasks, type DailyTask,
 } from '../lib/marketingUtils'
 
@@ -357,6 +357,7 @@ export function Marketing() {
   const [offset,       setOffset]       = useState(0)
   const [varSeed,      setVarSeed]      = useState(0)
   const [useVariation, setUseVariation] = useState(false)
+  const [shortMode,    setShortMode]    = useState(false)
 
   // UI state
   const [copied,        setCopied]       = useState(false)
@@ -443,7 +444,12 @@ export function Marketing() {
   const truckType    = getTruckType(template)
 
   const baseText     = renderTemplate(template, company)
-  const displayText  = useVariation ? generateVariation(template, company, varSeed) : baseText
+  const shortText    = generateShortPost(template, company, varSeed)
+  const displayText  = shortMode
+    ? shortText
+    : useVariation
+      ? generateVariation(template, company, varSeed)
+      : baseText
   const hashtagStr   = template.hashtags.join(' ')
   const fullPost     = displayText + '\n\n' + hashtagStr
   const imagePrompt  = getImagePrompt(template)
@@ -647,7 +653,8 @@ export function Marketing() {
                 <span className='text-sm font-semibold text-gray-200'>Suggested Post</span>
                 <span className={`text-2xs px-2 py-0.5 rounded-full border ${catCls}`}>{template.category}</span>
                 {truckType && <span className='text-2xs text-gray-500'>{truckType}</span>}
-                {useVariation && <span className='text-2xs text-blue-400'>variation</span>}
+                {useVariation && !shortMode && <span className='text-2xs text-blue-400'>variation</span>}
+                {shortMode && <span className='text-2xs text-blue-400'>short post</span>}
               </div>
               <div className='flex items-center gap-1'>
                 <button onClick={handleSkip}
@@ -725,6 +732,18 @@ export function Marketing() {
                 className='flex items-center gap-1.5 px-3 py-1.5 text-xs bg-surface-500 hover:bg-surface-400 text-gray-300 rounded-lg transition-colors'
               >
                 <RefreshCw size={12} /> New Variation
+              </button>
+              <button
+                onClick={() => { setShortMode(v => !v); setUseVariation(false) }}
+                className={[
+                  'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors border',
+                  shortMode
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-surface-500 border-surface-400 hover:bg-surface-400 text-gray-300',
+                ].join(' ')}
+                title='Toggle short-form post (1-2 sentences — better for Facebook group replies)'
+              >
+                Short Post
               </button>
               <button
                 onClick={handleMarkUsed}

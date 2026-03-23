@@ -8,12 +8,84 @@
  */
 import * as https from 'https'
 
-const MODEL      = 'claude-haiku-4-5-20251001'
-const TIMEOUT_MS = 30_000
+const MODEL               = 'claude-haiku-4-5-20251001'
+const VISION_MODEL        = 'claude-sonnet-4-6'
+const TIMEOUT_MS          = 30_000
+const VISION_TIMEOUT_MS   = 90_000
 
 export interface ClaudeOk    { ok: true;  content: string }
 export interface ClaudeError { ok: false; error: string }
 export type ClaudeResponse = ClaudeOk | ClaudeError
+
+export async function claudeVision(
+  apiKey:       string,
+  imageBase64:  string,
+  mediaType:    'image/png' | 'image/jpeg' | 'image/webp',
+  prompt:       string,
+  systemPrompt: string,
+  maxTokens     = 4000,
+): Promise<ClaudeResponse> {
+  if (!apiKey || !apiKey.trim()) {
+    return { ok: false, error: 'Claude API key not configured. Add it in Settings > AI Integration.' }
+  }
+
+  const body = JSON.stringify({
+    model:      VISION_MODEL,
+    max_tokens: maxTokens,
+    system:     systemPrompt,
+    messages:   [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+        { type: 'text',  text: prompt },
+      ],
+    }],
+  })
+
+  return new Promise((resolve) => {
+    const req = https.request(
+      'https://api.anthropic.com/v1/messages',
+      {
+        method:  'POST',
+        headers: {
+          'x-api-key':         apiKey.trim(),
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+          'content-length':    Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>
+            if (data.error) {
+              const msg = (data.error as Record<string, unknown>).message
+              resolve({ ok: false, error: String(msg ?? data.error) })
+              return
+            }
+            const content = (data?.content as Array<{ text?: string }>)?.[0]?.text
+            if (typeof content === 'string') {
+              resolve({ ok: true, content })
+            } else {
+              resolve({ ok: false, error: 'Unexpected response shape from Claude API' })
+            }
+          } catch {
+            resolve({ ok: false, error: 'Failed to parse Claude API response' })
+          }
+        })
+      },
+    )
+    req.on('error', (e: Error) => resolve({ ok: false, error: e.message }))
+    req.setTimeout(VISION_TIMEOUT_MS, () => {
+      req.destroy()
+      resolve({ ok: false, error: 'Claude API timed out after ' + VISION_TIMEOUT_MS + 'ms' })
+    })
+    req.write(body)
+    req.end()
+  })
+}
 
 export async function claudeComplete(
   apiKey:       string,

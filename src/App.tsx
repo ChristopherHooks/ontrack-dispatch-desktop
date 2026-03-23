@@ -46,6 +46,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
 
 // Pages
 import { Operations }      from './pages/Operations'
+import { FindLoads }       from './pages/FindLoads'
 import { LoadMatch }       from './pages/LoadMatch'
 import { ActiveLoads }     from './pages/ActiveLoads'
 import { Dashboard }          from './pages/Dashboard'
@@ -81,6 +82,7 @@ export function App() {
           <Route index element={<Navigate to='/operations' replace />} />
           <Route path='operations'   element={<Operations />} />
           <Route path='loadmatch'    element={<LoadMatch />} />
+          <Route path='findloads'    element={<FindLoads />} />
           <Route path='activeloads'  element={<ActiveLoads />} />
           <Route path='dashboard'    element={<Navigate to='/operations' replace />} />
           <Route path='dispatcher'   element={<DispatcherBoard />} />

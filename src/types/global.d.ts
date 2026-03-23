@@ -85,11 +85,13 @@ declare global {
         openAttachment: (absolutePath: string) => Promise<void>
       }
       loads: {
-        list:   (status?: string) => Promise<Load[]>
-        get:    (id: number) => Promise<Load | undefined>
-        create: (dto: CreateLoadDto) => Promise<Load>
-        update: (id: number, dto: UpdateLoadDto) => Promise<Load | undefined>
-        delete: (id: number) => Promise<boolean>
+        list:            (status?: string) => Promise<Load[]>
+        get:             (id: number) => Promise<Load | undefined>
+        create:          (dto: CreateLoadDto) => Promise<Load>
+        update:          (id: number, dto: UpdateLoadDto) => Promise<Load | undefined>
+        delete:          (id: number) => Promise<boolean>
+        parseScreenshot: (imageBase64: string, mediaType: string, driverId: number, cpm: number) => Promise<ParseScreenshotResult>
+        importXlsx:      (driverId: number, cpm: number) => Promise<ParseScreenshotResult>
       }
       brokers: {
         list:   () => Promise<Broker[]>
@@ -237,4 +239,45 @@ declare global {
 }
 
 export type { BackupEntry }
+
+export interface ScoredLoad {
+  // Raw data
+  pickup_date:  string | null
+  rate:         number | null
+  rpm:          number | null
+  origin_dh:    number | null
+  origin_city:  string | null
+  origin_state: string | null
+  dest_city:    string | null
+  dest_state:   string | null
+  miles:        number | null
+  length_ft:    number | null
+  weight:       number | null
+  equip:        string | null
+  mode:         string | null
+  company:      string | null
+  d2p:          number | null
+  // Calculated financials
+  loaded_rpm:         number | null
+  all_in_miles:       number | null
+  all_in_rpm:         number | null
+  est_cost:           number | null
+  est_margin:         number | null
+  negotiation_target: number | null
+  // Ranking
+  score:           number
+  rank:            number
+  reasons:         string[]
+  skip:            boolean
+  skip_reason:     string | null
+  first_call_rank: number | null
+}
+
+export interface ParseScreenshotResult {
+  loads:       ScoredLoad[]
+  driver_name: string
+  raw_count:   number
+  error?:      string
+}
+
 export {}

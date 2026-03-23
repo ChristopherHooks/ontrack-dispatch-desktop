@@ -13,6 +13,7 @@ import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
   OperationsData, DriverOpportunity, LeadHeat, GroupPerformance, BrokerLane, ProfitRadarData,
+  FbConversation,
 } from '../types/models'
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,7 @@ export function Operations() {
   const [summaryLoading,  setSummaryLoading]  = useState(false)
   const [docModal,        setDocModal]        = useState<string | null>(null)
   const [checkCalls,      setCheckCalls]      = useState<CheckCallRow[]>([])
+  const [fbInbox,         setFbInbox]         = useState<FbConversation[]>([])
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -88,6 +90,11 @@ export function Operations() {
     window.api.leads.list()
       .then((l: Lead[]) => { setLeads(l); setLeadsLoading(false) })
       .catch(() => setLeadsLoading(false))
+
+    // FB inbox — all active conversations; filter to actionable ones in render
+    window.api.fbConv.list()
+      .then((c: FbConversation[]) => setFbInbox(c))
+      .catch(() => {})
   }, [])
 
   const todayIso = new Date().toISOString().split('T')[0]
@@ -124,6 +131,20 @@ export function Operations() {
       return (b._score + boostB) - (a._score + boostA)
     })
     .slice(0, 10)
+
+  // ── FB inbox — conversations worth replying to ────────────────────────────
+  const actionableConvs = fbInbox
+    .filter(c => c.stage !== 'Converted' && c.stage !== 'Dead')
+    .filter(c =>
+      c.stage === 'New' ||                                           // needs first reply
+      (c.follow_up_at != null && c.follow_up_at <= todayIso)        // follow-up due/overdue
+    )
+    .sort((a, b) => {
+      // New first, then by follow_up_at ascending
+      if (a.stage === 'New' && b.stage !== 'New') return -1
+      if (b.stage === 'New' && a.stage !== 'New') return  1
+      return (a.follow_up_at ?? '9999') < (b.follow_up_at ?? '9999') ? -1 : 1
+    })
 
   // ── Next actions ───────────────────────────────────────────────────────────
   const nextActions: NextAction[] = [
@@ -235,6 +256,97 @@ export function Operations() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* FB Inbox Report — only rendered when there are actionable conversations */}
+      {actionableConvs.length > 0 && (
+        <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card'>
+          <div className='flex items-center gap-2 px-5 py-3 border-b border-surface-500'>
+            <MessageSquare size={14} className='text-orange-500' />
+            <h2 className='text-sm font-semibold text-gray-200'>FB Inbox</h2>
+            <span className='text-2xs text-gray-500'>
+              {actionableConvs.filter(c => c.stage === 'New').length > 0 &&
+                `${actionableConvs.filter(c => c.stage === 'New').length} new `}
+              {actionableConvs.filter(c => c.stage !== 'New').length > 0 &&
+                `${actionableConvs.filter(c => c.stage !== 'New').length} follow-up due`}
+            </span>
+            <button
+              onClick={() => navigate('/facebook')}
+              className='ml-auto text-2xs text-orange-500 hover:text-orange-400 flex items-center gap-1 transition-colors'
+            >
+              Open FB Agents <ChevronRight size={10} />
+            </button>
+          </div>
+          <div className='divide-y divide-surface-600'>
+            {actionableConvs.slice(0, 8).map(conv => {
+              const isNew     = conv.stage === 'New'
+              const isOverdue = conv.follow_up_at != null && conv.follow_up_at < todayIso
+              const stageCls  =
+                conv.stage === 'Call Ready'  ? 'bg-red-600 text-white' :
+                conv.stage === 'Interested'  ? 'bg-orange-600 text-white' :
+                conv.stage === 'Replied'     ? 'bg-blue-600 text-white' :
+                isNew                        ? 'bg-green-600 text-white' :
+                                               'bg-surface-500 text-gray-400'
+              const snippet = conv.last_message
+                ? conv.last_message.slice(0, 90) + (conv.last_message.length > 90 ? '…' : '')
+                : null
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => navigate('/facebook')}
+                  className='w-full text-left flex items-start gap-3 px-5 py-3 hover:bg-surface-600 transition-colors'
+                >
+                  {/* Stage badge */}
+                  <span className={`text-2xs px-1.5 py-0.5 rounded font-medium shrink-0 mt-0.5 ${stageCls}`}>
+                    {conv.stage}
+                  </span>
+
+                  <div className='flex-1 min-w-0'>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-xs font-semibold text-gray-200 truncate'>{conv.name}</span>
+                      {conv.phone && (
+                        <span className='text-2xs text-gray-600 shrink-0 flex items-center gap-0.5'>
+                          <Phone size={9} />{conv.phone}
+                        </span>
+                      )}
+                    </div>
+                    {snippet && (
+                      <p className='text-2xs text-gray-500 mt-0.5 truncate leading-relaxed'>{snippet}</p>
+                    )}
+                    {!snippet && isNew && (
+                      <p className='text-2xs text-green-400 mt-0.5 italic'>No reply sent yet</p>
+                    )}
+                  </div>
+
+                  {/* Follow-up date or overdue flag */}
+                  <div className='shrink-0 text-right'>
+                    {isNew ? (
+                      <span className='text-2xs bg-green-900/40 text-green-400 border border-green-700/40 px-1.5 py-0.5 rounded'>Reply needed</span>
+                    ) : isOverdue ? (
+                      <span className='text-2xs text-red-400'>Overdue</span>
+                    ) : (
+                      <span className='text-2xs text-orange-400'>Due today</span>
+                    )}
+                    {conv.last_message_at && (
+                      <p className='text-2xs text-gray-700 mt-0.5'>
+                        {new Date(conv.last_message_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+
+                  <ChevronRight size={12} className='text-gray-600 shrink-0 mt-1' />
+                </button>
+              )
+            })}
+          </div>
+          {actionableConvs.length > 8 && (
+            <div className='px-5 py-2 border-t border-surface-600'>
+              <button onClick={() => navigate('/facebook')} className='text-2xs text-orange-500 hover:text-orange-400 transition-colors'>
+                +{actionableConvs.length - 8} more — view all in FB Agents
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -80,11 +80,8 @@ export function seedMissingItems(db: Database.Database): void {
       'INSERT OR IGNORE INTO tasks (id, title, category, priority, due_date, time_of_day, recurring, status, notes)' +
       ' VALUES (?,?,?,?,?,?,?,?,?)'
     )
-    tIns.run(111,'Facebook Driver Search Sweep','Marketing','High','Daily','9:00 AM',1,'Pending','Search Facebook groups for drivers looking for dispatch. Groups: Dispatch Nation, Owner Operators, CDL Truckers Network. Keywords: looking for dispatcher, need dispatch, seeking dispatch service.')
     tIns.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending','Like, comment, and share relevant posts in driver groups to train the Facebook algorithm. Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
-    tIns.run(113,'Driver Post Search Sweep','Marketing','High','Daily','11:30 AM',1,'Pending','Second pass through Facebook and LinkedIn for driver posts. Look for "available" or "looking for loads" posts. Message promising leads directly. Log contact in Leads.')
     tIns.run(114,'Driver Lead Response Monitoring','Marketing','High','Daily','2:00 PM',1,'Pending','Check all DMs and comments from morning posts and outreach. Respond within 2 hours. Move qualified responses to Leads page with status Contacted.')
-    tIns.run(115,'Final Driver Lead Sweep','Marketing','Medium','Daily','4:30 PM',1,'Pending','End-of-day sweep of Facebook and email for any new driver inquiries. Update Leads with new contacts. Set follow-up dates for next business day.')
     tIns.run(116,'Monday FMCSA Lead Review','Leads','High','Monday','8:30 AM',1,'Pending','Run FMCSA import or review leads imported from the past week. Score by fleet size, trailer type, and lane match. Assign follow-up dates. Move high-priority leads to Contacted. See: FMCSA Lead Review Checklist doc.')
     tIns.run(117,'Wednesday Warm Lead Follow-Up','Leads','High','Wednesday','10:00 AM',1,'Pending','Call or message all Contacted and Interested leads that have not responded in 3+ days. Use the warm lead follow-up script. Goal: at least 2 new Interested leads per session. See: Warm Lead Follow-Up Script doc.')
     tIns.run(118,'Friday Driver Conversation Review','Leads','Medium','Friday','3:00 PM',1,'Pending','Review all driver conversations from the week. Update lead statuses. Archive dead leads as Rejected with reason. Identify top 3 leads to prioritize next week. Prep outreach for Monday.')
@@ -785,11 +782,8 @@ function seedTasks(db: Database.Database): void {
   ins.run(110,'Update preferred lanes for Denver-based drivers','Dispatch','Low','2026-04-01','11:00 AM',0,'Pending','Kelvin Brown and Lena Stone -- confirm lane preferences after Q1 review.')
 
   // -- Facebook / social media marketing tasks (daily) --
-  ins.run(111,'Facebook Driver Search Sweep','Marketing','High','Daily','9:00 AM',1,'Pending','Search Facebook groups for drivers looking for dispatch. Groups: Dispatch Nation, Owner Operators, CDL Truckers Network. Keywords: looking for dispatcher, need dispatch, seeking dispatch service.')
   ins.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending','Like, comment, and share relevant posts in driver groups to train the Facebook algorithm. Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
-  ins.run(113,'Driver Post Search Sweep','Marketing','High','Daily','11:30 AM',1,'Pending','Second pass through Facebook and LinkedIn for driver posts. Look for "available" or "looking for loads" posts. Message promising leads directly. Log contact in Leads.')
   ins.run(114,'Driver Lead Response Monitoring','Marketing','High','Daily','2:00 PM',1,'Pending','Check all DMs and comments from morning posts and outreach. Respond within 2 hours. Move qualified responses to Leads page with status Contacted.')
-  ins.run(115,'Final Driver Lead Sweep','Marketing','Medium','Daily','4:30 PM',1,'Pending','End-of-day sweep of Facebook and email for any new driver inquiries. Update Leads with new contacts. Set follow-up dates for next business day.')
 
   // -- Weekly strategic tasks --
   ins.run(116,'Monday FMCSA Lead Review','Leads','High','Monday','8:30 AM',1,'Pending','Run FMCSA import or review leads imported from the past week. Score by fleet size, trailer type, and lane match. Assign follow-up dates. Move high-priority leads to Contacted. See: FMCSA Lead Review Checklist doc.')

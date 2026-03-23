@@ -3,7 +3,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import {
   Users, Truck, Package, Building2,
   FileText, Megaphone, CheckSquare, FolderOpen,
-  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Bot, Zap, ArrowRightLeft, Activity
+  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Bot, Zap, ArrowRightLeft, Activity, Radar
 } from 'lucide-react'
 
 interface NavItem {
@@ -15,6 +15,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/operations',  label: 'Operations',   icon: <Zap size={18} /> },
   { to: '/loadmatch',   label: 'Load Match',   icon: <ArrowRightLeft size={18} /> },
+  { to: '/findloads',   label: 'Find Loads',   icon: <Radar size={18} /> },
   { to: '/activeloads', label: 'Active Loads', icon: <Activity size={18} /> },
   { to: '/dispatcher',  label: 'Dispatcher',   icon: <Kanban size={18} /> },
   { to: '/leads',      label: 'Leads',      icon: <Users size={18} /> },

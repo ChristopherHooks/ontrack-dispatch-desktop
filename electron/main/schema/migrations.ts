@@ -789,10 +789,30 @@ const migration023: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 024 -- Remove manual FB driver search sweep tasks
+//
+// Tasks 111 (Facebook Driver Search Sweep), 113 (Driver Post Search Sweep),
+// and 115 (Final Driver Lead Sweep) are replaced by automated scheduler
+// notifications that fire at 7 AM, 10 AM, 1 PM, and 4 PM on weekdays.
+// Removing them from the daily checklist cleans up the Operations checklist.
+// ---------------------------------------------------------------------------
+
+const migration024: Migration = {
+  version: 24,
+  description: 'Remove manual FB driver search sweep tasks (111, 113, 115) — replaced by scheduler notifications',
+  up: (db) => {
+    db.prepare('DELETE FROM tasks WHERE id IN (111, 113, 115)').run()
+    // Also remove any completion records for these tasks
+    db.prepare('DELETE FROM task_completions WHERE task_id IN (111, 113, 115)').run()
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (24)")
+  },
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

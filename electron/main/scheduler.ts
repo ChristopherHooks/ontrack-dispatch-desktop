@@ -2,14 +2,21 @@ import { Notification } from 'electron'
 import type Database from 'better-sqlite3'
 import { importFmcsaLeads, writeImportMeta } from './fmcsaImport'
 
-export type JobName = 'fmcsa-scraper' | 'task-daily-reset'
+export type JobName =
+  | 'fmcsa-scraper'
+  | 'task-daily-reset'
+  | 'fb-search-0700'
+  | 'fb-search-1000'
+  | 'fb-search-1300'
+  | 'fb-search-1600'
+  | 'fb-groups-update'
 
 interface JobConfig {
-  name: JobName
-  hour: number       // 24-hour clock
-  minute: number
-  dayOfWeek?: number // 0=Sun 1=Mon … undefined=every day
-  handler: () => Promise<void>
+  name:        JobName
+  hour:        number        // 24-hour clock
+  minute:      number
+  daysOfWeek?: number[]      // 0=Sun 1=Mon … undefined=every day
+  handler:     () => Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -42,17 +49,6 @@ async function runFmcsScraper(): Promise<void> {
 /**
  * Resets the status column back to 'Pending' for all recurring and daily tasks
  * so the Operations checklist starts fresh each morning.
- *
- * Targets tasks where:
- *   due_date = 'Daily'                        — repeats every day
- *   due_date IN ('Monday' … 'Sunday')         — repeats on a set day of the week
- *   recurring = 1                             — explicitly flagged as recurring
- *
- * One-time tasks with a specific YYYY-MM-DD due_date are intentionally left
- * alone — their 'Done' status is permanent.
- *
- * The task_completions table already tracks completions per-date, so this
- * only corrects the legacy tasks.status column used by the Tasks management UI.
  */
 async function runDailyTaskReset(): Promise<void> {
   if (!_getDb) {
@@ -67,6 +63,60 @@ async function runDailyTaskReset(): Promise<void> {
     "recurring = 1"
   ).run()
   console.log('[Scheduler] task-daily-reset: reset', result.changes, 'recurring tasks to Pending')
+}
+
+/**
+ * Fires a native notification prompting Chris to search Facebook groups for
+ * driver leads. Runs four times per weekday (7 AM, 10 AM, 1 PM, 4 PM).
+ * Each slot is a separate job so the per-day dedup key does not block the
+ * later slots from firing.
+ */
+async function runFbGroupSearch(slot: string): Promise<void> {
+  const messages: Record<string, string> = {
+    '07': 'Morning sweep — search your Facebook groups for driver leads now. Log any contacts in Leads.',
+    '10': 'Mid-morning check — scan groups for new driver posts. Keywords: looking for dispatcher, need dispatch.',
+    '13': 'Afternoon pass — check groups for the last 2 hours of driver activity. Message any new prospects.',
+    '16': 'End-of-day sweep — final scan for driver inquiries. Update Leads and set follow-ups.',
+  }
+  const body = messages[slot] ?? 'Time to search your Facebook groups for driver leads.'
+  if (Notification.isSupported()) {
+    new Notification({ title: 'FB Group Search', body }).show()
+  }
+  console.log('[Scheduler] FB group search reminder fired — slot', slot)
+}
+
+/**
+ * Sunday job: sends a reminder notification to review and update the
+ * Facebook groups list, then flags groups with no posts in 30+ days
+ * as needing review (clears last_reviewed_at so the category gap panel
+ * highlights them).
+ */
+async function runFbGroupsUpdate(): Promise<void> {
+  if (Notification.isSupported()) {
+    new Notification({
+      title:  'Weekly FB Groups Review',
+      body:   'Time to review your Facebook groups list. Go to Marketing > Groups and check the Category Coverage panel for gaps.',
+    }).show()
+  }
+
+  if (!_getDb) return
+  try {
+    const db = _getDb()
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const cutoff = thirtyDaysAgo.toISOString().split('T')[0]
+
+    // Flag stale groups — clear last_reviewed_at so the category gap panel
+    // surfaces them as needing attention
+    const result = db.prepare(
+      "UPDATE marketing_groups SET last_reviewed_at = NULL " +
+      "WHERE (last_posted_at IS NULL OR last_posted_at < ?) AND active = 1"
+    ).run(cutoff)
+
+    console.log('[Scheduler] fb-groups-update: flagged', result.changes, 'stale groups for review')
+  } catch (err) {
+    console.error('[Scheduler] fb-groups-update DB error:', err)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -119,18 +169,25 @@ function checkLeadReminders(db: Database.Database): void {
   }
 }
 
-// runDailyBriefing and runMarketingQueue are planned for a future session.
-// Not registered in JOBS until implemented so they do not fire on a schedule.
-
 // ---------------------------------------------------------------------------
 // Job registry
 // ---------------------------------------------------------------------------
 
 const JOBS: JobConfig[] = [
-  // Fires at 12:00 AM local time (system clock, expected CST for OnTrack).
-  // Resets recurring/daily task status so the Operations checklist starts fresh.
+  // Midnight — reset recurring task statuses for the day
   { name: 'task-daily-reset', hour: 0, minute: 0, handler: runDailyTaskReset },
-  { name: 'fmcsa-scraper',    hour: 5, minute: 0, handler: runFmcsScraper   },
+
+  // 5 AM — FMCSA lead import
+  { name: 'fmcsa-scraper', hour: 5, minute: 0, handler: runFmcsScraper },
+
+  // FB driver lead search — 4x per weekday (Mon=1 … Fri=5)
+  { name: 'fb-search-0700', hour:  7, minute: 0, daysOfWeek: [1,2,3,4,5], handler: () => runFbGroupSearch('07') },
+  { name: 'fb-search-1000', hour: 10, minute: 0, daysOfWeek: [1,2,3,4,5], handler: () => runFbGroupSearch('10') },
+  { name: 'fb-search-1300', hour: 13, minute: 0, daysOfWeek: [1,2,3,4,5], handler: () => runFbGroupSearch('13') },
+  { name: 'fb-search-1600', hour: 16, minute: 0, daysOfWeek: [1,2,3,4,5], handler: () => runFbGroupSearch('16') },
+
+  // Sunday 9 AM — review and refresh the FB groups list
+  { name: 'fb-groups-update', hour: 9, minute: 0, daysOfWeek: [0], handler: runFbGroupsUpdate },
 ]
 
 // ---------------------------------------------------------------------------
@@ -159,10 +216,10 @@ function setLastRun(db: Database.Database, name: string, date: string): void {
 // ---------------------------------------------------------------------------
 
 async function tick(getDb: () => Database.Database): Promise<void> {
-  const now = new Date()
-  const h   = now.getHours()
-  const m   = now.getMinutes()
-  const dow = now.getDay()
+  const now   = new Date()
+  const h     = now.getHours()
+  const m     = now.getMinutes()
+  const dow   = now.getDay()
   const today = todayStr()
 
   // Run lead follow-up reminders every tick
@@ -174,11 +231,11 @@ async function tick(getDb: () => Database.Database): Promise<void> {
 
   for (const job of JOBS) {
     if (h !== job.hour || m !== job.minute) continue
-    if (job.dayOfWeek !== undefined && job.dayOfWeek !== dow) continue
+    if (job.daysOfWeek !== undefined && !job.daysOfWeek.includes(dow)) continue
 
     try { db = getDb() } catch { continue }
 
-    if (getLastRun(db, job.name) === today) continue // already ran
+    if (getLastRun(db, job.name) === today) continue // already ran today
 
     console.log('[Scheduler] Starting job:', job.name)
     try {

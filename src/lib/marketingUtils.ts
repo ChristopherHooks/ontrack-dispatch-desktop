@@ -245,6 +245,43 @@ export function generateVariation(template: PostTemplate, companyName: string, s
   return [newOpening, ...body, newCta].join('\n\n')
 }
 
+// ── Short-form post generator ─────────────────────────────────────────────────
+// Produces a 2-line post: one punchy hook sentence + one direct CTA.
+// Designed for Facebook groups where short posts get more replies.
+
+const SHORT_CTAS: string[] = [
+  'Send a message if you want to talk.',
+  'Message us your equipment type and home state.',
+  'Comment below and we will follow up.',
+  'Drop a DM if this sounds like a fit.',
+  'Reach out — we respond the same day.',
+  'Message us and we will go from there.',
+  'Send a DM. No pitch, just a quick conversation.',
+  'Shoot us a message with your setup.',
+  'Comment or DM us — we get back to everyone.',
+  'Message us if you want rates on your lane.',
+]
+
+export function generateShortPost(template: PostTemplate, companyName: string, seed: number): string {
+  const openings = OPENING_VARIANTS[template.category]
+  const ctaIdx   = ((seed % SHORT_CTAS.length) + SHORT_CTAS.length) % SHORT_CTAS.length
+  const cta      = SHORT_CTAS[ctaIdx]
+
+  if (openings && openings.length > 0) {
+    const openIdx = ((seed % openings.length) + openings.length) % openings.length
+    return `${openings[openIdx]}\n\n${cta}`
+  }
+
+  // Fallback: take first sentence of the template + CTA
+  const rendered     = renderTemplate(template, companyName)
+  const firstSentEnd = rendered.search(/[.!?]/)
+  const hook         = firstSentEnd >= 0
+    ? rendered.slice(0, firstSentEnd + 1).trim()
+    : rendered.split('\n\n')[0]?.trim() ?? rendered.slice(0, 120).trim()
+
+  return `${hook}\n\n${cta}`
+}
+
 // ── Group Suggestion ──────────────────────────────────────────────────────────
 
 export interface MarketingGroupMin {

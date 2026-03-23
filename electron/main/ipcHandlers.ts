@@ -41,6 +41,7 @@ import {
   applyStatusChange, initLoadTimeline, getActiveLoads, getUpcomingCheckCalls,
 } from './repositories/loadTimelineRepo'
 import { getBrokerIntelAll, getLaneIntelAll, getDriverLaneFits } from './brokerIntelligence'
+import { parseAndScore, importAndScoreXlsx } from './loadBoardParser'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -195,6 +196,24 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('loads:create', (_e, dto: unknown) => createLoad(getDb(), dto as any))
   ipcMain.handle('loads:update', (_e, id: number, dto: unknown) => updateLoad(getDb(), id, dto as any))
   ipcMain.handle('loads:delete', (_e, id: number) => deleteLoad(getDb(), id))
+
+  // -- Load Board Screenshot Parser (vision) --
+  ipcMain.handle('loads:parseScreenshot', async (_e, imageBase64: string, mediaType: string, driverId: number, cpm: number = 0.75) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    if (!apiKey) return { error: 'Claude API key not configured. Add it in Settings > AI Integration.' }
+    const driver = getDriver(getDb(), driverId)
+    if (!driver) return { error: 'Driver not found.' }
+    const brokers = listBrokers(getDb())
+    return parseAndScore(apiKey, imageBase64, mediaType as 'image/png' | 'image/jpeg' | 'image/webp', driver, brokers, cpm)
+  })
+
+  // -- Load Board XLSX Import --
+  ipcMain.handle('loads:importXlsx', async (_e, driverId: number, cpm: number = 0.75) => {
+    const driver = getDriver(getDb(), driverId)
+    if (!driver) return { error: 'Driver not found.' }
+    const brokers = listBrokers(getDb())
+    return importAndScoreXlsx(driver, brokers, cpm)
+  })
 
   // -- Brokers --
   ipcMain.handle('brokers:list',   () => listBrokers(getDb()))

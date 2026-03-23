@@ -67,11 +67,15 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Loads --
   loads: {
-    list:   (status?: string) => ipcRenderer.invoke('loads:list', status),
-    get:    (id: number) => ipcRenderer.invoke('loads:get', id),
-    create: (dto: unknown) => ipcRenderer.invoke('loads:create', dto),
-    update: (id: number, dto: unknown) => ipcRenderer.invoke('loads:update', id, dto),
-    delete: (id: number) => ipcRenderer.invoke('loads:delete', id),
+    list:            (status?: string) => ipcRenderer.invoke('loads:list', status),
+    get:             (id: number) => ipcRenderer.invoke('loads:get', id),
+    create:          (dto: unknown) => ipcRenderer.invoke('loads:create', dto),
+    update:          (id: number, dto: unknown) => ipcRenderer.invoke('loads:update', id, dto),
+    delete:          (id: number) => ipcRenderer.invoke('loads:delete', id),
+    parseScreenshot: (imageBase64: string, mediaType: string, driverId: number, cpm: number) =>
+      ipcRenderer.invoke('loads:parseScreenshot', imageBase64, mediaType, driverId, cpm),
+    importXlsx: (driverId: number, cpm: number) =>
+      ipcRenderer.invoke('loads:importXlsx', driverId, cpm),
   },
 
   // -- Brokers --
