@@ -112,6 +112,7 @@ contextBridge.exposeInMainWorld('api', {
   notes: {
     list:   (entityType: string, entityId: number) => ipcRenderer.invoke('notes:list', entityType, entityId),
     create: (dto: unknown) => ipcRenderer.invoke('notes:create', dto),
+    update: (id: number, content: string) => ipcRenderer.invoke('notes:update', id, content),
     delete: (id: number) => ipcRenderer.invoke('notes:delete', id),
   },
 

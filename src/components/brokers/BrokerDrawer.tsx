@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight } from 'lucide-react'
+import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight, Pencil, Check } from 'lucide-react'
 import type { Broker, BrokerFlag, BrokerRating, Load, Note } from '../../types/models'
 import { FLAG_STYLES, BROKER_FLAGS } from './constants'
 import { LOAD_STATUS_STYLES } from '../loads/constants'
@@ -37,12 +37,14 @@ const INTEL_RATING_STYLE: Record<BrokerRating, string> = {
 }
 
 export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }: Props) {
-  const [loads,       setLoads]       = useState<Load[]>([])
-  const [notes,       setNotes]       = useState<Note[]>([])
-  const [noteText,    setNoteText]    = useState('')
-  const [addNote,     setAddNote]     = useState(false)
-  const [confirmDel,  setConf]        = useState(false)
-  const [intelRating, setIntelRating] = useState<BrokerRating>('Neutral')
+  const [loads,         setLoads]         = useState<Load[]>([])
+  const [notes,         setNotes]         = useState<Note[]>([])
+  const [noteText,      setNoteText]      = useState('')
+  const [addNote,       setAddNote]       = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
+  const [editNoteText,  setEditNoteText]  = useState('')
+  const [confirmDel,    setConf]          = useState(false)
+  const [intelRating,   setIntelRating]   = useState<BrokerRating>('Neutral')
 
   useEffect(() => {
     Promise.all([
@@ -61,6 +63,14 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
     if (!noteText.trim()) return
     const n = await window.api.notes.create({ entity_type: 'broker', entity_id: broker.id, content: noteText.trim(), user_id: null })
     setNotes(p => [n, ...p]); setNoteText(''); setAddNote(false)
+  }
+  const startEditNote = (n: Note) => { setEditingNoteId(n.id); setEditNoteText(n.content) }
+  const cancelEditNote = () => { setEditingNoteId(null); setEditNoteText('') }
+  const saveEditNote = async (id: number) => {
+    if (!editNoteText.trim()) return
+    const updated = await window.api.notes.update(id, editNoteText.trim())
+    if (updated) setNotes(p => p.map(n => n.id === id ? updated : n))
+    setEditingNoteId(null); setEditNoteText('')
   }
   const delNote = async (id: number) => { await window.api.notes.delete(id); setNotes(p => p.filter(n => n.id !== id)) }
 
@@ -236,12 +246,33 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
             {notes.length === 0
               ? <p className='text-2xs text-gray-700 italic'>No notes yet.</p>
               : notes.map(n => (
-                <div key={n.id} className='group/note flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
-                  <div className='flex-1 min-w-0'>
-                    <p className='text-xs text-gray-300 whitespace-pre-wrap'>{n.content}</p>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(n.created_at)}</p>
-                  </div>
-                  <button onClick={() => delNote(n.id)} className='opacity-0 group-hover/note:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10} /></button>
+                <div key={n.id} className='group/note py-2 border-b border-surface-600 last:border-0'>
+                  {editingNoteId === n.id ? (
+                    <div>
+                      <textarea
+                        value={editNoteText}
+                        onChange={e => setEditNoteText(e.target.value)}
+                        rows={3}
+                        className='w-full bg-surface-600 border border-orange-600/50 rounded-lg px-3 py-2 text-sm text-gray-200 resize-none focus:outline-none focus:border-orange-600/70 placeholder-gray-600'
+                        autoFocus
+                      />
+                      <div className='flex gap-2 mt-1.5'>
+                        <button onClick={() => saveEditNote(n.id)} className='flex items-center gap-1 px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'><Check size={10} />Save</button>
+                        <button onClick={cancelEditNote} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className='flex items-start gap-2'>
+                      <div className='flex-1 min-w-0'>
+                        <p className='text-xs text-gray-300 whitespace-pre-wrap'>{n.content}</p>
+                        <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(n.created_at)}</p>
+                      </div>
+                      <div className='flex items-center gap-0.5 opacity-0 group-hover/note:opacity-100 transition-all'>
+                        <button onClick={() => startEditNote(n)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400 transition-colors'><Pencil size={10} /></button>
+                        <button onClick={() => delNote(n.id)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-colors'><X size={10} /></button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             }

@@ -119,6 +119,7 @@ declare global {
       notes: {
         list:   (entityType: string, entityId: number) => Promise<Note[]>
         create: (dto: CreateNoteDto) => Promise<Note>
+        update: (id: number, content: string) => Promise<Note | undefined>
         delete: (id: number) => Promise<boolean>
       }
       users: {

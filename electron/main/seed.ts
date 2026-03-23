@@ -770,25 +770,22 @@ function seedTasks(db: Database.Database): void {
     'INSERT OR IGNORE INTO tasks (id, title, category, priority, due_date, time_of_day, recurring, status, notes)' +
     ' VALUES (?,?,?,?,?,?,?,?,?)'
   )
+  // ── Daily task list (matches current live task setup) ─────────────────────
   ins.run(101,'Check driver check-ins and update load statuses','Dispatch','High','Daily','8:00 AM',1,'Pending','Confirm all In Transit drivers have checked in. Update load board.')
+  ins.run(121,'Active Load Status Update','Dispatch','High','Daily','8:15 AM',1,'Pending','Text or call every driver with an active load. Confirm status and update the app. If a driver is not responding after 2 hours, flag it. See: [[Load Booking and Status SOP]]')
   ins.run(102,'Follow up on overdue invoices','Admin','High','Daily','9:00 AM',1,'Pending','Review invoices older than 30 days. Email or call broker AR department.')
+  ins.run(111,'Facebook Driver Search Sweep','Marketing','High','Daily','9:00 AM',1,'Pending','Morning sweep of Facebook groups for driver leads. Search keywords: looking for dispatcher, need dispatch, available truck, looking for loads. Message prospects and log every new contact in the Leads page immediately. See: [[Facebook Driver Search SOP]]')
+  ins.run(122,'Post in today\'s 5 Facebook groups','Marketing','High','Daily','9:00 AM',1,'Pending','Post in your recommended groups for today. Go to Marketing > Groups tab and look at the Today\'s Groups panel. Post content in each group, mark it posted in the app, and change the wording slightly between groups. See: [[Facebook Post Script Bank]]')
+  ins.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending','Like, comment, and share relevant posts in driver groups to train the Facebook algorithm. Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
   ins.run(103,'Review new FMCSA leads and assign follow-up dates','Leads','Medium','Daily','10:00 AM',1,'Pending','Check FMCSA import queue. Score and prioritize new leads.')
   ins.run(104,'Post driver availability to Facebook group','Marketing','Medium','Daily','11:00 AM',1,'Pending','Post any available trucks to the freight group with lanes and equipment.')
-  ins.run(105,'Confirm next-day pickup appointments','Dispatch','High','Daily','3:00 PM',1,'Pending','Call or message drivers with pickups tomorrow. Confirm time and location.')
-  ins.run(106,'Send weekly revenue report to owner','Admin','Medium','Daily','5:00 PM',1,'Pending','Export load and invoice totals for the week. Send summary email.')
-  ins.run(107,'Review expiring driver documents','Admin','High','2026-03-20','9:00 AM',0,'Pending','CDL and insurance expiry review for all active drivers. Flag any within 60 days.')
-  ins.run(108,'Onboard new drivers from signed leads','Leads','High','2026-03-25','10:00 AM',0,'Pending','Process packets for Gilbert Ortiz and Stephanie Kim. Collect W9 and insurance.')
-  ins.run(109,'Quarterly broker performance review','Admin','Medium','2026-03-31','2:00 PM',0,'Pending','Review avg days pay and dispute history for all brokers. Update flags.')
-  ins.run(110,'Update preferred lanes for Denver-based drivers','Dispatch','Low','2026-04-01','11:00 AM',0,'Pending','Kelvin Brown and Lena Stone -- confirm lane preferences after Q1 review.')
-
-  // -- Facebook / social media marketing tasks (daily) --
-  ins.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending','Like, comment, and share relevant posts in driver groups to train the Facebook algorithm. Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
+  ins.run(123,'Midday Driver and Load Check','Dispatch','Medium','Daily','1:00 PM',1,'Pending','Check Dispatcher Board for any Active drivers without a load. Go to your load board, find a matching load, call the broker, negotiate if needed, and book it. Update the Loads page and text the driver pickup details. See: [[Load Booking and Status SOP]]')
   ins.run(114,'Driver Lead Response Monitoring','Marketing','High','Daily','2:00 PM',1,'Pending','Check all DMs and comments from morning posts and outreach. Respond within 2 hours. Move qualified responses to Leads page with status Contacted.')
-
-  // -- Weekly strategic tasks --
-  ins.run(116,'Monday FMCSA Lead Review','Leads','High','Monday','8:30 AM',1,'Pending','Run FMCSA import or review leads imported from the past week. Score by fleet size, trailer type, and lane match. Assign follow-up dates. Move high-priority leads to Contacted. See: FMCSA Lead Review Checklist doc.')
-  ins.run(117,'Wednesday Warm Lead Follow-Up','Leads','High','Wednesday','10:00 AM',1,'Pending','Call or message all Contacted and Interested leads that have not responded in 3+ days. Use the warm lead follow-up script. Goal: at least 2 new Interested leads per session. See: Warm Lead Follow-Up Script doc.')
-  ins.run(118,'Friday Driver Conversation Review','Leads','Medium','Friday','3:00 PM',1,'Pending','Review all driver conversations from the week. Update lead statuses. Archive dead leads as Rejected with reason. Identify top 3 leads to prioritize next week. Prep outreach for Monday.')
+  ins.run(105,'Confirm next-day pickup appointments','Dispatch','High','Daily','3:00 PM',1,'Pending','Call or message drivers with pickups tomorrow. Confirm time and location.')
+  ins.run(124,'New Driver Inquiry Response','Leads','High','Daily','3:30 PM',1,'Pending','Check Facebook DMs and email for new driver inquiries. Add every new contact to the Leads page with status New. Send the first-contact script and set a follow-up date for tomorrow. Do not leave any inquiry unanswered overnight. See: [[Driver Intake Script]]')
+  ins.run(115,'Final Driver Lead Sweep','Marketing','High','Daily','4:30 PM',1,'Pending','Final check of Facebook groups and DMs. Respond to any messages received since 2:00 PM. Set follow-up reminders for unresponded leads for tomorrow morning. Update Leads page with all new contacts from today. See: [[Facebook Driver Search SOP]]')
+  ins.run(106,'Send weekly revenue report to owner','Admin','Medium','Daily','5:00 PM',1,'Pending','Export load and invoice totals for the week. Send summary email.')
+  ins.run(125,'End-of-Day Close Out','Dispatch','Medium','Daily','5:00 PM',1,'Pending','Update all lead notes and statuses from today. Confirm all load statuses are current. Check Facebook DMs one final time. Set follow-up dates on any open leads. Tomorrow starts at 8:00 AM -- close your browser tabs. See: [[Daily Operations Playbook]]')
 }
 function seedDocuments(db: Database.Database): void {
   const ins = db.prepare(
@@ -2887,6 +2884,75 @@ export function reseedDocuments(db: Database.Database): void {
     '## Related Documents',
     'See [[New Authority Driver Expectations]] for the driver communication strategy.',
     'See [[Building Broker Relationships for New Authorities]] for broker outreach tactics.',
+  ].join('\n'), null, null, null)
+
+  // ── 130 ── Facebook Group Post Protocol ───────────────────────────────────
+  ups.run(130, 'Facebook Group Post Protocol', 'SOP', [
+    '# Facebook Group Post Protocol',
+    '',
+    '## Purpose',
+    'Rules and procedures for posting in Facebook groups to recruit owner-operator drivers. Following this protocol keeps OnTrack visible and credible while avoiding bans, spam flags, and wasted effort.',
+    '',
+    '## Which Groups to Post In',
+    'Post only in groups where owner-operators are active members. The app shows today\'s recommended groups in Marketing > Groups > Today\'s Groups panel.',
+    '',
+    'Do not post in:',
+    '- Groups with fewer than 500 members unless you know the group is highly active',
+    '- Groups that are clearly for shippers, brokers, or non-drivers',
+    '- Groups that have been flagged as low-response in your tracking',
+    '',
+    '## Daily Post Limit',
+    'Target: post in 5 groups per day, minimum 3.',
+    'Do not post in the same group more than once every 48 hours -- Facebook flags this as spam.',
+    'After posting in a group, mark it as posted in the app (Marketing > Groups > Mark Posted).',
+    '',
+    '## What to Post',
+    '',
+    '### Use the App Templates',
+    'Go to Marketing > Templates tab. Choose a template that fits today\'s focus.',
+    'Categories available: Hotshot, Dry Van, Reefer, Flatbed, Step Deck, Driver Recruitment, Value Prop.',
+    '',
+    '### Vary the Content Daily',
+    'Do not copy and paste the exact same post into multiple groups on the same day.',
+    'Use the Short Post toggle for groups where shorter posts tend to get more replies.',
+    'Change at least 1-2 sentences between each group -- the opening line is enough.',
+    '',
+    '### Post Format Rules',
+    '- Write in plain sentences. No bullet points with dashes or symbols.',
+    '- No emojis.',
+    '- Keep standard posts under 150 words.',
+    '- Short posts: 2-3 sentences only.',
+    '- End with a simple call to action: "Send me a message" or "Comment below."',
+    '- Never include a phone number in a public post -- use DMs for that.',
+    '',
+    '## After Posting',
+    '1. Stay logged in to Facebook for at least 30 minutes after posting.',
+    '2. If anyone comments within the first hour, reply immediately -- this boosts the post in the algorithm.',
+    '3. Do not reply to comments with a phone number or personal information -- move the conversation to DM.',
+    '4. Log any qualified commenters or DMs as new Leads in the app.',
+    '',
+    '## Algorithm Training (separate from posting)',
+    'After posting, spend 5-10 minutes liking, commenting, and reacting to other posts in the same group.',
+    'This trains Facebook to show your future posts to more group members.',
+    'See: [[Facebook Algorithm Training]] task for the daily engagement checklist.',
+    '',
+    '## Group Etiquette',
+    '- Do not comment on other dispatcher posts criticizing their rates or services.',
+    '- Do not post the same exact text in a group you already posted in this week.',
+    '- If a group admin messages you about a post, respond politely and adjust.',
+    '- If a group bans you: remove it from your active groups list in Marketing > Groups.',
+    '',
+    '## Tracking What Works',
+    'After each posting session, note in your daily summary:',
+    '- Which groups you posted in',
+    '- How many comments or DMs each post received',
+    '- Whether the short or long format got better responses today',
+    'Over time this data helps you focus on the groups and formats that convert.',
+    '',
+    '## Related Documents',
+    'See [[Facebook Driver Search SOP]] for the full driver search workflow.',
+    'See [[Facebook Post Script Bank]] for post templates and DM response scripts.',
+    'See [[How to Update Facebook Groups]] for adding and managing your group list.',
   ].join('\n'), null, null, null)
 
   // Set file_path on the template PDFs so the Open PDF button works in Documents

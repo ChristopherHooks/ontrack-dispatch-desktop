@@ -12,7 +12,7 @@ import {
   listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice,
   listTasks, getTask, createTask, updateTask, deleteTask,
   markTaskComplete, markTaskIncomplete, getTaskCompletions, getCompletionsForDate,
-  listNotes, createNote, deleteNote,
+  listNotes, createNote, updateNote, deleteNote,
   listUsers, getUser, getUserByEmail, createUser, updateUser,
   listAuditLog,
   listDocuments, getDocument, createDocument, updateDocument, deleteDocument, searchDocuments,
@@ -243,6 +243,7 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   // -- Notes --
   ipcMain.handle('notes:list',   (_e, et: string, eid: number) => listNotes(getDb(), et, eid))
   ipcMain.handle('notes:create', (_e, dto: unknown) => createNote(getDb(), dto as any))
+  ipcMain.handle('notes:update', (_e, id: number, content: string) => updateNote(getDb(), id, content))
   ipcMain.handle('notes:delete', (_e, id: number) => deleteNote(getDb(), id))
 
   // -- Users --

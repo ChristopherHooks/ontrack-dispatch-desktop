@@ -40,9 +40,15 @@ export function BrokerModal({ broker, onSave, onClose }: Props) {
     if (!form.name.trim()) { setError('Company name is required.'); return }
     setSaving(true); setError('')
     try {
+      const notesText = form.notes?.trim() ?? ''
       const saved = broker
         ? await window.api.brokers.update(broker.id, form) as Broker
         : await window.api.brokers.create(form)
+      // For new brokers: if notes were entered, also persist them as a Note entity
+      // so they appear immediately in the sidebar notes list.
+      if (!broker && notesText) {
+        await window.api.notes.create({ entity_type: 'broker', entity_id: saved.id, content: notesText, user_id: null })
+      }
       onSave(saved)
     } catch { setError('Failed to save. Please try again.'); setSaving(false) }
   }

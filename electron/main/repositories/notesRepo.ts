@@ -9,6 +9,11 @@ export function createNote(db: Database.Database, dto: CreateNoteDto): Note {
     .run(dto.entity_type, dto.entity_id, dto.content, dto.user_id ?? null)
   return db.prepare('SELECT * FROM notes WHERE id = ?').get(r.lastInsertRowid as number) as Note
 }
+export function updateNote(db: Database.Database, id: number, content: string): Note | undefined {
+  const changed = db.prepare('UPDATE notes SET content = ? WHERE id = ?').run(content, id).changes
+  if (!changed) return undefined
+  return db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as Note
+}
 export function deleteNote(db: Database.Database, id: number): boolean {
   return db.prepare('DELETE FROM notes WHERE id = ?').run(id).changes > 0
 }
