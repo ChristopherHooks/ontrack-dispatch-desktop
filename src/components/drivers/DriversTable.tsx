@@ -39,6 +39,7 @@ const COLS: { label: string; key: keyof Driver }[] = [
   { label: 'Driver', key: 'name' }, { label: 'Company', key: 'company' },
   { label: 'Status', key: 'status' }, { label: 'MC #', key: 'mc_number' },
   { label: 'Equipment', key: 'truck_type' }, { label: 'Home Base', key: 'home_base' },
+  { label: 'Location', key: 'current_location' },
   { label: 'Min RPM', key: 'min_rpm' }, { label: 'CDL Exp', key: 'cdl_expiry' },
   { label: 'Ins. Exp', key: 'insurance_expiry' },
 ]
@@ -105,6 +106,7 @@ export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSel
               </td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs whitespace-nowrap'>{[d.truck_type, d.trailer_type].filter(Boolean).join(' / ') || '—'}</td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs'>{d.home_base ?? '—'}</td>
+              <td className='pr-3 py-2.5 text-gray-400 text-xs max-w-[120px] truncate'>{d.current_location ?? '—'}</td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs'>{d.min_rpm != null ? `$${d.min_rpm.toFixed(2)}` : '—'}</td>
               <td className='pr-3 py-2.5 text-xs'><ExpCell date={d.cdl_expiry} /></td>
               <td className='pr-3 py-2.5 text-xs'><ExpCell date={d.insurance_expiry} /></td>

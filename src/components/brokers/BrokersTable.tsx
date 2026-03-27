@@ -29,7 +29,9 @@ const COLS: { key: keyof Broker; label: string; w: string }[] = [
 ]
 
 // Converts broker new_authority + min_authority_days to a single option value
+// 0 = No → '', 1 = Yes → 'any'|'30'|'60'|'90'|'180', 2 = Unknown → 'unknown'
 function authValue(b: Broker): string {
+  if (b.new_authority === 2) return 'unknown'
   if (!b.new_authority) return ''
   return b.min_authority_days != null ? String(b.min_authority_days) : 'any'
 }
@@ -37,24 +39,26 @@ function authValue(b: Broker): string {
 // Parses an option value back to { newAuth, minDays }
 function parseAuthValue(v: string): { newAuth: number; minDays: number | null } {
   if (v === '') return { newAuth: 0, minDays: null }
+  if (v === 'unknown') return { newAuth: 2, minDays: null }
   if (v === 'any') return { newAuth: 1, minDays: null }
   return { newAuth: 1, minDays: parseInt(v) }
 }
 
 const AUTH_OPTIONS: { value: string; label: string }[] = [
-  { value: '',    label: 'No' },
-  { value: 'any', label: 'Yes — any age' },
-  { value: '30',  label: 'Yes — 30d+' },
-  { value: '60',  label: 'Yes — 60d+' },
-  { value: '90',  label: 'Yes — 90d+' },
-  { value: '180', label: 'Yes — 180d+' },
+  { value: 'unknown', label: 'Unknown' },
+  { value: '',        label: 'No' },
+  { value: 'any',     label: 'Yes — any age' },
+  { value: '30',      label: 'Yes — 30d+' },
+  { value: '60',      label: 'Yes — 60d+' },
+  { value: '90',      label: 'Yes — 90d+' },
+  { value: '180',     label: 'Yes — 180d+' },
 ]
 
 function AuthDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const current = AUTH_OPTIONS.find(o => o.value === value)
-  const isYes = value !== ''
+  const isYes = value !== '' && value !== 'unknown'
 
   useEffect(() => {
     if (!open) return

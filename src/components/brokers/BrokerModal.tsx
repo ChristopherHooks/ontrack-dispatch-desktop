@@ -99,14 +99,20 @@ export function BrokerModal({ broker, onSave, onClose }: Props) {
                 </Field>
               </div>
               <Field label='Works With New Authorities' icon={<Star size={10} />}>
-                <select className={inp} value={form.new_authority ? 'yes' : 'no'}
-                  onChange={e => setForm(p => ({ ...p, new_authority: e.target.value === 'yes' ? 1 : 0, min_authority_days: e.target.value === 'yes' ? p.min_authority_days : null }))}>
-                  <option value='no'>No</option>
+                <select className={inp}
+                  value={form.new_authority === 1 ? 'yes' : form.new_authority === 2 ? 'unknown' : 'no'}
+                  onChange={e => setForm(p => ({
+                    ...p,
+                    new_authority: e.target.value === 'yes' ? 1 : e.target.value === 'unknown' ? 2 : 0,
+                    min_authority_days: e.target.value === 'yes' ? p.min_authority_days : null,
+                  }))}>
+                  <option value='unknown'>Unknown</option>
                   <option value='yes'>Yes</option>
+                  <option value='no'>No</option>
                 </select>
               </Field>
               <Field label='Min Authority Age' icon={<Tag size={10} />}>
-                <select className={inp} disabled={!form.new_authority}
+                <select className={inp} disabled={form.new_authority !== 1}
                   value={form.min_authority_days ?? ''}
                   onChange={e => setForm(p => ({ ...p, min_authority_days: e.target.value ? parseInt(e.target.value) : null }))}>
                   <option value=''>Any age OK</option>

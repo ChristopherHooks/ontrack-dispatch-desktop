@@ -16,14 +16,15 @@ export function getDriver(db: Database.Database, id: number): Driver | undefined
 export function createDriver(db: Database.Database, dto: CreateDriverDto): Driver {
   const r = db.prepare(
     'INSERT INTO drivers (name, company, mc_number, dot_number, cdl_number, cdl_expiry,' +
-    'phone, email, truck_type, trailer_type, trailer_length, authority_date, home_base, preferred_lanes,' +
+    'phone, email, truck_type, trailer_type, trailer_length, authority_date, home_base, current_location, preferred_lanes,' +
     'min_rpm, dispatch_percent, factoring_company, insurance_expiry, start_date, status, notes) ' +
-    'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).run(dto.name, dto.company ?? null, dto.mc_number ?? null, dto.dot_number ?? null,
     dto.cdl_number ?? null, dto.cdl_expiry ?? null, dto.phone ?? null, dto.email ?? null,
     dto.truck_type ?? null, dto.trailer_type ?? null, dto.trailer_length ?? null,
     dto.authority_date ?? null,
-    dto.home_base ?? null, dto.preferred_lanes ?? null, dto.min_rpm ?? null, dto.dispatch_percent,
+    dto.home_base ?? null, dto.current_location ?? null, dto.preferred_lanes ?? null,
+    dto.min_rpm ?? null, dto.dispatch_percent,
     dto.factoring_company ?? null, dto.insurance_expiry ?? null, dto.start_date ?? null,
     dto.status, dto.notes ?? null)
   const newId = r.lastInsertRowid as number
@@ -38,14 +39,14 @@ export function updateDriver(db: Database.Database, id: number, dto: UpdateDrive
   const m = { ...existing, ...dto }
   db.prepare(
     'UPDATE drivers SET name=?,company=?,mc_number=?,dot_number=?,cdl_number=?,cdl_expiry=?,' +
-    'phone=?,email=?,truck_type=?,trailer_type=?,trailer_length=?,authority_date=?,home_base=?,preferred_lanes=?,' +
+    'phone=?,email=?,truck_type=?,trailer_type=?,trailer_length=?,authority_date=?,home_base=?,current_location=?,preferred_lanes=?,' +
     'min_rpm=?,dispatch_percent=?,factoring_company=?,insurance_expiry=?,start_date=?,' +
     'status=?,notes=?,updated_at=? WHERE id=?'
   ).run(m.name, m.company, m.mc_number, m.dot_number, m.cdl_number, m.cdl_expiry,
     m.phone, m.email, m.truck_type, m.trailer_type, m.trailer_length ?? null,
     m.authority_date ?? null,
-    m.home_base, m.preferred_lanes, m.min_rpm, m.dispatch_percent, m.factoring_company,
-    m.insurance_expiry, m.start_date, m.status, m.notes, now, id)
+    m.home_base, m.current_location ?? null, m.preferred_lanes, m.min_rpm, m.dispatch_percent,
+    m.factoring_company, m.insurance_expiry, m.start_date, m.status, m.notes, now, id)
   logAudit(db, 1, 'driver', id, 'update', existing, dto)
   return getDriver(db, id)
 }

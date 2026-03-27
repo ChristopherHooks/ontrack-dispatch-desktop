@@ -50,15 +50,21 @@ export const DEFAULT_SEARCH_TERMS = [
   'Michigan', 'Wisconsin', 'Iowa', 'Minnesota',
   // Northeast high-volume
   'Pennsylvania', 'New Jersey',
+  // Industry keyword terms — find carriers whose names contain common trucking
+  // words regardless of geography. These access a completely different carrier
+  // pool than the state-name terms above and are critical once the geographic
+  // pool saturates.
+  'Trucking', 'Transport', 'Hauling', 'Freight', 'Express', 'Logistics',
+  'Carrier', 'Dispatch', 'Solutions', 'Services',
 ]
 
 /**
- * Authority age window for "ideal" leads — 30 to 180 days since MC grant.
+ * Authority age window for "ideal" leads — 30 to 365 days since MC grant.
  * New authorities in this window are still figuring out dispatch and are
- * the most receptive to outreach. Older carriers are already set in their ways.
+ * the most receptive to outreach.
  */
 export const AUTHORITY_MIN_DAYS = 30
-export const AUTHORITY_MAX_DAYS = 180
+export const AUTHORITY_MAX_DAYS = 365
 
 /**
  * Priority based on authority age and fleet size.
@@ -435,8 +441,8 @@ export async function importFmcsaLeads(
   // If the strict 30-180 day window produced nothing, insert carriers already
   // enriched this run that fall within the wider 0-365 day window.
   // No additional HTTP calls are made — enrichment data was already fetched above.
-  if (leadsAdded === 0 && onlyNewAuthorities && fallbackCarriers.length > 0) {
-    console.log('[FMCSA] 0 leads in 30-180 day window — fallback to 0-365 day window (' + fallbackCarriers.length + ' candidates)')
+  if (leadsAdded < 5 && onlyNewAuthorities && fallbackCarriers.length > 0) {
+    console.log('[FMCSA] Fewer than 5 leads in authority window — fallback to 0-365 day window (' + fallbackCarriers.length + ' candidates)')
     const now = new Date().toISOString()
     for (const fb of fallbackCarriers) {
       if (leadsAdded >= targetLeads) break

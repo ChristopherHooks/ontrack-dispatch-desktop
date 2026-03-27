@@ -45,8 +45,13 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
   const [editNoteText,  setEditNoteText]  = useState('')
   const [confirmDel,    setConf]          = useState(false)
   const [intelRating,   setIntelRating]   = useState<BrokerRating>('Neutral')
+  // Local state for inline-editable authority fields so React re-renders on change
+  const [localNewAuth,  setLocalNewAuth]  = useState(broker.new_authority)
+  const [localMinDays,  setLocalMinDays]  = useState(broker.min_authority_days)
 
   useEffect(() => {
+    setLocalNewAuth(broker.new_authority)
+    setLocalMinDays(broker.min_authority_days)
     Promise.all([
       window.api.loads.list(),
       window.api.notes.list('broker', broker.id),
@@ -138,27 +143,29 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               <div>
                 <p className='text-2xs text-gray-600 mb-1'>Works With New Auth</p>
                 <select
-                  value={broker.new_authority ? 'yes' : 'no'}
+                  value={localNewAuth === 1 ? 'yes' : localNewAuth === 2 ? 'unknown' : 'no'}
                   onChange={async e => {
-                    const val = e.target.value === 'yes' ? 1 : 0
-                    await window.api.brokers.update(broker.id, { new_authority: val, min_authority_days: val ? broker.min_authority_days : null })
-                    broker.new_authority = val
-                    if (!val) broker.min_authority_days = null
+                    const val = e.target.value === 'yes' ? 1 : e.target.value === 'unknown' ? 2 : 0
+                    const minDays = val === 1 ? localMinDays : null
+                    await window.api.brokers.update(broker.id, { new_authority: val, min_authority_days: minDays })
+                    setLocalNewAuth(val)
+                    if (val !== 1) setLocalMinDays(null)
                   }}
                   className='h-7 px-2 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-300 focus:outline-none focus:border-orange-600/50'>
-                  <option value='no'>No</option>
+                  <option value='unknown'>Unknown</option>
                   <option value='yes'>Yes</option>
+                  <option value='no'>No</option>
                 </select>
               </div>
-              {!!broker.new_authority && (
+              {localNewAuth === 1 && (
                 <div>
                   <p className='text-2xs text-gray-600 mb-1'>Min Authority Age</p>
                   <select
-                    value={broker.min_authority_days ?? ''}
+                    value={localMinDays ?? ''}
                     onChange={async e => {
                       const val = e.target.value ? parseInt(e.target.value) : null
                       await window.api.brokers.update(broker.id, { min_authority_days: val })
-                      broker.min_authority_days = val
+                      setLocalMinDays(val)
                     }}
                     className='h-7 px-2 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-300 focus:outline-none focus:border-orange-600/50'>
                     <option value=''>Any age OK</option>
@@ -169,8 +176,11 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                   </select>
                 </div>
               )}
-              {!broker.new_authority && (
+              {localNewAuth === 0 && (
                 <p className='text-2xs text-gray-600 italic self-end pb-1'>This broker does not load new authorities.</p>
+              )}
+              {localNewAuth === 2 && (
+                <p className='text-2xs text-gray-600 italic self-end pb-1'>New authority policy not confirmed for this broker.</p>
               )}
             </div>
           </div>

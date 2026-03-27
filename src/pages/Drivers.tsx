@@ -44,6 +44,10 @@ export function Drivers() {
       if (selected?.id === updated.id) setSelected(updated)
     }
   }
+  const handleUpdate = (updated: Driver) => {
+    setDrivers(p => p.map(d => d.id === updated.id ? updated : d))
+    if (selected?.id === updated.id) setSelected(updated)
+  }
   const openEdit = (drv: Driver) => { setEditDrv(drv); setModal(true) }
   const openAdd  = () => { setEditDrv(null); setModal(true) }
 
@@ -82,7 +86,7 @@ export function Drivers() {
       </div>
       <DriversToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} total={filtered.length} onAdd={openAdd}/>
       <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority}/>
-      {selected&&<DriverDrawer driver={selected} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete}/>}
+      {selected&&<DriverDrawer driver={selected} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete} onUpdate={handleUpdate}/>}
       {modal&&<DriverModal driver={editDrv} onClose={()=>{setModal(false);setEditDrv(null)}} onSave={handleSave}/>}
     </div>
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText } from 'lucide-react'
+import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin } from 'lucide-react'
 import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -7,6 +7,7 @@ import { openSaferMc } from '../../lib/saferUrl'
 interface Props {
   driver: Driver; onClose: () => void; onEdit: (d: Driver) => void
   onStatusChange: (d: Driver, s: DriverStatus) => void; onDelete: (d: Driver) => void
+  onUpdate?: (d: Driver) => void
 }
 const EXPIRY_WARN = 60 * 24 * 3600 * 1000
 const isExp = (d: string | null) => d != null && new Date(d).getTime() < Date.now() + EXPIRY_WARN
@@ -30,7 +31,7 @@ function Row({ label, value, mono=false }: { label:string; value:string; mono?:b
 function Sec({ title }: { title:string }) {
   return <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>{title}</p>
 }
-export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete }: Props) {
+export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete, onUpdate }: Props) {
   const [docs,setDocs]         = useState<DriverDocument[]>([])
   const [notes,setNotes]       = useState<Note[]>([])
   const [load,setLoad]         = useState<Load|null>(null)
@@ -40,7 +41,29 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [docForm,setDocForm]   = useState({ title:'',doc_type:'CDL' as DriverDocType,expiry_date:'',notes:'' })
   const [pendingFile,setPendingFile] = useState<{ storedPath:string; displayName:string }|null>(null)
   const [confirmDel,setConf]   = useState(false)
+  const [localLocation,setLocalLocation] = useState<string|null>(driver.current_location)
+  const [editingLocation,setEditingLocation] = useState(false)
+  const [locationText,setLocationText]   = useState(driver.current_location??'')
 
+  useEffect(() => {
+    // Sync whenever we switch to a different driver OR the saved value changes
+    // (e.g. after onUpdate pushes the confirmed DB value back through the prop).
+    // Skip sync while the user is actively editing so we don't clobber their input.
+    if (!editingLocation) {
+      setLocalLocation(driver.current_location)
+      setLocationText(driver.current_location ?? '')
+    }
+  }, [driver.id, driver.current_location]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveLocation = async () => {
+    const val = locationText.trim() || null
+    setLocalLocation(val)
+    setEditingLocation(false)
+    const updated = await window.api.drivers.update(driver.id, { current_location: val })
+    if (updated) onUpdate?.(updated)
+  }
+
+  // useEffect for data fetch below
   useEffect(() => {
     Promise.all([
       window.api.driverDocs.list(driver.id),
@@ -129,6 +152,30 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               <Row label='Email' value={driver.email??'—'}/>
               <Row label='Home Base' value={driver.home_base??'—'}/>
               <Row label='Start Date' value={fmt(driver.start_date)}/>
+            </div>
+            {/* Current Location — inline editable */}
+            <div className='mt-3'>
+              <p className='text-2xs text-gray-600 flex items-center gap-1'><MapPin size={10}/>Current Location</p>
+              {editingLocation ? (
+                <div className='flex items-center gap-1.5 mt-1'>
+                  <input
+                    autoFocus
+                    value={locationText}
+                    onChange={e=>setLocationText(e.target.value)}
+                    onKeyDown={e=>{if(e.key==='Enter')saveLocation();if(e.key==='Escape'){setEditingLocation(false);setLocationText(localLocation??'')}}}
+                    className='flex-1 h-7 px-2.5 text-sm bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60'
+                    placeholder='City, ST'
+                  />
+                  <button onClick={saveLocation} className='p-1.5 rounded hover:bg-surface-600 text-orange-400 hover:text-orange-300 transition-colors'><Check size={13}/></button>
+                  <button onClick={()=>{setEditingLocation(false);setLocationText(localLocation??'')}} className='p-1.5 rounded hover:bg-surface-600 text-gray-600 hover:text-gray-300 transition-colors'><X size={13}/></button>
+                </div>
+              ) : (
+                <div className='group/loc flex items-center gap-1.5 mt-0.5'>
+                  <p className={`text-sm ${localLocation?'text-gray-300':'text-gray-700'}`}>{localLocation??'—'}</p>
+                  <button onClick={()=>{setEditingLocation(true);setLocationText(localLocation??'')}}
+                    className='opacity-0 group-hover/loc:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400 transition-all'><Pencil size={11}/></button>
+                </div>
+              )}
             </div>
           </div>
           {/* Carrier */}

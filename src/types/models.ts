@@ -163,7 +163,7 @@ export interface Broker {
   avg_days_pay: number | null
   flag: BrokerFlag
   notes: string | null
-  new_authority: number           // 1 = will work with new authorities, 0 = no (migration 023)
+  new_authority: number           // 0 = No, 1 = Yes, 2 = Unknown (migration 023)
   min_authority_days: number | null // minimum MC age in days required (30/60/90/180 or null = any)
   created_at: string
   updated_at: string
