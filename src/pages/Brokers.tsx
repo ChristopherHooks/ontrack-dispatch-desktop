@@ -4,6 +4,8 @@ import { BrokersToolbar, type BrokerFilters } from '../components/brokers/Broker
 import { BrokersTable } from '../components/brokers/BrokersTable'
 import { BrokerModal } from '../components/brokers/BrokerModal'
 import { BrokerDrawer } from '../components/brokers/BrokerDrawer'
+import { STARTER_BROKERS } from '../data/starterBrokers'
+import { Building2, Download } from 'lucide-react'
 
 export function Brokers() {
   const [brokers, setBrokers]   = useState<Broker[]>([])
@@ -47,8 +49,19 @@ export function Brokers() {
     return list
   }, [brokers, search, filters, sortKey, sortDir])
 
+  const [seeding, setSeeding] = useState(false)
+
   const openAdd  = () => { setEditBrk(null); setModal(true) }
   const openEdit = (b: Broker) => { setEditBrk(b); setModal(true); setSelected(null) }
+
+  const seedStarterBrokers = async () => {
+    setSeeding(true)
+    for (const b of STARTER_BROKERS) {
+      try { await window.api.brokers.create({ ...b, flag: 'None' }) } catch { /* skip duplicates */ }
+    }
+    await reload()
+    setSeeding(false)
+  }
 
   const handleSave = (saved: Broker) => {
     setBrokers(p => p.find(b => b.id === saved.id) ? p.map(b => b.id === saved.id ? saved : b) : [saved, ...p])
@@ -92,6 +105,30 @@ export function Brokers() {
         filters={filters} onFilter={setFilters}
         count={filtered.length} onAdd={openAdd}
       />
+
+      {/* Starter broker nudge — shown when list is empty and not loading */}
+      {!loading && brokers.length === 0 && (
+        <div className='mx-6 mt-4 flex items-center justify-between gap-4 bg-surface-700 border border-orange-800/40 rounded-xl px-5 py-4'>
+          <div className='flex items-center gap-3'>
+            <Building2 size={18} className='text-orange-400 shrink-0' />
+            <div>
+              <p className='text-sm font-medium text-gray-200'>No brokers yet</p>
+              <p className='text-xs text-gray-500 mt-0.5'>
+                Load 20 established brokers to your list — a starting point for getting your carriers approved and finding freight.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={seedStarterBrokers}
+            disabled={seeding}
+            className='flex items-center gap-2 px-4 py-2 text-sm font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-xl transition-colors shrink-0 disabled:opacity-60'
+          >
+            <Download size={14} />
+            {seeding ? 'Adding...' : 'Add Starter Brokers'}
+          </button>
+        </div>
+      )}
+
       <BrokersTable
         brokers={filtered} loading={loading}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}

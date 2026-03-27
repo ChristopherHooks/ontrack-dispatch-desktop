@@ -4,9 +4,6 @@ import type {
   SopDocument, AnalyticsStats, SearchResult, CsvImportResult, FmcsaImportResult, FmcsaImportStatus, BoardRow,
   AvailableLoad, AssignLoadResult, ScannerRecommendation,
   ClaudeResponse,
-  FbConversation, FbConvStage, CreateFbConversationDto, UpdateFbConversationDto,
-  FbPost, FbPostStatus, CreateFbPostDto, UpdateFbPostDto,
-  FbQueuePost, FbQueueStatus, FbContentCategory, CreateFbQueuePostDto, UpdateFbQueuePostDto,
   CreateLeadDto, UpdateLeadDto,
   CreateDriverDto, UpdateDriverDto,
   CreateDriverDocumentDto, UpdateDriverDocumentDto,
@@ -179,39 +176,6 @@ declare global {
         statusChange:    (loadId: number, newStatus: string, notes: string | null)                 => Promise<void>
         initLoad:        (loadId: number)                                                           => Promise<void>
         generateMessage: (payload: { driverName: string; route: string; messageType: string })     => Promise<ClaudeResponse>
-      }
-      fbConv: {
-        list:             (stage?: string)                     => Promise<FbConversation[]>
-        get:              (id: number)                         => Promise<FbConversation | undefined>
-        create:           (dto: CreateFbConversationDto)       => Promise<FbConversation>
-        update:           (id: number, dto: UpdateFbConversationDto) => Promise<FbConversation | undefined>
-        delete:           (id: number)                         => Promise<boolean>
-        exists:           (name: string, phone: string | null) => Promise<boolean>
-        generateReply:    (payload: { name: string; stage: string; lastMessage: string | null; trailer: string | null; location: string | null }) => Promise<ClaudeResponse>
-        generateFollowUp: (payload: { name: string; stage: string; lastMessageAt: string | null }) => Promise<ClaudeResponse>
-        suggestQuestion:  (payload: { name: string; stage: string; lastMessage: string | null; trailer: string | null; location: string | null }) => Promise<ClaudeResponse>
-        handoffSummary:   (payload: { name: string; phone: string | null; trailer: string | null; location: string | null; stage: string; notes: string | null }) => Promise<ClaudeResponse>
-      }
-      fbHunter: {
-        list:         (status?: FbPostStatus)                    => Promise<FbPost[]>
-        create:       (dto: CreateFbPostDto)                     => Promise<FbPost>
-        update:       (id: number, dto: UpdateFbPostDto)         => Promise<FbPost | undefined>
-        delete:       (id: number)                               => Promise<boolean>
-        exists:       (rawText: string)                          => Promise<boolean>
-        classify:     (payload: { rawText: string })             => Promise<ClaudeResponse>
-        draftComment: (payload: { rawText: string; intent: string }) => Promise<ClaudeResponse>
-        draftDm:      (payload: { intent: string; extractedInfo: string }) => Promise<ClaudeResponse>
-      }
-      fbContent: {
-        list:             (status?: FbQueueStatus)               => Promise<FbQueuePost[]>
-        create:           (dto: CreateFbQueuePostDto)            => Promise<FbQueuePost>
-        update:           (id: number, dto: UpdateFbQueuePostDto) => Promise<FbQueuePost | undefined>
-        delete:           (id: number)                           => Promise<boolean>
-        suggestCategory:  ()                                     => Promise<FbContentCategory>
-        recentCategories: (days?: number)                        => Promise<string[]>
-        generatePost:     (payload: { category: string; recentCategories: string[] }) => Promise<ClaudeResponse>
-        generateVariation:(payload: { content: string })         => Promise<ClaudeResponse>
-        suggestReplies:   (payload: { content: string })         => Promise<ClaudeResponse>
       }
       shell: {
         openExternal: (url: string) => Promise<void>

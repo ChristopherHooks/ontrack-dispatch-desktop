@@ -1,8 +1,22 @@
 import { useState, useEffect } from 'react'
-import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin } from 'lucide-react'
+import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown } from 'lucide-react'
 import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { openSaferMc } from '../../lib/saferUrl'
+import { DispatchAgreementModal } from './DispatchAgreementModal'
+import { Term } from '../ui/Term'
+
+// Defined at module level so JSX is not nested inside an IIFE inside JSX
+// (which causes Babel parse errors in some Vite configurations).
+// String props use {"..."} to avoid backslash-escape issues in JSX attributes.
+const DRIVER_SETUP_ITEMS: { id: string; label: React.ReactNode }[] = [
+  { id: 'agreement',      label: 'Dispatch agreement signed' },
+  { id: 'coi',            label: <><Term word='COI' def={'Certificate of Insurance — proof that the carrier has active liability and cargo insurance. Required by every broker before moving freight. Must list the broker as a certificate holder for each broker they work with.'}>COI</Term> collected</> },
+  { id: 'w9',             label: <><Term word='W-9' def={"IRS tax form that gives you the carrier's taxpayer identification number. Required before you can issue a 1099 at year end. Collect before the first load moves."}>W-9</Term> form collected</> },
+  { id: 'broker-packets', label: <><Term word='carrier packet' def={'A set of documents brokers require before approving a carrier: MC authority, insurance certificate (COI), W-9, and sometimes a signed broker-carrier agreement. Each broker has its own packet requirements.'}>Carrier packet</Term> sent to 5+ brokers</> },
+  { id: 'rmis',           label: <><Term word='RMIS' def={'Risk Management Information System — a database brokers use to verify carrier insurance and safety records. Many brokers require carriers to register at rmissecure.com before they will work with them.'}>RMIS</Term> or Carrier411 verified</> },
+  { id: 'first-load',     label: 'First load booked' },
+]
 
 interface Props {
   driver: Driver; onClose: () => void; onEdit: (d: Driver) => void
@@ -41,9 +55,12 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [docForm,setDocForm]   = useState({ title:'',doc_type:'CDL' as DriverDocType,expiry_date:'',notes:'' })
   const [pendingFile,setPendingFile] = useState<{ storedPath:string; displayName:string }|null>(null)
   const [confirmDel,setConf]   = useState(false)
-  const [localLocation,setLocalLocation] = useState<string|null>(driver.current_location)
+  const [localLocation,setLocalLocation]     = useState<string|null>(driver.current_location)
   const [editingLocation,setEditingLocation] = useState(false)
-  const [locationText,setLocationText]   = useState(driver.current_location??'')
+  const [locationText,setLocationText]       = useState(driver.current_location??'')
+  const [showAgreement,setShowAgreement]     = useState(false)
+  const [setupChecks,setSetupChecks]         = useState<Record<string,boolean>>({})
+  const [setupOpen,setSetupOpen]             = useState(true)
 
   useEffect(() => {
     // Sync whenever we switch to a different driver OR the saved value changes
@@ -69,12 +86,20 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
       window.api.driverDocs.list(driver.id),
       window.api.notes.list('driver', driver.id),
       window.api.loads.list(),
-    ]).then(([d,n,loads]) => {
+      window.api.settings.get(`carrierChecklist_${driver.id}`),
+    ]).then(([d,n,loads,rawChecks]) => {
       setDocs(d); setNotes(n)
       const active = (loads as Load[]).filter(l=>l.driver_id===driver.id&&['Booked','Picked Up','In Transit'].includes(l.status))
       setLoad(active[0]??null)
+      try { if (rawChecks) setSetupChecks(JSON.parse(rawChecks as string)) } catch { /* ignore */ }
     })
   }, [driver.id])
+
+  const toggleSetupCheck = async (id: string) => {
+    const next = { ...setupChecks, [id]: !setupChecks[id] }
+    setSetupChecks(next)
+    await window.api.settings.set(`carrierChecklist_${driver.id}`, JSON.stringify(next))
+  }
 
   const saveNote = async () => {
     if (!noteText.trim()) return
@@ -100,6 +125,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const delDoc = async (id:number) => { await window.api.driverDocs.delete(id); setDocs(p=>p.filter(d=>d.id!==id)) }
 
   return (
+    <>
     <div className='fixed inset-0 z-50 flex'>
       <div className='flex-1 bg-black/50 backdrop-blur-sm' onClick={onClose} />
       <div className='w-[500px] bg-surface-800 border-l border-surface-400 shadow-2xl flex flex-col overflow-hidden animate-slide-in'>
@@ -119,6 +145,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
           <div className='flex items-center gap-1.5 px-5 py-3 border-b border-surface-600 flex-wrap shrink-0'>
             <button onClick={()=>onEdit(driver)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Edit2 size={11}/>Edit</button>
             {driver.phone&&<a href={`tel:${driver.phone}`} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Phone size={11}/>Call</a>}
+            <button onClick={()=>setShowAgreement(true)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors' title='Generate dispatch service agreement'><ScrollText size={11}/>Agreement</button>
             {DRIVER_STATUSES.filter(s=>s!==driver.status).map(s=>(
               <button key={s} onClick={()=>onStatusChange(driver,s)} className='px-2 h-7 text-2xs text-gray-600 hover:text-orange-400 rounded hover:bg-surface-600 transition-colors'>→ {s}</button>
             ))}
@@ -144,6 +171,47 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               </p>
             </div>
           )}
+          {/* Carrier Setup Checklist */}
+          {(() => {
+            const done = DRIVER_SETUP_ITEMS.filter(s => setupChecks[s.id]).length
+            const allDone = done === DRIVER_SETUP_ITEMS.length
+            return (
+              <div className='mx-5 mt-4 rounded-xl border border-surface-500 bg-surface-700 overflow-hidden'>
+                <button
+                  onClick={() => setSetupOpen(o => !o)}
+                  className='w-full flex items-center justify-between px-3 py-2.5 hover:bg-surface-600 transition-colors'
+                >
+                  <div className='flex items-center gap-2'>
+                    <p className='text-xs font-medium text-gray-300'>Carrier Setup</p>
+                    <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${allDone ? 'bg-green-900/40 text-green-400' : 'bg-surface-500 text-gray-500'}`}>
+                      {done}/{DRIVER_SETUP_ITEMS.length}
+                    </span>
+                  </div>
+                  <ChevronDown size={13} className={`text-gray-600 transition-transform ${setupOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {setupOpen && (
+                  <div className='px-3 pb-3 space-y-1 border-t border-surface-600'>
+                    {DRIVER_SETUP_ITEMS.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => toggleSetupCheck(item.id)}
+                        className='w-full flex items-center gap-2.5 py-1.5 group text-left'
+                      >
+                        {setupChecks[item.id]
+                          ? <CheckCircle2 size={13} className='text-green-400 shrink-0' />
+                          : <Circle      size={13} className='text-gray-600 shrink-0 group-hover:text-gray-400 transition-colors' />
+                        }
+                        <span className={`text-xs transition-colors ${setupChecks[item.id] ? 'text-gray-600 line-through' : 'text-gray-300'}`}>
+                          {item.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Contact */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title='Contact'/>
@@ -331,5 +399,9 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
         </div>
       </div>
     </div>
+    {showAgreement && (
+      <DispatchAgreementModal driver={driver} onClose={() => setShowAgreement(false)} />
+    )}
+    </>
   )
 }

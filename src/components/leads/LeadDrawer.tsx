@@ -367,6 +367,8 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
     setConverting(true)
     setConvertedMsg('')
     try {
+      const sourceNote = lead.source ? `Source: ${lead.source}` : null
+      const combinedNotes = [sourceNote, lead.notes ?? null].filter(Boolean).join('\n\n') || null
       const driver = await window.api.drivers.create({
         name:              lead.name,
         company:           lead.company ?? null,
@@ -387,9 +389,12 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
         insurance_expiry:  null,
         start_date:        null,
         status:            'Active',
-        notes:             lead.notes ?? null,
+        notes:             combinedNotes,
       })
       if (driver) {
+        // Log the conversion as a note on the new driver record for full audit trail
+        const conversionNote = ['Converted from lead.', sourceNote].filter(Boolean).join(' ')
+        await window.api.notes.create({ entity_type: 'driver', entity_id: driver.id, content: conversionNote, user_id: null })
         const updated = await window.api.leads.update(lead.id, { status: 'Converted' })
         if (updated) onUpdate(updated)
         setConvertedMsg('Driver created. Opening Drivers page…')

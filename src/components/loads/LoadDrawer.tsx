@@ -126,6 +126,30 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               <div>
                 <p className='text-2xs text-gray-600'>Broker</p>
                 <p className='text-sm text-gray-300 mt-0.5'>{broker?.name??'—'}</p>
+                {broker && (
+                  <div className='flex items-center gap-2 mt-1 flex-wrap'>
+                    {broker.payment_terms > 0 && (
+                      <span className='text-2xs text-gray-600'>Net {broker.payment_terms}</span>
+                    )}
+                    {broker.avg_days_pay != null && (
+                      <span className={`text-2xs font-medium ${
+                        broker.avg_days_pay <= 14  ? 'text-green-400' :
+                        broker.avg_days_pay <= 30  ? 'text-yellow-500' : 'text-red-400'
+                      }`}>
+                        avg {Math.round(broker.avg_days_pay)}d to pay
+                      </span>
+                    )}
+                    {broker.flag !== 'None' && (
+                      <span className={`text-2xs px-1.5 py-0 rounded border ${
+                        broker.flag === 'Preferred'   ? 'border-green-700/40 text-green-400' :
+                        broker.flag === 'Slow Pay'    ? 'border-yellow-700/40 text-yellow-500' :
+                        broker.flag === 'Avoid'       ? 'border-red-700/40 text-red-400' :
+                        broker.flag === 'Blacklisted' ? 'border-red-700/40 text-red-400' :
+                                                        'border-surface-500 text-gray-500'
+                      }`}>{broker.flag}</span>
+                    )}
+                  </div>
+                )}
               </div>
               {load.load_id&&<Row label='Broker Ref #' value={load.load_id} mono/>}
             </div>

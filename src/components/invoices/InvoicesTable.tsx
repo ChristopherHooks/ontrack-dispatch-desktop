@@ -34,6 +34,24 @@ function effectiveStatus(inv: Invoice) {
   return inv.status
 }
 
+function daysBetween(from: string, to: string): number {
+  return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000)
+}
+function agingLabel(inv: Invoice, status: string): { text: string; cls: string } | null {
+  const today = new Date().toISOString().split('T')[0]
+  if ((status === 'Sent' || status === 'Overdue') && inv.sent_date) {
+    const d = daysBetween(inv.sent_date, today)
+    if (status === 'Overdue') return { text: `${d - 30}d past due`, cls: 'text-red-400' }
+    return { text: `${d}d since sent`, cls: 'text-yellow-500' }
+  }
+  if (status === 'Paid' && inv.sent_date && inv.paid_date) {
+    const d = daysBetween(inv.sent_date, inv.paid_date)
+    const cls = d <= 7 ? 'text-green-400' : d <= 21 ? 'text-yellow-500' : 'text-gray-500'
+    return { text: `paid in ${d}d`, cls }
+  }
+  return null
+}
+
 export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, onSort, onSelect }: Props) {
   return (
     <div className='flex-1 overflow-auto'>
@@ -60,6 +78,7 @@ export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, on
               : invoices.map(inv => {
                 const driver = drivers.find(d => d.id === inv.driver_id)
                 const status = effectiveStatus(inv)
+                const aging  = agingLabel(inv, status)
                 return (
                   <tr key={inv.id} onClick={() => onSelect(inv)}
                     className='group border-b border-surface-600 hover:bg-surface-700/50 cursor-pointer transition-colors'>
@@ -71,6 +90,7 @@ export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, on
                     <td className='px-3 py-2.5 font-mono text-green-400 font-semibold'>{inv.dispatch_fee != null ? `$${inv.dispatch_fee.toFixed(2)}` : '---'}</td>
                     <td className='px-3 py-2.5'>
                       <span className={`text-2xs px-2 py-0.5 rounded-full border ${INVOICE_STATUS_STYLES[status]}`}>{status}</span>
+                      {aging && <p className={`text-2xs mt-0.5 ${aging.cls}`}>{aging.text}</p>}
                     </td>
                     <td className='px-3 py-2.5 text-gray-400'>{fmt(inv.sent_date)}</td>
                     <td className='px-3 py-2.5 text-gray-400'>{fmt(inv.paid_date)}</td>

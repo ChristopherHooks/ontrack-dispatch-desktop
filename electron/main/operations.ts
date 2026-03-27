@@ -10,13 +10,15 @@ import { getCompletionsForDate } from './repositories/tasksRepo'
 
 export interface OperationsData {
   // Briefing counts
-  fbConvNew:           number   // FB conversations in 'New' stage (awaiting first reply)
-  fbConvActive:        number   // All active conversations (not Converted or Dead)
   driversNeedingLoads: number   // Active drivers with no current load
   loadsInTransit:      number   // Loads with status 'In Transit'
   overdueLeads:        number   // Leads with follow_up_date <= today, not Signed/Rejected
   todaysGroupCount:    number   // Marketing groups eligible to post in today
   outstandingInvoices: number   // Draft, Sent, or Overdue invoices
+  revenueThisMonth:    number   // Sum of dispatch_fee from Paid invoices this calendar month
+
+  // Expiring documents (within 45 days)
+  expiringDocs: Array<{ driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }>
 
   // Revenue Opportunities
   warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
@@ -39,14 +41,6 @@ function parseTimeOfDay(s: string | null | undefined): number {
 }
 
 export function getOperationsData(db: Database.Database): OperationsData {
-
-  const fbConvNew = (db.prepare(
-    "SELECT COUNT(*) AS c FROM fb_conversations WHERE stage = 'New'"
-  ).get() as { c: number }).c
-
-  const fbConvActive = (db.prepare(
-    "SELECT COUNT(*) AS c FROM fb_conversations WHERE stage NOT IN ('Converted', 'Dead')"
-  ).get() as { c: number }).c
 
   const loadsInTransit = (db.prepare(
     "SELECT COUNT(*) AS c FROM loads WHERE status = 'In Transit'"
@@ -76,6 +70,33 @@ export function getOperationsData(db: Database.Database): OperationsData {
   const outstandingInvoices = (db.prepare(
     "SELECT COUNT(*) AS c FROM invoices WHERE status IN ('Draft','Sent','Overdue')"
   ).get() as { c: number }).c
+
+  const revenueThisMonth = ((db.prepare(
+    "SELECT COALESCE(SUM(dispatch_fee),0) AS total FROM invoices" +
+    " WHERE status = 'Paid'" +
+    " AND strftime('%Y-%m', paid_date) = strftime('%Y-%m', 'now')"
+  ).get() as { total: number }).total)
+
+  // Expiring documents: CDL & insurance from drivers table + individual docs, within 45 days
+  type ExpiryRow = { driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }
+  const expiringDocs: ExpiryRow[] = (db.prepare(
+    "SELECT d.id AS driver_id, d.name AS driver_name, 'CDL' AS doc_type, d.cdl_expiry AS expiry_date," +
+    "  CAST((julianday(d.cdl_expiry) - julianday('now')) AS INTEGER) AS days_until" +
+    " FROM drivers d WHERE d.status = 'Active' AND d.cdl_expiry IS NOT NULL" +
+    "  AND d.cdl_expiry <= date('now', '+45 days') AND d.cdl_expiry >= date('now')" +
+    " UNION ALL" +
+    " SELECT d.id, d.name, 'Insurance', d.insurance_expiry," +
+    "  CAST((julianday(d.insurance_expiry) - julianday('now')) AS INTEGER)" +
+    " FROM drivers d WHERE d.status = 'Active' AND d.insurance_expiry IS NOT NULL" +
+    "  AND d.insurance_expiry <= date('now', '+45 days') AND d.insurance_expiry >= date('now')" +
+    " UNION ALL" +
+    " SELECT d.id, d.name, dd.doc_type, dd.expiry_date," +
+    "  CAST((julianday(dd.expiry_date) - julianday('now')) AS INTEGER)" +
+    " FROM driver_documents dd JOIN drivers d ON d.id = dd.driver_id" +
+    " WHERE d.status = 'Active' AND dd.expiry_date IS NOT NULL" +
+    "  AND dd.expiry_date <= date('now', '+45 days') AND dd.expiry_date >= date('now')" +
+    " ORDER BY days_until ASC LIMIT 20"
+  ).all() as ExpiryRow[])
 
   // Warm/hot leads: not closed, high/medium priority or follow-up within 3 days
   const warmLeads = db.prepare(
@@ -116,13 +137,13 @@ export function getOperationsData(db: Database.Database): OperationsData {
   const completedToday = getCompletionsForDate(db, todayIso).map(c => c.task_id)
 
   return {
-    fbConvNew,
-    fbConvActive,
     driversNeedingLoads,
     loadsInTransit,
     overdueLeads,
     todaysGroupCount,
     outstandingInvoices,
+    revenueThisMonth,
+    expiringDocs,
     warmLeads,
     availableDrivers,
     todayTasks,

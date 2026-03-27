@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Zap, AlertTriangle, Truck, Users, MessageSquare, Megaphone,
+  Zap, AlertTriangle, Truck, Users, Megaphone,
   FileText, ChevronRight, ChevronDown, Clock, ArrowRight, X,
   CheckSquare, TrendingUp, Package, Star, Phone, Target, MapPin,
 } from 'lucide-react'
@@ -12,8 +12,7 @@ import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
-  OperationsData, DriverOpportunity, LeadHeat, GroupPerformance, BrokerLane, ProfitRadarData,
-  FbConversation,
+  OperationsData, DriverOpportunity, GroupPerformance, BrokerLane, ProfitRadarData,
 } from '../types/models'
 
 // ---------------------------------------------------------------------------
@@ -37,8 +36,9 @@ interface NextAction {
 }
 
 const EMPTY: OperationsData = {
-  fbConvNew: 0, fbConvActive: 0, driversNeedingLoads: 0, loadsInTransit: 0,
+  driversNeedingLoads: 0, loadsInTransit: 0,
   overdueLeads: 0, todaysGroupCount: 0, outstandingInvoices: 0,
+  revenueThisMonth: 0, expiringDocs: [],
   warmLeads: [], availableDrivers: [], todayTasks: [], completedToday: [],
 }
 
@@ -60,7 +60,9 @@ export function Operations() {
   const [summaryLoading,  setSummaryLoading]  = useState(false)
   const [docModal,        setDocModal]        = useState<string | null>(null)
   const [checkCalls,      setCheckCalls]      = useState<CheckCallRow[]>([])
-  const [fbInbox,         setFbInbox]         = useState<FbConversation[]>([])
+  const [revenueGoal,     setRevenueGoal]     = useState<number | null>(null)
+  const [editingGoal,     setEditingGoal]     = useState(false)
+  const [goalInput,       setGoalInput]       = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -91,11 +93,19 @@ export function Operations() {
       .then((l: Lead[]) => { setLeads(l); setLeadsLoading(false) })
       .catch(() => setLeadsLoading(false))
 
-    // FB inbox — all active conversations; filter to actionable ones in render
-    window.api.fbConv.list()
-      .then((c: FbConversation[]) => setFbInbox(c))
+    window.api.settings.get('revenueGoal')
+      .then((v: unknown) => { if (typeof v === 'number' && v > 0) setRevenueGoal(v) })
       .catch(() => {})
   }, [])
+
+  const saveGoal = async () => {
+    const val = parseFloat(goalInput.replace(/[^0-9.]/g, ''))
+    if (!isNaN(val) && val > 0) {
+      await window.api.settings.set('revenueGoal', val)
+      setRevenueGoal(val)
+    }
+    setEditingGoal(false)
+  }
 
   const todayIso = new Date().toISOString().split('T')[0]
   const today    = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
@@ -132,28 +142,8 @@ export function Operations() {
     })
     .slice(0, 10)
 
-  // ── FB inbox — conversations worth replying to ────────────────────────────
-  const actionableConvs = fbInbox
-    .filter(c => c.stage !== 'Converted' && c.stage !== 'Dead')
-    .filter(c =>
-      c.stage === 'New' ||                                           // needs first reply
-      (c.follow_up_at != null && c.follow_up_at <= todayIso)        // follow-up due/overdue
-    )
-    .sort((a, b) => {
-      // New first, then by follow_up_at ascending
-      if (a.stage === 'New' && b.stage !== 'New') return -1
-      if (b.stage === 'New' && a.stage !== 'New') return  1
-      return (a.follow_up_at ?? '9999') < (b.follow_up_at ?? '9999') ? -1 : 1
-    })
-
   // ── Next actions ───────────────────────────────────────────────────────────
   const nextActions: NextAction[] = [
-    ops.fbConvNew > 0 && {
-      id: 'fb-new', urgent: true,
-      label:  'Reply to new FB inquiries',
-      detail: `${ops.fbConvNew} conversation${ops.fbConvNew !== 1 ? 's' : ''} waiting for a first reply`,
-      icon:   <MessageSquare size={14}/>, route: '/facebook',
-    },
     ops.overdueLeads > 0 && {
       id: 'leads-overdue', urgent: true,
       label:  'Follow up on overdue leads',
@@ -171,12 +161,6 @@ export function Operations() {
       label:  "Post in today's Facebook groups",
       detail: `${ops.todaysGroupCount} group${ops.todaysGroupCount !== 1 ? 's' : ''} eligible for a post today`,
       icon:   <Megaphone size={14}/>, route: '/marketing',
-    },
-    ops.fbConvActive > 0 && ops.fbConvNew === 0 && {
-      id: 'fb-active', urgent: false,
-      label:  'Check active FB conversations',
-      detail: `${ops.fbConvActive} conversation${ops.fbConvActive !== 1 ? 's' : ''} in progress`,
-      icon:   <MessageSquare size={14}/>, route: '/facebook',
     },
     ops.outstandingInvoices > 0 && {
       id: 'invoices', urgent: false,
@@ -206,13 +190,160 @@ export function Operations() {
 
       {/* Briefing strip — 6 KPI cards */}
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
-        <KpiCard label='FB Inquiries'    value={loading ? '—' : String(ops.fbConvNew)}           icon={<MessageSquare size={16}/>} accent={ops.fbConvNew > 0}           sub='new / needing reply'    onClick={() => navigate('/facebook')}  />
+        <KpiCard label='Revenue MTD'     value={loading ? '—' : `$${ops.revenueThisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`} icon={<TrendingUp size={16}/>} accent={false} sub='dispatch fees paid' onClick={() => navigate('/invoices')} />
         <KpiCard label='Loads In Transit' value={loading ? '—' : String(ops.loadsInTransit)}     icon={<Package size={16}/>}       accent={false}                        sub='currently moving'       onClick={() => navigate('/loads')}     />
         <KpiCard label='Drivers Avail.'  value={loading ? '—' : String(ops.driversNeedingLoads)} icon={<Truck size={16}/>}         accent={ops.driversNeedingLoads > 0}  sub='need loads today'       onClick={() => navigate('/drivers')}   />
         <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'     onClick={() => navigate('/leads')}     />
         <KpiCard label='Groups to Post'  value={loading ? '—' : String(ops.todaysGroupCount)}    icon={<Megaphone size={16}/>}     accent={false}                        sub='eligible today'         onClick={() => navigate('/marketing')} />
         <KpiCard label='Open Invoices'   value={loading ? '—' : String(ops.outstandingInvoices)} icon={<FileText size={16}/>}      accent={ops.outstandingInvoices > 0}  sub='draft / sent / overdue' onClick={() => navigate('/invoices')}  />
       </div>
+
+      {/* Revenue Goal Tracker */}
+      {(() => {
+        const now       = new Date()
+        const daysInMo  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+        const dayOfMo   = now.getDate()
+        const daysLeft  = daysInMo - dayOfMo
+        const revenue   = ops.revenueThisMonth
+        const pct       = revenueGoal ? Math.min(1, revenue / revenueGoal) : 0
+        const onPace    = revenueGoal && dayOfMo > 0
+          ? (revenue / dayOfMo) * daysInMo >= revenueGoal
+          : false
+        const remaining = revenueGoal ? Math.max(0, revenueGoal - revenue) : 0
+        const perDay    = daysLeft > 0 ? remaining / daysLeft : remaining
+        const fmt$      = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
+        if (!revenueGoal && !editingGoal) {
+          return (
+            <div className='flex items-center justify-between bg-surface-700 rounded-xl border border-surface-400 px-5 py-3'>
+              <div className='flex items-center gap-2'>
+                <Target size={14} className='text-gray-600' />
+                <span className='text-sm text-gray-500'>No monthly revenue goal set</span>
+              </div>
+              <button
+                onClick={() => { setGoalInput(''); setEditingGoal(true) }}
+                className='text-xs text-orange-500 hover:text-orange-400 font-medium transition-colors'
+              >
+                Set Goal
+              </button>
+            </div>
+          )
+        }
+
+        if (editingGoal) {
+          return (
+            <div className='flex items-center gap-3 bg-surface-700 rounded-xl border border-orange-600/40 px-5 py-3'>
+              <Target size={14} className='text-orange-400 shrink-0' />
+              <span className='text-sm text-gray-300 shrink-0'>Monthly goal:</span>
+              <input
+                autoFocus
+                type='text'
+                value={goalInput}
+                onChange={e => setGoalInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveGoal(); if (e.key === 'Escape') setEditingGoal(false) }}
+                placeholder='e.g. 5000'
+                className='w-32 bg-surface-600 border border-surface-400 rounded-lg px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-orange-500'
+              />
+              <button onClick={saveGoal} className='text-xs px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'>Save</button>
+              <button onClick={() => setEditingGoal(false)} className='text-xs text-gray-500 hover:text-gray-300 transition-colors'>Cancel</button>
+            </div>
+          )
+        }
+
+        return (
+          <div className='bg-surface-700 rounded-xl border border-surface-400 px-5 py-4'>
+            <div className='flex items-center justify-between mb-3'>
+              <div className='flex items-center gap-2'>
+                <Target size={14} className='text-orange-400' />
+                <span className='text-xs font-semibold text-gray-200'>Monthly Revenue Goal</span>
+                {onPace
+                  ? <span className='text-2xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/40'>On pace</span>
+                  : <span className='text-2xs px-2 py-0.5 rounded-full bg-yellow-900/40 text-yellow-500 border border-yellow-800/40'>Behind pace</span>
+                }
+              </div>
+              <button
+                onClick={() => { setGoalInput(String(revenueGoal ?? '')); setEditingGoal(true) }}
+                className='text-2xs text-gray-600 hover:text-gray-400 transition-colors'
+              >
+                Edit
+              </button>
+            </div>
+
+            {/* Progress bar */}
+            <div className='h-2 bg-surface-500 rounded-full overflow-hidden mb-3'>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${onPace ? 'bg-green-500' : 'bg-orange-500'}`}
+                style={{ width: `${pct * 100}%` }}
+              />
+            </div>
+
+            {/* Stats row */}
+            <div className='flex items-center gap-6 flex-wrap'>
+              <div>
+                <p className='text-2xs text-gray-600'>Earned MTD</p>
+                <p className='text-sm font-bold text-gray-200'>{fmt$(revenue)}</p>
+              </div>
+              <div>
+                <p className='text-2xs text-gray-600'>Goal</p>
+                <p className='text-sm font-bold text-gray-200'>{fmt$(revenueGoal!)}</p>
+              </div>
+              <div>
+                <p className='text-2xs text-gray-600'>Remaining</p>
+                <p className={`text-sm font-bold ${remaining > 0 ? 'text-orange-400' : 'text-green-400'}`}>{fmt$(remaining)}</p>
+              </div>
+              <div>
+                <p className='text-2xs text-gray-600'>Days left</p>
+                <p className='text-sm font-bold text-gray-200'>{daysLeft}</p>
+              </div>
+              {daysLeft > 0 && remaining > 0 && (
+                <div>
+                  <p className='text-2xs text-gray-600'>Needed per day</p>
+                  <p className='text-sm font-bold text-yellow-500'>{fmt$(perDay)}</p>
+                </div>
+              )}
+              {remaining === 0 && (
+                <p className='text-sm font-bold text-green-400'>Goal reached.</p>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Document Expiry Warnings — only rendered when something is expiring within 45 days */}
+      {ops.expiringDocs.length > 0 && (
+        <div className='bg-surface-700 rounded-xl border border-red-800/40 shadow-card px-5 py-3'>
+          <div className='flex items-center gap-2 mb-3'>
+            <AlertTriangle size={14} className='text-red-400' />
+            <h2 className='text-xs font-semibold text-gray-200'>Documents Expiring Soon</h2>
+            <button
+              onClick={() => navigate('/drivers')}
+              className='ml-auto text-2xs text-orange-500 hover:text-orange-400 flex items-center gap-1 transition-colors'
+            >
+              Open Drivers <ChevronRight size={10} />
+            </button>
+          </div>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2'>
+            {ops.expiringDocs.map((doc, i) => (
+              <button
+                key={i}
+                onClick={() => navigate('/drivers')}
+                className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-left transition-colors hover:bg-surface-600 ${
+                  doc.days_until <= 14 ? 'border-red-800/50 bg-red-950/20' : 'border-surface-400 bg-surface-600/50'
+                }`}
+              >
+                <AlertTriangle size={11} className={`shrink-0 mt-0.5 ${doc.days_until <= 14 ? 'text-red-400' : 'text-yellow-500'}`} />
+                <div className='min-w-0'>
+                  <p className='text-2xs font-medium text-gray-300 truncate'>{doc.driver_name}</p>
+                  <p className='text-2xs text-gray-500 truncate'>{doc.doc_type}</p>
+                  <p className={`text-2xs font-medium ${doc.days_until <= 14 ? 'text-red-400' : 'text-yellow-500'}`}>
+                    {doc.days_until === 0 ? 'Expires today' : `${doc.days_until}d remaining`}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Upcoming Check Calls — only rendered when active loads have events */}
       {checkCalls.length > 0 && (
@@ -259,97 +390,6 @@ export function Operations() {
         </div>
       )}
 
-      {/* FB Inbox Report — only rendered when there are actionable conversations */}
-      {actionableConvs.length > 0 && (
-        <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card'>
-          <div className='flex items-center gap-2 px-5 py-3 border-b border-surface-500'>
-            <MessageSquare size={14} className='text-orange-500' />
-            <h2 className='text-sm font-semibold text-gray-200'>FB Inbox</h2>
-            <span className='text-2xs text-gray-500'>
-              {actionableConvs.filter(c => c.stage === 'New').length > 0 &&
-                `${actionableConvs.filter(c => c.stage === 'New').length} new `}
-              {actionableConvs.filter(c => c.stage !== 'New').length > 0 &&
-                `${actionableConvs.filter(c => c.stage !== 'New').length} follow-up due`}
-            </span>
-            <button
-              onClick={() => navigate('/facebook')}
-              className='ml-auto text-2xs text-orange-500 hover:text-orange-400 flex items-center gap-1 transition-colors'
-            >
-              Open FB Agents <ChevronRight size={10} />
-            </button>
-          </div>
-          <div className='divide-y divide-surface-600'>
-            {actionableConvs.slice(0, 8).map(conv => {
-              const isNew     = conv.stage === 'New'
-              const isOverdue = conv.follow_up_at != null && conv.follow_up_at < todayIso
-              const stageCls  =
-                conv.stage === 'Call Ready'  ? 'bg-red-600 text-white' :
-                conv.stage === 'Interested'  ? 'bg-orange-600 text-white' :
-                conv.stage === 'Replied'     ? 'bg-blue-600 text-white' :
-                isNew                        ? 'bg-green-600 text-white' :
-                                               'bg-surface-500 text-gray-400'
-              const snippet = conv.last_message
-                ? conv.last_message.slice(0, 90) + (conv.last_message.length > 90 ? '…' : '')
-                : null
-              return (
-                <button
-                  key={conv.id}
-                  onClick={() => navigate('/facebook')}
-                  className='w-full text-left flex items-start gap-3 px-5 py-3 hover:bg-surface-600 transition-colors'
-                >
-                  {/* Stage badge */}
-                  <span className={`text-2xs px-1.5 py-0.5 rounded font-medium shrink-0 mt-0.5 ${stageCls}`}>
-                    {conv.stage}
-                  </span>
-
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center gap-2'>
-                      <span className='text-xs font-semibold text-gray-200 truncate'>{conv.name}</span>
-                      {conv.phone && (
-                        <span className='text-2xs text-gray-600 shrink-0 flex items-center gap-0.5'>
-                          <Phone size={9} />{conv.phone}
-                        </span>
-                      )}
-                    </div>
-                    {snippet && (
-                      <p className='text-2xs text-gray-500 mt-0.5 truncate leading-relaxed'>{snippet}</p>
-                    )}
-                    {!snippet && isNew && (
-                      <p className='text-2xs text-green-400 mt-0.5 italic'>No reply sent yet</p>
-                    )}
-                  </div>
-
-                  {/* Follow-up date or overdue flag */}
-                  <div className='shrink-0 text-right'>
-                    {isNew ? (
-                      <span className='text-2xs bg-green-900/40 text-green-400 border border-green-700/40 px-1.5 py-0.5 rounded'>Reply needed</span>
-                    ) : isOverdue ? (
-                      <span className='text-2xs text-red-400'>Overdue</span>
-                    ) : (
-                      <span className='text-2xs text-orange-400'>Due today</span>
-                    )}
-                    {conv.last_message_at && (
-                      <p className='text-2xs text-gray-700 mt-0.5'>
-                        {new Date(conv.last_message_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </p>
-                    )}
-                  </div>
-
-                  <ChevronRight size={12} className='text-gray-600 shrink-0 mt-1' />
-                </button>
-              )
-            })}
-          </div>
-          {actionableConvs.length > 8 && (
-            <div className='px-5 py-2 border-t border-surface-600'>
-              <button onClick={() => navigate('/facebook')} className='text-2xs text-orange-500 hover:text-orange-400 transition-colors'>
-                +{actionableConvs.length - 8} more — view all in FB Agents
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Profit Radar */}
       <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card'>
         {/* Radar header */}
@@ -374,8 +414,8 @@ export function Operations() {
           </div>
         )}
 
-        {/* Three-column radar grid */}
-        <div className='grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-surface-600'>
+        {/* Two-column radar grid */}
+        <div className='grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-surface-600'>
 
           {/* Column 1: Idle Drivers */}
           <div className='p-4'>
@@ -408,41 +448,7 @@ export function Operations() {
             )}
           </div>
 
-          {/* Column 2: FB Lead Heat */}
-          <div className='p-4'>
-            <div className='flex items-center gap-1.5 mb-3'>
-              <MessageSquare size={12} className='text-orange-500'/>
-              <p className='text-2xs font-semibold text-gray-400 uppercase tracking-wider'>FB Lead Heat</p>
-              <span className='ml-auto text-2xs text-gray-600'>{radar.leadHeat.length} active</span>
-            </div>
-            {radar.leadHeat.length === 0 ? (
-              <p className='text-xs text-gray-700 italic'>No active FB conversations.</p>
-            ) : (
-              <ul className='space-y-2'>
-                {radar.leadHeat.slice(0, 5).map(c => {
-                  const stageCls =
-                    c.stage === 'Call Ready'  ? 'bg-red-900/30 text-red-400 border-red-700/40' :
-                    c.stage === 'Interested'  ? 'bg-orange-900/30 text-orange-400 border-orange-700/40' :
-                    c.stage === 'Replied'     ? 'bg-blue-900/30 text-blue-400 border-blue-700/40' :
-                                               'bg-surface-600 text-gray-500 border-surface-500'
-                  return (
-                    <li key={c.convId} className='flex items-start gap-2 cursor-pointer hover:bg-surface-600 rounded-lg px-2 py-1.5 -mx-2 transition-colors' onClick={() => navigate('/facebook')}>
-                      <span className='text-2xs font-bold text-orange-400 mt-0.5 w-6 text-center shrink-0'>{c.score}</span>
-                      <div className='min-w-0 flex-1'>
-                        <div className='flex items-center gap-1.5'>
-                          <p className='text-xs font-medium text-gray-200 truncate flex-1'>{c.name}</p>
-                          <span className={`text-2xs px-1 py-0 rounded border shrink-0 ${stageCls}`}>{c.stage}</span>
-                        </div>
-                        <p className='text-2xs text-orange-400/80 mt-0.5 truncate'>{c.nextAction}</p>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-
-          {/* Column 3: Top Groups */}
+          {/* Column 2: Top Groups */}
           <div className='p-4'>
             <div className='flex items-center gap-1.5 mb-3'>
               <Megaphone size={12} className='text-orange-500'/>

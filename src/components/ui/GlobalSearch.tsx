@@ -106,6 +106,7 @@ export function GlobalSearch() {
           {!query.trim() && (
             <div className='px-4 py-3 text-xs text-gray-600'>
               <p>Search across leads, drivers, loads, brokers, invoices, tasks, and documents</p>
+              <p className='mt-0.5 text-gray-700'>Tip: press <kbd className='px-1 rounded bg-surface-600 text-gray-500'>?</kbd> to open Help</p>
               <p className='mt-1 text-gray-700'>Tip: press <kbd className='px-1 rounded bg-surface-600 text-gray-500'>Esc</kbd> to close</p>
             </div>
           )}

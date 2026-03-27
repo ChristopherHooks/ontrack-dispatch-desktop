@@ -69,6 +69,7 @@ const CATEGORY_FILTER_OPTIONS: Array<PostCategory | 'All'> = [
   'All',
   'Hotshot', 'Dry Van', 'Reefer', 'Flatbed', 'Step Deck',
   'Driver Recruitment', 'Value Prop', 'Engagement', 'New Authority', 'Trust', 'Freight Market',
+  'Hot Lanes',
 ]
 
 const today = new Date().toISOString().split('T')[0]
@@ -87,12 +88,13 @@ function parseTags(json: string): string[] {
 interface LogFormProps {
   template: PostTemplate | null
   groups: MarketingGroup[]
+  preselected?: string[]
   onSave: (entry: Omit<PostLog, 'id' | 'created_at'>) => void
   onCancel: () => void
 }
 
-function LogForm({ template, groups, onSave, onCancel }: LogFormProps) {
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([])
+function LogForm({ template, groups, preselected = [], onSave, onCancel }: LogFormProps) {
+  const [selectedGroups, setSelectedGroups] = useState<string[]>(preselected)
   const [posted,         setPosted]         = useState(true)
   const [replies,        setReplies]        = useState(0)
   const [leads,          setLeads]          = useState(0)
@@ -635,6 +637,26 @@ export function Marketing() {
                 </span>
               </button>
             ))}
+            {(() => {
+              const stalePosts = postLog.filter(l =>
+                l.replies_count === 0 &&
+                Math.floor((new Date(today).getTime() - new Date(l.used_date).getTime()) / 86400000) >= 3
+              )
+              if (stalePosts.length === 0) return null
+              return (
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className='w-full flex items-center gap-3 py-1.5 group'
+                >
+                  <div className='w-4 h-4 rounded border border-yellow-600/60 flex items-center justify-center shrink-0 text-yellow-500'>
+                    <span className='text-2xs font-bold leading-none'>{stalePosts.length}</span>
+                  </div>
+                  <span className='text-xs text-yellow-500 group-hover:text-yellow-400 transition-colors text-left'>
+                    Log results for {stalePosts.length} post{stalePosts.length !== 1 ? 's' : ''} from 3+ days ago
+                  </span>
+                </button>
+              )
+            })()}
           </div>
         )}
       </div>
@@ -764,6 +786,7 @@ export function Marketing() {
             <LogForm
               template={template}
               groups={groups}
+              preselected={groups.filter(g => g.last_posted_at === today).map(g => g.name)}
               onSave={handleLogSave}
               onCancel={() => { setShowLogForm(false); setOffset(o => o + 1); setUseVariation(false); setVarSeed(0) }}
             />
@@ -785,7 +808,15 @@ export function Marketing() {
               {suggestedGroups.map(g => (
                 <div key={g.id} className='flex items-center justify-between gap-2 py-1'>
                   <div className='min-w-0'>
-                    <p className='text-xs text-gray-300 truncate'>{g.name}</p>
+                    {g.url ? (
+                      <button
+                        onClick={() => window.api.shell.openExternal(g.url!)}
+                        className='text-xs text-gray-300 hover:text-orange-400 truncate block max-w-full text-left transition-colors'
+                        title={g.url}
+                      >{g.name}</button>
+                    ) : (
+                      <p className='text-xs text-gray-300 truncate'>{g.name}</p>
+                    )}
                     <p className='text-2xs text-gray-600'>{fmtDaysSince(g.last_posted_at, today)}</p>
                   </div>
                   <div className='flex items-center gap-1 shrink-0'>

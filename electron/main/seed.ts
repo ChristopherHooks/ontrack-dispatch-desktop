@@ -815,7 +815,7 @@ export function reseedDocuments(db: Database.Database): void {
   )
 
   // ── 101 ── Load Booking SOP ────────────────────────────────────────────────
-  ups.run(101, 'Load Booking SOP', 'SOP', [
+  ups.run(101, 'Load Booking SOP', 'Dispatch', [
     '# Load Booking SOP',
     '',
     '## What Is a Load?',
@@ -884,7 +884,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 102 ── Driver Onboarding Checklist ────────────────────────────────────
-  ups.run(102, 'Driver Onboarding Checklist', 'SOP', [
+  ups.run(102, 'Driver Onboarding Checklist', 'Drivers', [
     '# Driver Onboarding Checklist',
     '',
     '## Why This Matters',
@@ -962,7 +962,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 103 ── Invoice Submission Process ─────────────────────────────────────
-  ups.run(103, 'Invoice Submission Process', 'SOP', [
+  ups.run(103, 'Invoice Submission Process', 'Finance', [
     '# Invoice Submission Process',
     '',
     '## What Is a Dispatch Invoice?',
@@ -1028,7 +1028,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 104 ── Broker Packet Requirements ─────────────────────────────────────
-  ups.run(104, 'Broker Packet Requirements', 'Reference', [
+  ups.run(104, 'Broker Packet Requirements', 'Brokers', [
     '# Broker Packet Requirements',
     '',
     '## What Is a Broker Packet?',
@@ -1175,7 +1175,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 106 ── Facebook Driver Search SOP ─────────────────────────────────────
-  ups.run(106, 'Facebook Driver Search SOP', 'SOP', [
+  ups.run(106, 'Facebook Driver Search SOP', 'Marketing', [
     '# Facebook Driver Search SOP',
     '',
     '## Overview',
@@ -1272,7 +1272,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 107 ── Warm Lead Follow-Up Script ─────────────────────────────────────
-  ups.run(107, 'Warm Lead Follow-Up Script', 'SOP', [
+  ups.run(107, 'Warm Lead Follow-Up Script', 'Sales', [
     '# Warm Lead Follow-Up Script',
     '',
     '## What Is a Warm Lead?',
@@ -1339,7 +1339,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 108 ── FMCSA Lead Review Checklist ────────────────────────────────────
-  ups.run(108, 'FMCSA Lead Review Checklist', 'SOP', [
+  ups.run(108, 'FMCSA Lead Review Checklist', 'Sales', [
     '# FMCSA Lead Review Checklist',
     '',
     '## Overview',
@@ -1626,7 +1626,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 112 ── Rate Negotiation Guide ─────────────────────────────────────────
-  ups.run(112, 'Rate Negotiation Guide', 'SOP', [
+  ups.run(112, 'Rate Negotiation Guide', 'Brokers', [
     '# Rate Negotiation Guide',
     '',
     '## Why Negotiation Matters',
@@ -1700,7 +1700,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 113 ── Cold Call Script ────────────────────────────────────────────────
-  ups.run(113, 'Cold Call Script — First Driver Contact', 'SOP', [
+  ups.run(113, 'Cold Call Script — First Driver Contact', 'Sales', [
     '# Cold Call Script -- First Driver Contact',
     '',
     '## Overview',
@@ -1778,7 +1778,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 114 ── Daily Dispatch Routine ─────────────────────────────────────────
-  ups.run(114, 'Daily Dispatch Routine', 'SOP', [
+  ups.run(114, 'Daily Dispatch Routine', 'Dispatch', [
     '# Daily Dispatch Routine',
     '',
     '## Overview',
@@ -1877,7 +1877,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 115 ── Breakdown and Emergency Procedures ──────────────────────────────
-  ups.run(115, 'Breakdown and Emergency Procedures', 'SOP', [
+  ups.run(115, 'Breakdown and Emergency Procedures', 'Dispatch', [
     '# Breakdown and Emergency Procedures',
     '',
     '## Overview',
@@ -1952,7 +1952,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 116 ── How to Vet a New Broker ────────────────────────────────────────
-  ups.run(116, 'How to Vet a New Broker', 'SOP', [
+  ups.run(116, 'How to Vet a New Broker', 'Brokers', [
     '# How to Vet a New Broker',
     '',
     '## Why This Matters',
@@ -2029,7 +2029,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 117 ── Explaining Your Dispatch Fee ───────────────────────────────────
-  ups.run(117, 'Explaining Your Dispatch Fee — Driver Conversations', 'Training', [
+  ups.run(117, 'Explaining Your Dispatch Fee — Driver Conversations', 'Drivers', [
     '# Explaining Your Dispatch Fee -- Driver Conversations',
     '',
     '## Overview',
@@ -2105,7 +2105,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 118 ── Reading a Rate Confirmation ────────────────────────────────────
-  ups.run(118, 'Reading a Rate Confirmation', 'Training', [
+  ups.run(118, 'Reading a Rate Confirmation', 'Dispatch', [
     '# Reading a Rate Confirmation',
     '',
     '## What Is a Rate Confirmation?',
@@ -2179,7 +2179,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 119 ── Driver Communication Standards ─────────────────────────────────
-  ups.run(119, 'Driver Communication Standards', 'Policy', [
+  ups.run(119, 'Driver Communication Standards', 'Drivers', [
     '# Driver Communication Standards',
     '',
     '## Why This Matters',
@@ -2258,7 +2258,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 120 ── New Driver Pitch ────────────────────────────────────────────────
-  ups.run(120, 'New Driver Pitch - Converting Leads to Signed', 'SOP', [
+  ups.run(120, 'New Driver Pitch - Converting Leads to Signed', 'Sales', [
     '# New Driver Pitch - Converting Leads to Signed',
     '',
     '## Overview',
@@ -2409,7 +2409,7 @@ export function reseedDocuments(db: Database.Database): void {
 
   // ── 122 ── Signed Driver Onboarding Workflow ───────────────────────────────
   // ── 123 ── First-Run Setup Guide ───────────────────────────────────────────
-  ups.run(123, 'First-Run Setup Guide', 'SOP', [
+  ups.run(123, 'First-Run Setup Guide', 'Reference', [
     '# First-Run Setup Guide',
     '',
     'Complete these steps before entering real data or running imports.',
@@ -2453,7 +2453,7 @@ export function reseedDocuments(db: Database.Database): void {
     '- At least one Facebook group added (Marketing > Groups > Add Group)',
   ].join('\n'), null, null, null)
 
-  ups.run(122, 'Signed Driver Onboarding Workflow', 'SOP', [
+  ups.run(122, 'Signed Driver Onboarding Workflow', 'Drivers', [
     '# Signed Driver Onboarding Workflow',
     '',
     '## Purpose',
@@ -2677,7 +2677,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 127 ── New Authority Driver Expectations ──────────────────────────────
-  ups.run(127, 'New Authority Driver Expectations', 'New Authority', [
+  ups.run(127, 'New Authority Driver Expectations', 'Drivers', [
     '# New Authority Driver Expectations',
     '',
     '## Purpose',
@@ -2730,7 +2730,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 128 ── Building Broker Relationships for New Authorities ───────────────
-  ups.run(128, 'Building Broker Relationships for New Authorities', 'New Authority', [
+  ups.run(128, 'Building Broker Relationships for New Authorities', 'Brokers', [
     '# Building Broker Relationships for New Authorities',
     '',
     '## Purpose',
@@ -2793,7 +2793,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 129 ── New Authority Daily Load Workflow ───────────────────────────────
-  ups.run(129, 'New Authority Daily Load Workflow', 'New Authority', [
+  ups.run(129, 'New Authority Daily Load Workflow', 'Dispatch', [
     '# New Authority Daily Load Workflow',
     '',
     '## Purpose',
@@ -2887,7 +2887,7 @@ export function reseedDocuments(db: Database.Database): void {
   ].join('\n'), null, null, null)
 
   // ── 130 ── Facebook Group Post Protocol ───────────────────────────────────
-  ups.run(130, 'Facebook Group Post Protocol', 'SOP', [
+  ups.run(130, 'Facebook Group Post Protocol', 'Marketing', [
     '# Facebook Group Post Protocol',
     '',
     '## Purpose',

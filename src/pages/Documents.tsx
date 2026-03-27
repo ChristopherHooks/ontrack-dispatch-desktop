@@ -6,13 +6,20 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { renderMd } from '../lib/renderMd'
 
 const CATEGORY_COLORS: Record<string, string> = {
-  SOP:             'bg-blue-600 text-white border-blue-500',
-  Policy:          'bg-purple-600 text-white border-purple-500',
-  Training:        'bg-green-600 text-white border-green-500',
+  Dispatch:        'bg-blue-600 text-white border-blue-500',
+  Drivers:         'bg-green-600 text-white border-green-500',
+  Sales:           'bg-orange-600 text-white border-orange-500',
+  Marketing:       'bg-purple-600 text-white border-purple-500',
+  Brokers:         'bg-teal-600 text-white border-teal-500',
+  Finance:         'bg-emerald-600 text-white border-emerald-500',
   Template:        'bg-amber-500 text-white border-amber-400',
-  Reference:       'bg-teal-600 text-white border-teal-500',
-  'New Authority': 'bg-orange-600 text-white border-orange-500',
+  Reference:       'bg-sky-600 text-white border-sky-500',
+  Policy:          'bg-red-700 text-white border-red-600',
   Other:           'bg-surface-500 text-gray-300 border-surface-400',
+  // Legacy labels — kept so old user-created docs render correctly
+  SOP:             'bg-blue-600 text-white border-blue-500',
+  Training:        'bg-green-600 text-white border-green-500',
+  'New Authority': 'bg-orange-600 text-white border-orange-500',
 }
 
 
@@ -74,7 +81,7 @@ export function Documents() {
   }
 
   function startCreate() {
-    setDraft({ title: '', category: 'SOP', content: '' })
+    setDraft({ title: '', category: 'Dispatch', content: '' })
     setCreating(true); setEditing(false); setSelected(null)
   }
   function startEdit(doc: SopDocument) {
@@ -139,9 +146,9 @@ export function Documents() {
               <input type='text' placeholder='Document title...' value={draft.title ?? ''}
                 onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
                 className='flex-1 bg-surface-600 border border-surface-400 rounded-lg px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-orange-600/60' />
-              <select value={draft.category ?? 'SOP'} onChange={e => setDraft(d => ({ ...d, category: e.target.value as DocCategory }))}
+              <select value={draft.category ?? 'Dispatch'} onChange={e => setDraft(d => ({ ...d, category: e.target.value as DocCategory }))}
                 className='bg-surface-600 border border-surface-400 rounded-lg px-2 py-1.5 text-sm text-gray-300 outline-none'>
-                {(['SOP','Policy','Training','Template','Reference','New Authority','Other'] as DocCategory[]).map(c => (
+                {(['Dispatch','Drivers','Sales','Marketing','Brokers','Finance','Template','Reference','Policy','Other'] as DocCategory[]).map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

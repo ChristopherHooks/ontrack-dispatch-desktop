@@ -12,10 +12,14 @@ interface SettingsState {
   ownerEmail: string
   ownerPhone: string
   defaultDispatchPct: number
+  onboardingComplete: boolean
+  wizardMinimized: boolean   // not persisted — survives component remounts, resets on app restart
   // Actions
   setTheme: (theme: Theme) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
+  setOnboardingComplete: () => Promise<void>
+  setWizardMinimized: (v: boolean) => void
   loadFromStore: () => Promise<void>
   persistSetting: (key: string, value: unknown) => Promise<void>
 }
@@ -29,6 +33,10 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
   ownerEmail: '',
   ownerPhone: '',
   defaultDispatchPct: 7,
+  onboardingComplete: false,
+  wizardMinimized: false,
+
+  setWizardMinimized: (v) => set({ wizardMinimized: v }),
 
   setTheme: (theme) => {
     set({ theme })
@@ -46,6 +54,11 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
     get().setSidebarCollapsed(next)
   },
 
+  setOnboardingComplete: async () => {
+    set({ onboardingComplete: true })
+    await get().persistSetting('onboardingComplete', true)
+  },
+
   loadFromStore: async () => {
     const all = await window.api.settings.getAll() as Record<string, unknown>
     const theme = (all.theme as Theme) ?? 'dark'
@@ -58,6 +71,7 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
       ownerEmail:         typeof all.ownerEmail   === 'string' ? all.ownerEmail   : '',
       ownerPhone:         typeof all.ownerPhone   === 'string' ? all.ownerPhone   : '',
       defaultDispatchPct: typeof all.defaultDispatchPct === 'number' ? all.defaultDispatchPct : 7,
+      onboardingComplete: Boolean(all.onboardingComplete),
     })
     applyTheme(theme)
   },

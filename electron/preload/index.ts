@@ -228,45 +228,6 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
-  // -- FB Conversation Agent (Agent 1) --
-  fbConv: {
-    list:             (stage?: string)                    => ipcRenderer.invoke('fbConv:list', stage),
-    get:              (id: number)                        => ipcRenderer.invoke('fbConv:get', id),
-    create:           (dto: unknown)                      => ipcRenderer.invoke('fbConv:create', dto),
-    update:           (id: number, dto: unknown)          => ipcRenderer.invoke('fbConv:update', id, dto),
-    delete:           (id: number)                        => ipcRenderer.invoke('fbConv:delete', id),
-    exists:           (name: string, phone: string | null) => ipcRenderer.invoke('fbConv:exists', name, phone),
-    generateReply:    (payload: unknown)                  => ipcRenderer.invoke('fb:conv:generateReply', payload),
-    generateFollowUp: (payload: unknown)                  => ipcRenderer.invoke('fb:conv:generateFollowUp', payload),
-    suggestQuestion:  (payload: unknown)                  => ipcRenderer.invoke('fb:conv:suggestQuestion', payload),
-    handoffSummary:   (payload: unknown)                  => ipcRenderer.invoke('fb:conv:handoffSummary', payload),
-  },
-
-  // -- FB Lead Hunter Agent (Agent 2) --
-  fbHunter: {
-    list:         (status?: string)                => ipcRenderer.invoke('fbHunter:list', status),
-    create:       (dto: unknown)                   => ipcRenderer.invoke('fbHunter:create', dto),
-    update:       (id: number, dto: unknown)       => ipcRenderer.invoke('fbHunter:update', id, dto),
-    delete:       (id: number)                     => ipcRenderer.invoke('fbHunter:delete', id),
-    exists:       (rawText: string)                => ipcRenderer.invoke('fbHunter:exists', rawText),
-    classify:     (payload: unknown)               => ipcRenderer.invoke('fb:hunter:classify', payload),
-    draftComment: (payload: unknown)               => ipcRenderer.invoke('fb:hunter:draftComment', payload),
-    draftDm:      (payload: unknown)               => ipcRenderer.invoke('fb:hunter:draftDm', payload),
-  },
-
-  // -- FB Content Agent (Agent 3) --
-  fbContent: {
-    list:             (status?: string)                => ipcRenderer.invoke('fbContent:list', status),
-    create:           (dto: unknown)                   => ipcRenderer.invoke('fbContent:create', dto),
-    update:           (id: number, dto: unknown)       => ipcRenderer.invoke('fbContent:update', id, dto),
-    delete:           (id: number)                     => ipcRenderer.invoke('fbContent:delete', id),
-    suggestCategory:  ()                               => ipcRenderer.invoke('fbContent:suggestCat'),
-    recentCategories: (days?: number)                  => ipcRenderer.invoke('fbContent:recentCats', days),
-    generatePost:     (payload: unknown)               => ipcRenderer.invoke('fb:content:generatePost', payload),
-    generateVariation:(payload: unknown)               => ipcRenderer.invoke('fb:content:generateVariation', payload),
-    suggestReplies:   (payload: unknown)               => ipcRenderer.invoke('fb:content:suggestReplies', payload),
-  },
-
   // -- Shell utilities --
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),

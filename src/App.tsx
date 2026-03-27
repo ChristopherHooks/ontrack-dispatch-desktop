@@ -58,7 +58,6 @@ import { Loads }      from './pages/Loads'
 import { Brokers }    from './pages/Brokers'
 import { Invoices }   from './pages/Invoices'
 import { Marketing }       from './pages/Marketing'
-import { FacebookAgents } from './pages/FacebookAgents'
 import { Tasks }      from './pages/Tasks'
 import { Documents }  from './pages/Documents'
 import { Analytics }  from './pages/Analytics'
@@ -92,7 +91,6 @@ export function App() {
           <Route path='brokers'    element={<Brokers />} />
           <Route path='invoices'   element={<Invoices />} />
           <Route path='marketing'  element={<Marketing />} />
-          <Route path='facebook'   element={<FacebookAgents />} />
           <Route path='tasks'      element={<Tasks />} />
           <Route path='documents'  element={<Documents />} />
           <Route path='analytics'  element={<Analytics />} />

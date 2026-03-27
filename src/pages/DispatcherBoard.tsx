@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { BoardRow, AvailableLoad, AssignLoadResult, LoadRecommendation } from '../types/models'
-import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star } from 'lucide-react'
+import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star, Phone } from 'lucide-react'
 
 type BoardGroup = 'Needs Load' | 'In Transit' | 'Picked Up' | 'Booked' | 'Available Soon' | 'Inactive'
 
@@ -84,6 +84,12 @@ export function DispatcherBoard() {
   }
 
   useEffect(() => { loadBoard(); loadAvailable() }, [])
+
+  const handleLogCall = async (loadId: number, driverName: string) => {
+    const now = new Date()
+    const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    await window.api.timeline.addEvent(loadId, 'check_call', `Check call — ${driverName}`, null, `Logged from Dispatcher Board at ${timeStr}`)
+  }
 
   const trailerOpts = useMemo(() => {
     const s = new Set(rows.map(r => r.trailer_type).filter((t): t is string => t != null))
@@ -269,7 +275,7 @@ export function DispatcherBoard() {
                   <h2 className={`text-xs font-semibold uppercase tracking-wide ${meta.color}`}>{g}</h2>
                   <span className='text-xs text-gray-600'>({groupRows.length})</span>
                 </div>
-                <BoardTable rows={groupRows} group={g} selectedDriverId={selectedDriverId} onSelectDriver={selectDriver} />
+                <BoardTable rows={groupRows} group={g} selectedDriverId={selectedDriverId} onSelectDriver={selectDriver} onLogCall={handleLogCall} />
               </section>
             )
           })}
@@ -426,9 +432,10 @@ interface BoardTableProps {
   group: BoardGroup
   selectedDriverId: number | null
   onSelectDriver: (id: number, name: string) => void
+  onLogCall: (loadId: number, driverName: string) => void
 }
 
-function BoardTable({ rows, group, selectedDriverId, onSelectDriver }: BoardTableProps) {
+function BoardTable({ rows, group, selectedDriverId, onSelectDriver, onLogCall }: BoardTableProps) {
   return (
     <div className='rounded-xl border border-surface-400 overflow-hidden'>
       <table className='w-full text-xs'>
@@ -445,6 +452,7 @@ function BoardTable({ rows, group, selectedDriverId, onSelectDriver }: BoardTabl
             <th className='px-3 py-2 font-medium w-20'>RPM</th>
             <th className='px-3 py-2 font-medium w-28'>Broker</th>
             <th className='px-3 py-2 font-medium'>Notes</th>
+            <th className='px-3 py-2 font-medium w-20' />
           </tr>
         </thead>
         <tbody>
@@ -455,6 +463,7 @@ function BoardTable({ rows, group, selectedDriverId, onSelectDriver }: BoardTabl
               group={group}
               isSelected={selectedDriverId === row.driver_id}
               onSelectDriver={onSelectDriver}
+              onLogCall={onLogCall}
             />
           ))}
         </tbody>
@@ -469,9 +478,11 @@ interface DriverBoardRowProps {
   group: BoardGroup
   isSelected: boolean
   onSelectDriver: (id: number, name: string) => void
+  onLogCall: (loadId: number, driverName: string) => void
 }
 
-function DriverBoardRow({ row, group, isSelected, onSelectDriver }: DriverBoardRowProps) {
+function DriverBoardRow({ row, group, isSelected, onSelectDriver, onLogCall }: DriverBoardRowProps) {
+  const [callLogged, setCallLogged] = useState(false)
   const meta = GROUP_META[group]
   const { setNodeRef, isOver } = useDroppable({
     id: `driver-${row.driver_id}`,
@@ -556,6 +567,23 @@ function DriverBoardRow({ row, group, isSelected, onSelectDriver }: DriverBoardR
       </td>
       <td className='px-3 py-2.5 text-gray-600 truncate max-w-[12rem]'>
         {row.load_notes ?? row.driver_notes ?? <span className='text-gray-700'>&#8212;</span>}
+      </td>
+      <td className='px-3 py-2.5' onClick={e => e.stopPropagation()}>
+        {row.load_id_pk != null && (
+          callLogged
+            ? <span className='text-2xs text-green-400 font-medium'>Logged</span>
+            : <button
+                onClick={() => {
+                  onLogCall(row.load_id_pk!, row.driver_name)
+                  setCallLogged(true)
+                  setTimeout(() => setCallLogged(false), 3000)
+                }}
+                className='flex items-center gap-1 px-2 py-1 text-2xs text-gray-500 hover:text-white hover:bg-orange-600 rounded transition-colors border border-surface-500 hover:border-orange-600'
+                title='Log check call'
+              >
+                <Phone size={10} /> Call
+              </button>
+        )}
       </td>
     </tr>
   )

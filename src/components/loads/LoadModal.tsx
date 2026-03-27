@@ -1,7 +1,54 @@
 import { useState, useEffect } from 'react'
-import { X, ArrowRight, Truck, Calendar, DollarSign, FileText, Tag, Hash, MapPin } from 'lucide-react'
+import { X, ArrowRight, Truck, Calendar, DollarSign, FileText, Tag, Hash, MapPin, Info } from 'lucide-react'
 import type { Load, CreateLoadDto, LoadStatus, Driver, Broker } from '../../types/models'
 import { LOAD_STATUSES } from './constants'
+import { Term } from '../ui/Term'
+
+// ---------------------------------------------------------------------------
+// Rate benchmarks — static reference, general U.S. spot market averages.
+// These are ballpark figures for a beginner; actual rates vary by corridor
+// and cycle. Source: general DAT / industry knowledge as of 2025.
+// ---------------------------------------------------------------------------
+interface Benchmark { label: string; low: number; avg: number; good: number; unit: string }
+const BENCHMARKS: Array<{ match: string[]; data: Benchmark }> = [
+  {
+    match: ['dry van', 'dryvan', 'van', '53'],
+    data:  { label: 'Dry Van', low: 1.80, avg: 2.30, good: 2.80, unit: '/mi' },
+  },
+  {
+    match: ['reefer', 'refrigerated', 'temp', 'frozen'],
+    data:  { label: 'Reefer', low: 2.20, avg: 2.80, good: 3.40, unit: '/mi' },
+  },
+  {
+    match: ['flatbed', 'flat bed', 'flat'],
+    data:  { label: 'Flatbed', low: 2.20, avg: 2.80, good: 3.50, unit: '/mi' },
+  },
+  {
+    match: ['step deck', 'stepdeck', 'step'],
+    data:  { label: 'Step Deck', low: 2.40, avg: 3.00, good: 3.80, unit: '/mi' },
+  },
+  {
+    match: ['hotshot', 'hot shot'],
+    data:  { label: 'Hotshot', low: 1.50, avg: 2.20, good: 3.00, unit: '/mi' },
+  },
+  {
+    match: ['box truck', 'box', '26 ft', '26ft', '26-ft'],
+    data:  { label: 'Box Truck', low: 1.40, avg: 1.90, good: 2.50, unit: '/mi' },
+  },
+  {
+    match: ['cargo van', 'sprinter', 'cargo'],
+    data:  { label: 'Cargo Van', low: 1.20, avg: 1.60, good: 2.10, unit: '/mi' },
+  },
+]
+
+function getBenchmark(trailerType: string | null): Benchmark | null {
+  if (!trailerType) return null
+  const q = trailerType.toLowerCase()
+  for (const { match, data } of BENCHMARKS) {
+    if (match.some(m => q.includes(m))) return data
+  }
+  return null
+}
 
 interface Props { load: Load | null; onSave: (l: Load) => void; onClose: () => void }
 
@@ -13,7 +60,7 @@ const BLANK: CreateLoadDto = {
 }
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
 
-function Field({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Field({ label, icon, children }: { label: React.ReactNode; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
       <label className='flex items-center gap-1.5 text-2xs text-gray-500 mb-1.5 font-medium uppercase tracking-wider'>{icon}{label}</label>
@@ -67,6 +114,7 @@ export function LoadModal({ load, onSave, onClose }: Props) {
               <Field label='Load / Ref #' icon={<Hash size={10} />}>
                 <input className={inp} value={form.load_id??''} onChange={e=>str('load_id',e.target.value)} placeholder='Broker ref number' />
               </Field>
+
               <Field label='Status' icon={<Tag size={10} />}>
                 <select className={inp} value={form.status} onChange={e=>setForm(p=>({...p,status:e.target.value as LoadStatus}))}>
                   {LOAD_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
@@ -112,13 +160,14 @@ export function LoadModal({ load, onSave, onClose }: Props) {
                   <input className={inp} type='number' min='0' step='0.01' value={form.rate??''} onChange={e=>num('rate',e.target.value)} placeholder='e.g. 2100' />
                   {rpm != null && (
                     <p className='text-2xs mt-1'>
-                      <span className='text-gray-600'>RPM: </span>
+                      <Term word='RPM' def='Rate Per Mile — total load rate divided by total miles. The key metric for comparing loads across different distances.'><span className='text-gray-600'>RPM</span></Term>
+                      <span className='text-gray-600'>: </span>
                       <span className={rpm >= (form.driver_id ? 2 : 0) ? 'text-green-400 font-mono font-semibold' : 'text-gray-400 font-mono'}>${rpm.toFixed(2)}/mi</span>
                     </p>
                   )}
                 </div>
               </Field>
-              <Field label='Dispatch %' icon={<DollarSign size={10} />}>
+              <Field label={<Term word='Dispatch %' def='Your fee — a percentage of the gross load rate. At 7% on a $2,100 load, you collect $147. Applied to the broker-paid rate shown on the rate confirmation.'>Dispatch %</Term>} icon={<DollarSign size={10} />}>
                 <input className={inp} type='number' step='0.1' min='0' max='100' value={form.dispatch_pct??7} onChange={e=>setForm(p=>({...p,dispatch_pct:parseFloat(e.target.value)||7}))} />
               </Field>
               <Field label='Commodity' icon={<Tag size={10} />}>
@@ -132,6 +181,48 @@ export function LoadModal({ load, onSave, onClose }: Props) {
                   <textarea className={`${inp} h-16 py-2 resize-none`} value={form.notes??''} onChange={e=>str('notes',e.target.value)} placeholder='Internal notes...' />
                 </Field>
               </div>
+
+              {/* Rate context — appears when a known trailer type is entered */}
+              {(() => {
+                const bm = getBenchmark(form.trailer_type)
+                if (!bm) return null
+                const rpmVal = rpm
+                let badge: { label: string; cls: string } | null = null
+                if (rpmVal != null) {
+                  if (rpmVal >= bm.good)       badge = { label: 'Good rate',    cls: 'text-green-400' }
+                  else if (rpmVal >= bm.avg)   badge = { label: 'Average rate', cls: 'text-yellow-400' }
+                  else if (rpmVal >= bm.low)   badge = { label: 'Below average', cls: 'text-orange-400' }
+                  else                         badge = { label: 'Low — push back', cls: 'text-red-400' }
+                }
+                return (
+                  <div className='col-span-2 bg-surface-700 rounded-xl border border-surface-500 px-4 py-3'>
+                    <div className='flex items-center gap-1.5 mb-2'>
+                      <Info size={11} className='text-gray-500' />
+                      <span className='text-2xs font-semibold text-gray-500 uppercase tracking-wide'>{bm.label} — Rate Reference</span>
+                      {badge && <span className={`ml-auto text-2xs font-bold ${badge.cls}`}>{badge.label}</span>}
+                    </div>
+                    <div className='flex items-center gap-4'>
+                      {[
+                        { tier: 'Low',  val: bm.low,  cls: 'text-red-400' },
+                        { tier: 'Avg',  val: bm.avg,  cls: 'text-yellow-400' },
+                        { tier: 'Good', val: bm.good, cls: 'text-green-400' },
+                      ].map(({ tier, val, cls }) => (
+                        <div key={tier}>
+                          <p className='text-2xs text-gray-600'>{tier}</p>
+                          <p className={`text-xs font-mono font-semibold ${cls}`}>${val.toFixed(2)}{bm.unit}</p>
+                        </div>
+                      ))}
+                      {rpmVal != null && (
+                        <div className='ml-auto'>
+                          <p className='text-2xs text-gray-600'>Your RPM</p>
+                          <p className='text-xs font-mono font-bold text-gray-200'>${rpmVal.toFixed(2)}{bm.unit}</p>
+                        </div>
+                      )}
+                    </div>
+                    <p className='text-2xs text-gray-600 mt-2'>General U.S. spot averages. Actual rates vary by lane and cycle — verify against DAT before calling.</p>
+                  </div>
+                )
+              })()}
             </div>
             {error && <p className='mt-3 text-xs text-red-400'>{error}</p>}
           </div>

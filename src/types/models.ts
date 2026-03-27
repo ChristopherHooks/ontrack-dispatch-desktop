@@ -253,7 +253,7 @@ export interface AuditLogEntry {
 }
 
 // -- SOP / Markdown Documents --
-export type DocCategory = 'SOP' | 'Policy' | 'Training' | 'Template' | 'Reference' | 'New Authority' | 'Other'
+export type DocCategory = 'Dispatch' | 'Drivers' | 'Sales' | 'Marketing' | 'Brokers' | 'Finance' | 'Template' | 'Reference' | 'Policy' | 'Other' | 'SOP' | 'Training' | 'New Authority'
 
 export interface SopDocument {
   id: number
@@ -560,9 +560,9 @@ export interface ScannerRecommendation {
 
 // -- Operations Dashboard --
 export interface OperationsData {
-  fbConvNew:           number
-  fbConvActive:        number
   driversNeedingLoads: number
+  revenueThisMonth:    number
+  expiringDocs: Array<{ driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }>
   loadsInTransit:      number
   overdueLeads:        number
   todaysGroupCount:    number
