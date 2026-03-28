@@ -43,7 +43,7 @@ function Row({ label, value, mono=false }: { label:string; value:string; mono?:b
   return <div><p className='text-2xs text-gray-600'>{label}</p><p className={`text-sm mt-0.5 ${mono?'font-mono':''} ${value==='—'?'text-gray-700':'text-gray-300'}`}>{value}</p></div>
 }
 function Sec({ title }: { title:string }) {
-  return <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>{title}</p>
+  return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
 }
 export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete, onUpdate }: Props) {
   const [docs,setDocs]         = useState<DriverDocument[]>([])
@@ -273,7 +273,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                           </span>
                         )}
                       </div>
-                    ) : <span className='text-sm text-gray-700'>—</span>}
+                    ) : <span className='text-sm text-gray-400'>—</span>}
                   </div>
                 )
               })()}
@@ -288,6 +288,12 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 <p className='text-2xs text-gray-600'>Insurance Expiry</p>
                 <p className={`text-sm mt-0.5 flex items-center gap-1 ${isExp(driver.insurance_expiry)?'text-orange-400':'text-gray-300'}`}>
                   {isExp(driver.insurance_expiry)&&<AlertTriangle size={11}/>}{fmt(driver.insurance_expiry)}
+                </p>
+              </div>
+              <div>
+                <p className='text-2xs text-gray-600'>Medical Card Expiry</p>
+                <p className={`text-sm mt-0.5 flex items-center gap-1 ${isExp(driver.medical_card_expiry)?'text-orange-400':'text-gray-300'}`}>
+                  {isExp(driver.medical_card_expiry)&&<AlertTriangle size={11}/>}{fmt(driver.medical_card_expiry??null)}
                 </p>
               </div>
             </div>

@@ -10,12 +10,13 @@ import { getCompletionsForDate } from './repositories/tasksRepo'
 
 export interface OperationsData {
   // Briefing counts
-  driversNeedingLoads: number   // Active drivers with no current load
-  loadsInTransit:      number   // Loads with status 'In Transit'
-  overdueLeads:        number   // Leads with follow_up_date <= today, not Signed/Rejected
-  todaysGroupCount:    number   // Marketing groups eligible to post in today
-  outstandingInvoices: number   // Draft, Sent, or Overdue invoices
-  revenueThisMonth:    number   // Sum of dispatch_fee from Paid invoices this calendar month
+  driversNeedingLoads:   number   // Active drivers with no current load
+  loadsInTransit:        number   // Loads with status 'In Transit'
+  overdueLeads:          number   // Leads with follow_up_date <= today, not Signed/Rejected
+  todaysGroupCount:      number   // Marketing groups eligible to post in today
+  outstandingInvoices:   number   // Draft, Sent, or Overdue invoices
+  revenueThisMonth:      number   // Sum of dispatch_fee from Paid invoices this calendar month
+  uninvoicedDelivered:   number   // Delivered loads with no invoice yet
 
   // Expiring documents (within 45 days)
   expiringDocs: Array<{ driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }>
@@ -64,7 +65,8 @@ export function getOperationsData(db: Database.Database): OperationsData {
   const todaysGroupCount = (db.prepare(
     "SELECT COUNT(*) AS c FROM marketing_groups" +
     " WHERE active = 1 AND platform = 'Facebook'" +
-    " AND (last_posted_at IS NULL OR last_posted_at < date('now'))"
+    " AND (last_posted_at IS NULL OR last_posted_at < date('now'))" +
+    " AND (snooze_until IS NULL OR snooze_until <= date('now'))"
   ).get() as { c: number }).c
 
   const outstandingInvoices = (db.prepare(
@@ -77,24 +79,29 @@ export function getOperationsData(db: Database.Database): OperationsData {
     " AND strftime('%Y-%m', paid_date) = strftime('%Y-%m', 'now')"
   ).get() as { total: number }).total)
 
-  // Expiring documents: CDL & insurance from drivers table + individual docs, within 45 days
+  // Expiring documents: CDL & insurance from drivers table + individual docs, within 60 days
   type ExpiryRow = { driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }
   const expiringDocs: ExpiryRow[] = (db.prepare(
     "SELECT d.id AS driver_id, d.name AS driver_name, 'CDL' AS doc_type, d.cdl_expiry AS expiry_date," +
     "  CAST((julianday(d.cdl_expiry) - julianday('now')) AS INTEGER) AS days_until" +
     " FROM drivers d WHERE d.status = 'Active' AND d.cdl_expiry IS NOT NULL" +
-    "  AND d.cdl_expiry <= date('now', '+45 days') AND d.cdl_expiry >= date('now')" +
+    "  AND d.cdl_expiry <= date('now', '+60 days') AND d.cdl_expiry >= date('now')" +
     " UNION ALL" +
     " SELECT d.id, d.name, 'Insurance', d.insurance_expiry," +
     "  CAST((julianday(d.insurance_expiry) - julianday('now')) AS INTEGER)" +
     " FROM drivers d WHERE d.status = 'Active' AND d.insurance_expiry IS NOT NULL" +
-    "  AND d.insurance_expiry <= date('now', '+45 days') AND d.insurance_expiry >= date('now')" +
+    "  AND d.insurance_expiry <= date('now', '+60 days') AND d.insurance_expiry >= date('now')" +
+    " UNION ALL" +
+    " SELECT d.id, d.name, 'Medical Card', d.medical_card_expiry," +
+    "  CAST((julianday(d.medical_card_expiry) - julianday('now')) AS INTEGER)" +
+    " FROM drivers d WHERE d.status = 'Active' AND d.medical_card_expiry IS NOT NULL" +
+    "  AND d.medical_card_expiry <= date('now', '+60 days') AND d.medical_card_expiry >= date('now')" +
     " UNION ALL" +
     " SELECT d.id, d.name, dd.doc_type, dd.expiry_date," +
     "  CAST((julianday(dd.expiry_date) - julianday('now')) AS INTEGER)" +
     " FROM driver_documents dd JOIN drivers d ON d.id = dd.driver_id" +
     " WHERE d.status = 'Active' AND dd.expiry_date IS NOT NULL" +
-    "  AND dd.expiry_date <= date('now', '+45 days') AND dd.expiry_date >= date('now')" +
+    "  AND dd.expiry_date <= date('now', '+60 days') AND dd.expiry_date >= date('now')" +
     " ORDER BY days_until ASC LIMIT 20"
   ).all() as ExpiryRow[])
 
@@ -123,6 +130,15 @@ export function getOperationsData(db: Database.Database): OperationsData {
     " ORDER BY d.name ASC LIMIT 10"
   ).all() as Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
 
+  // Delivered loads with no invoice yet
+  const uninvoicedDelivered = (db.prepare(
+    "SELECT COUNT(*) AS c FROM loads l" +
+    " WHERE l.status = 'Delivered'" +
+    " AND NOT EXISTS (" +
+    "   SELECT 1 FROM invoices i WHERE i.load_id = l.id" +
+    ")"
+  ).get() as { c: number }).c
+
   // Today's tasks (same logic as dashboard)
   const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   const todayDow = DOW[new Date().getDay()]
@@ -143,6 +159,7 @@ export function getOperationsData(db: Database.Database): OperationsData {
     todaysGroupCount,
     outstandingInvoices,
     revenueThisMonth,
+    uninvoicedDelivered,
     expiringDocs,
     warmLeads,
     availableDrivers,

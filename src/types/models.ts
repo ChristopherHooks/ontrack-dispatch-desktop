@@ -101,10 +101,12 @@ export interface Driver {
   home_base: string | null
   current_location: string | null  // temporary position; cleared on load assignment
   preferred_lanes: string | null
+  cpm: number | null              // cost-per-mile; used as default in Find Loads
   min_rpm: number | null
   dispatch_percent: number        // default 7.0
   factoring_company: string | null
-  insurance_expiry: string | null // YYYY-MM-DD
+  insurance_expiry: string | null      // YYYY-MM-DD
+  medical_card_expiry: string | null   // YYYY-MM-DD — DOT physical, renews every 24 months
   start_date: string | null
   status: DriverStatus
   notes: string | null
@@ -558,15 +560,27 @@ export interface ScannerRecommendation {
   recommendations: LoadRecommendation[]
 }
 
+// -- Driver Compliance --
+export interface DriverComplianceRow {
+  id:                  number
+  name:                string
+  mc_number:           string | null
+  cdl_expiry:          string | null
+  insurance_expiry:    string | null
+  medical_card_expiry: string | null
+  coi_expiry:          string | null
+}
+
 // -- Operations Dashboard --
 export interface OperationsData {
-  driversNeedingLoads: number
-  revenueThisMonth:    number
+  driversNeedingLoads:   number
+  revenueThisMonth:      number
   expiringDocs: Array<{ driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }>
-  loadsInTransit:      number
-  overdueLeads:        number
-  todaysGroupCount:    number
-  outstandingInvoices: number
+  loadsInTransit:        number
+  overdueLeads:          number
+  todaysGroupCount:      number
+  outstandingInvoices:   number
+  uninvoicedDelivered:   number
   warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
   availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
   todayTasks:    Task[]

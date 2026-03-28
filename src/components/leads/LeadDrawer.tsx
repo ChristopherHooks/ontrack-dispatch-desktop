@@ -506,7 +506,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
           <div className='px-5 py-3 border-b border-surface-600 bg-surface-700/40'>
             <div className='flex items-center gap-1 mb-2'>
               <Zap size={11} className='text-orange-500' />
-              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider'>Quick Actions</p>
+              <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Quick Actions</p>
             </div>
             <div className='flex flex-wrap gap-1.5'>
               <button
@@ -607,7 +607,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
 
           {/* Contact details */}
           <div className='px-5 py-4 border-b border-surface-600'>
-            <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>Contact</p>
+            <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>Contact</p>
             <div className='grid grid-cols-2 gap-3'>
               <InlineText icon={<Phone size={12} />} label='Phone' value={lead.phone} placeholder='Add phone'
                 onSave={v => saveField('phone', v || null)} />
@@ -687,7 +687,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
           {/* Notes */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
-              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider'>Notes</p>
+              <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Notes</p>
               <button onClick={() => setAddingNote(v => !v)}
                 className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
                 <Plus size={10} /> Add
@@ -722,7 +722,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
           {/* Call Log */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
-              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider'>Call Log</p>
+              <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Call Log</p>
               <button onClick={() => setAddingCall(v => !v)}
                 className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
                 <Plus size={10} /> Log
@@ -778,7 +778,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
           <div className='px-5 py-4'>
             <button onClick={() => setShowScore(v => !v)}
               className='flex items-center gap-1.5 w-full text-left'>
-              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider flex-1'>Score Breakdown</p>
+              <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider flex-1'>Score Breakdown</p>
               <span className='text-2xs text-gray-600'>{total}/100 · {grade}</span>
               <ChevronDown size={12} className={`text-gray-600 transition-transform ${showScore ? 'rotate-180' : ''}`} />
             </button>

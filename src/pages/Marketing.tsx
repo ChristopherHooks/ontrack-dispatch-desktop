@@ -30,6 +30,7 @@ interface MarketingGroup {
   category:               string
   priority:               string
   last_reviewed_at:       string | null
+  snooze_until:           string | null
   leads_generated_count:  number
   signed_drivers_count:   number
   created_at:             string
@@ -69,7 +70,7 @@ const CATEGORY_FILTER_OPTIONS: Array<PostCategory | 'All'> = [
   'All',
   'Hotshot', 'Dry Van', 'Reefer', 'Flatbed', 'Step Deck',
   'Driver Recruitment', 'Value Prop', 'Engagement', 'New Authority', 'Trust', 'Freight Market',
-  'Hot Lanes',
+  'Hot Lanes', 'Quick Post',
 ]
 
 const today = new Date().toISOString().split('T')[0]
@@ -566,6 +567,13 @@ export function Marketing() {
     setGroups(p => p.filter(g => g.id !== id))
   }
 
+  const handleSnoozeGroup = async (id: number) => {
+    const until = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
+    await (window.api as any).marketing.groups.snoozeGroup(id, until)
+    setTodaysRecs(p => p.filter(r => r.group.id !== id))
+    setGroups(p => p.map(g => g.id === id ? { ...g, snooze_until: until } : g))
+  }
+
   const handleSeedGroups = async () => {
     await (window.api as any).marketing.groups.seedGroups()
     await loadGroups()
@@ -995,11 +1003,19 @@ export function Marketing() {
                           {postedToday ? (
                             <span className='text-2xs text-green-400 px-2'>Done today</span>
                           ) : (
-                            <button
-                              onClick={() => handleMarkPosted(rec.group.id)}
-                              className='px-2 py-0.5 text-2xs bg-surface-600 hover:bg-orange-600 text-gray-400 hover:text-white rounded transition-colors'>
-                              Mark Posted
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleSnoozeGroup(rec.group.id)}
+                                className='px-2 py-0.5 text-2xs bg-surface-600 hover:bg-surface-400 text-gray-600 hover:text-gray-300 rounded transition-colors'
+                                title='Skip this group for 30 days'>
+                                Skip 30d
+                              </button>
+                              <button
+                                onClick={() => handleMarkPosted(rec.group.id)}
+                                className='px-2 py-0.5 text-2xs bg-surface-600 hover:bg-orange-600 text-gray-400 hover:text-white rounded transition-colors'>
+                                Mark Posted
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>

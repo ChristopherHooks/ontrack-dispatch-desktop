@@ -8,15 +8,16 @@ type SortKey = keyof Lead
 type SortDir = 'asc' | 'desc'
 
 interface Props {
-  leads:          Lead[]
-  loading:        boolean
-  sortKey:        SortKey
-  sortDir:        SortDir
-  onSort:         (key: SortKey) => void
-  onSelect:       (lead: Lead) => void
-  onEdit:         (lead: Lead) => void
-  onDelete:       (lead: Lead) => void
-  onStatusChange: (lead: Lead, status: LeadStatus) => void
+  leads:               Lead[]
+  loading:             boolean
+  sortKey:             SortKey
+  sortDir:             SortDir
+  onSort:              (key: SortKey) => void
+  onSelect:            (lead: Lead) => void
+  onEdit:              (lead: Lead) => void
+  onDelete:            (lead: Lead) => void
+  onStatusChange:      (lead: Lead, status: LeadStatus) => void
+  duplicateMcNumbers?: Set<string>
 }
 
 const fmtDate = (d: string | null) => {
@@ -39,7 +40,7 @@ const authAge = (d: string | null) => {
 
 const SKELS = [0, 1, 2, 3, 4, 5]
 
-export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect, onEdit, onDelete, onStatusChange }: Props) {
+export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect, onEdit, onDelete, onStatusChange, duplicateMcNumbers }: Props) {
   function Th({ col, label, cls = '' }: { col: SortKey; label: string; cls?: string }) {
     const on = col === sortKey
     return (
@@ -95,7 +96,12 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
               <tr key={lead.id} onClick={() => onSelect(lead)} className='cursor-pointer hover:bg-surface-600/40 transition-colors group'>
                 <td className='pl-4 pr-3 py-2.5'><LeadScoreBadge lead={lead} /></td>
                 <td className='pr-3 py-2.5 max-w-[260px]'>
-                  <p className='text-sm font-medium text-gray-100 break-words leading-snug' title={lead.name}>{lead.name}</p>
+                  <div className='flex items-center gap-1.5 flex-wrap'>
+                    <p className='text-sm font-medium text-gray-100 break-words leading-snug' title={lead.name}>{lead.name}</p>
+                    {lead.mc_number && duplicateMcNumbers?.has(lead.mc_number) && (
+                      <span className='text-2xs px-1.5 py-0.5 rounded bg-red-900/40 text-red-400 border border-red-800/40 font-medium shrink-0'>DUPE</span>
+                    )}
+                  </div>
                   {lead.company && <p className='text-2xs text-gray-500 truncate' title={lead.company}>{lead.company}</p>}
                 </td>
                 <td className='pr-3 py-2.5' onClick={e => e.stopPropagation()}>
@@ -117,19 +123,19 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                       ? <button onClick={e => openSaferDot(lead.dot_number!, e)}
                             className='text-xs font-mono text-gray-500 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
                             title='View on FMCSA SAFER'>DOT-{lead.dot_number}</button>
-                      : <span className='text-xs text-gray-700'>—</span>}
+                      : <span className='text-xs text-gray-400'>—</span>}
                 </td>
                 <td className='pr-3 py-2.5'>
                   {lead.phone
                     ? <button onClick={e => { e.stopPropagation(); (window.api as any).shell.openExternal(`https://voice.google.com/calls?a=nc,${encodeURIComponent(lead.phone)}`) }} className='flex items-center gap-1 text-xs text-gray-400 hover:text-orange-400'><Phone size={10} />{lead.phone}</button>
-                    : <span className='text-xs text-gray-700'>—</span>}
+                    : <span className='text-xs text-gray-400'>—</span>}
                 </td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-400'>{lead.state ?? '—'}</span></td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-400'>{lead.trailer_type ?? '—'}</span></td>
                 <td className='pr-3 py-2.5'>
                   {lead.fleet_size != null
                     ? <span className='text-xs text-gray-300 font-medium'>{lead.fleet_size}T</span>
-                    : <span className='text-xs text-gray-700'>—</span>}
+                    : <span className='text-xs text-gray-400'>—</span>}
                 </td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-500'>{authAge(lead.authority_date)}</span></td>
                 <td className='pr-3 py-2.5'>

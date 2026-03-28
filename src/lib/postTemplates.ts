@@ -6,7 +6,7 @@
  * Rules:
  * - No emojis — ever
  * - Natural, human tone — no bullet lists with symbols, no hype language
- * - Enough variety for 90+ days without repeating (98 templates total)
+ * - Enough variety for 90+ days without repeating (110 templates total)
  * - Mix of short-form (1-3 sentences), medium (2-3 short paragraphs), and question posts
  * - First-person where appropriate — sounds like a person, not a company
  * - Direct CTAs: "DM me directly" beats "send us a message"
@@ -25,6 +25,7 @@ export type PostCategory =
   | 'Step Deck'
   | 'Hotshot'
   | 'Hot Lanes'
+  | 'Quick Post'
 
 export interface PostTemplate {
   id:       string
@@ -749,6 +750,96 @@ export const POST_TEMPLATES: PostTemplate[] = [
     text: `Florida northbound produce lanes are active right now. Carriers positioned in south Florida and central Florida who can run produce or general freight north are seeing strong rate activity.\n\nIf you run reefer or dry van and want to know what those outbound lanes are paying, DM me your equipment. [COMPANY] has broker connections on several Florida northbound corridors.`,
     hashtags: ['#owneroperator', '#trucking', '#florida', '#freightlanes', '#reefer', '#dryvan'],
   },
+
+  // ── Quick Post (12) ────────────────────────────────────────────────────────
+  // Short 1-2 sentence posts that perform well in Facebook groups because
+  // they read like a real person typed them, not a company running ads.
+  // These consistently outperform long-form in engagement-heavy groups.
+
+  {
+    id: 'qp-01',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Owner Operator Groups, Box Truck Groups',
+    text: `Looking for a box truck owner-op running TX, OK, or CO. DM me your MC number.`,
+    hashtags: ['#owneroperator', '#boxtruck', '#trucking'],
+  },
+  {
+    id: 'qp-02',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Flatbed and Heavy Haul Groups',
+    text: `Any flatbed operators out of Atlanta? Have consistent Southeast freight. Send me your info.`,
+    hashtags: ['#flatbed', '#owneroperator', '#trucking'],
+  },
+  {
+    id: 'qp-03',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Reefer and Produce Groups',
+    text: `Need a reefer carrier for produce runs out of FL. New authority OK. DM me.`,
+    hashtags: ['#reefer', '#owneroperator', '#trucking', '#produce'],
+  },
+  {
+    id: 'qp-04',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Dry Van Groups, Midwest',
+    text: `Dry van dispatcher here. Looking for an owner-op based in OH, IN, or KY. Steady lanes, fast pay brokers. DM me.`,
+    hashtags: ['#dryvan', '#owneroperator', '#trucking'],
+  },
+  {
+    id: 'qp-05',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Hotshot Groups, Texas',
+    text: `Need a hotshot in TX this week. DM me if you are running and have your own authority.`,
+    hashtags: ['#hotshot', '#owneroperator', '#texas'],
+  },
+  {
+    id: 'qp-06',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Step Deck and Flatbed Groups',
+    text: `Step deck operators — anyone out of the Southeast looking for consistent freight? DM me.`,
+    hashtags: ['#stepdeck', '#flatbed', '#owneroperator'],
+  },
+  {
+    id: 'qp-07',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Owner Operator Groups, General',
+    text: `Dispatcher looking for a reliable dry van. Good freight, decent rates, no games. DM me your home state and MC.`,
+    hashtags: ['#dryvan', '#owneroperator', '#dispatch'],
+  },
+  {
+    id: 'qp-08',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Box Truck and Cargo Van Groups',
+    text: `Box truck needed out of FL heading Northeast. If you run those lanes regularly DM me.`,
+    hashtags: ['#boxtruck', '#owneroperator', '#trucking'],
+  },
+  {
+    id: 'qp-09',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Flatbed Groups, Texas',
+    text: `Looking for a flatbed running TX to Midwest. Have steel loads, need a carrier I can count on. DM me.`,
+    hashtags: ['#flatbed', '#owneroperator', '#texas', '#steel'],
+  },
+  {
+    id: 'qp-10',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Owner Operator Groups, Southeast',
+    text: `Anyone running a van in the Southeast corridor? Have steady freight and need a carrier I can rely on. DM me your MC.`,
+    hashtags: ['#dryvan', '#owneroperator', '#southeast'],
+  },
+  {
+    id: 'qp-11',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Reefer Groups, Midwest',
+    text: `Reefer operators in the Midwest — I have consistent produce freight. DM me your home base and trailer size.`,
+    hashtags: ['#reefer', '#owneroperator', '#produce'],
+  },
+  {
+    id: 'qp-12',
+    category: 'Quick Post',
+    bestFor: 'Facebook — Hotshot Groups, TX and OK',
+    text: `Hotshot dispatcher looking for operators in TX or OK. Have freight moving this week. Send me your MC and trailer specs.`,
+    hashtags: ['#hotshot', '#owneroperator', '#texas', '#oklahoma'],
+  },
 ]
 
 /**
@@ -782,4 +873,5 @@ export const CATEGORY_COLORS: Record<PostCategory, string> = {
   'Step Deck':          'bg-rose-600 text-white border-rose-500',
   'Hotshot':            'bg-indigo-600 text-white border-indigo-500',
   'Hot Lanes':          'bg-red-600 text-white border-red-500',
+  'Quick Post':         'bg-gray-600 text-white border-gray-500',
 }

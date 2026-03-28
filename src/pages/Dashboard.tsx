@@ -109,9 +109,9 @@ export function Dashboard() {
             <h2 className='text-sm font-semibold text-gray-200'>Today's Tasks</h2>
           </div>
           {loading ? (
-            <p className='text-sm text-gray-600'>Loading...</p>
+            <p className='text-sm text-gray-400'>Loading...</p>
           ) : stats.todayTasks.length === 0 ? (
-            <p className='text-sm text-gray-600'>No tasks found.</p>
+            <p className='text-sm text-gray-400'>No tasks found.</p>
           ) : (
             <ul className='space-y-1'>
               {stats.todayTasks.map(task => (
@@ -184,9 +184,9 @@ export function Dashboard() {
         </div>
 
         {leadsLoading ? (
-          <p className='text-sm text-gray-600'>Loading leads...</p>
+          <p className='text-sm text-gray-400'>Loading leads...</p>
         ) : topLeads.length === 0 ? (
-          <p className='text-sm text-gray-600'>No active leads. Run an FMCSA import to populate your pipeline.</p>
+          <p className='text-sm text-gray-400'>No active leads. Run an FMCSA import to populate your pipeline.</p>
         ) : (
           <div className='divide-y divide-surface-600'>
             {topLeads.map((lead, i) => (
@@ -387,7 +387,7 @@ function DocModal({ title, onClose }: { title: string; onClose: () => void }) {
         </div>
         <div className='flex-1 overflow-y-auto px-6 py-5'>
           {loading ? (
-            <p className='text-sm text-gray-600'>Loading...</p>
+            <p className='text-sm text-gray-400'>Loading...</p>
           ) : current.content ? (
             <div
               dangerouslySetInnerHTML={{ __html: renderMd(current.content) }}

@@ -257,6 +257,43 @@ async function handleRequest(
     return
   }
 
+  // GET /api/loads/browser-import — renderer polls this to pick up the latest import result
+  if (url === '/api/loads/browser-import' && method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ seq: _lastImportSeq, payload: _lastImport }))
+    return
+  }
+
+  // POST /api/loads/browser-import — receive pre-scored loads from Claude in Chrome
+  // Claude reads the DAT/Truckstop tab, scores the loads in the conversation,
+  // then POSTs the result here. We forward it to the renderer via IPC.
+  if (url === '/api/loads/browser-import' && method === 'POST') {
+    try {
+      const chunks: Buffer[] = []
+      await new Promise<void>((resolve, reject) => {
+        req.on('data', (c: Buffer) => chunks.push(c))
+        req.on('end', resolve)
+        req.on('error', reject)
+      })
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      if (!body || !Array.isArray(body.loads)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Invalid payload — expected { loads: [], driver_name, raw_count }' }))
+        return
+      }
+      _lastImport = body
+      _lastImportSeq++
+      _saveImport?.(_lastImport, _lastImportSeq)
+      _send?.('loads:browser-import', body)
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, count: body.loads.length }))
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: String(err) }))
+    }
+    return
+  }
+
   // Serve the HTML UI for all other routes (including '/')
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
   res.end(HTML)
@@ -265,12 +302,34 @@ async function handleRequest(
 // ── Public API ────────────────────────────────────────────────────────────
 
 let _server: http.Server | null = null
+let _send: ((channel: string, data: unknown) => void) | null = null
+let _saveImport: ((data: unknown, seq: number) => void) | null = null
+let _lastImport: unknown = null
+let _lastImportSeq = 0
 
 export function startWebServer(
-  getDb:  () => Database.Database,
-  getKey: (key: string) => unknown,
+  getDb:          () => Database.Database,
+  getKey:         (key: string) => unknown,
+  sendToRenderer: (channel: string, data: unknown) => void = () => {},
+  saveImport?:    (data: unknown, seq: number) => void,
+  loadImport?:    () => { seq: number; payload: unknown } | null,
 ): void {
+  _send = sendToRenderer
   if (_server) return   // already running
+
+  // Restore last import from persistent storage so Find Loads works after restart
+  if (loadImport) {
+    try {
+      const saved = loadImport()
+      if (saved && saved.seq > 0 && saved.payload) {
+        _lastImport    = saved.payload
+        _lastImportSeq = saved.seq
+      }
+    } catch { /* corrupt store entry — start fresh */ }
+  }
+
+  // Store save callback for use in POST handler below
+  _saveImport = saveImport ?? null
 
   _server = http.createServer((req, res) => {
     handleRequest(req, res, getDb, getKey).catch(err => {
@@ -302,4 +361,8 @@ export function stopWebServer(): void {
     _server = null
     console.log('[WebServer] Stopped')
   }
+}
+
+export function getLastBrowserImport(): { seq: number; payload: unknown } {
+  return { seq: _lastImportSeq, payload: _lastImport }
 }

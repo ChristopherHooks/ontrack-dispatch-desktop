@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { Lead, LeadStatus, CsvImportResult, FmcsaImportResult, FmcsaImportStatus } from '../types/models'
 import { LeadsToolbar, type LeadFilters, DEFAULT_FILTERS } from '../components/leads/LeadsToolbar'
 import { LeadsTable }  from '../components/leads/LeadsTable'
@@ -25,11 +26,20 @@ interface SummaryCount {
 }
 
 export function Leads() {
+  const [searchParams] = useSearchParams()
   const [leads,    setLeads]    = useState<Lead[]>([])
   const [loading,  setLoading]  = useState(true)
   const [view,     setView]     = useState<'table' | 'kanban'>('table')
   const [search,   setSearch]   = useState('')
-  const [filters,  setFilters]  = useState<LeadFilters>(DEFAULT_FILTERS)
+  const [filters,  setFilters]  = useState<LeadFilters>(() => {
+    const f = searchParams.get('filter')
+    if (f === 'overdue')    return { ...DEFAULT_FILTERS, overdue: true }
+    if (f === 'dueToday')   return { ...DEFAULT_FILTERS, followUpToday: true }
+    if (f === 'warm')       return { ...DEFAULT_FILTERS, warm: true }
+    if (f === 'untouched')  return { ...DEFAULT_FILTERS, untouched: true }
+    if (f === 'duplicates') return { ...DEFAULT_FILTERS, duplicates: true }
+    return DEFAULT_FILTERS
+  })
   const [sortKey,  setSortKey]  = useState<keyof Lead>('follow_up_date')
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>('asc')
   const [selected,     setSelected]     = useState<Lead | null>(null)
@@ -129,19 +139,41 @@ export function Leads() {
 
   const today = new Date().toISOString().split('T')[0]
 
+  // ── Duplicate MC detection (client-side, no extra IPC needed) ──────────
+  const duplicateMcNumbers = useMemo((): Set<string> => {
+    const counts = new Map<string, number>()
+    for (const l of leads) {
+      if (l.mc_number) counts.set(l.mc_number, (counts.get(l.mc_number) ?? 0) + 1)
+    }
+    const dupes = new Set<string>()
+    for (const [mc, n] of counts.entries()) {
+      if (n > 1) dupes.add(mc)
+    }
+    return dupes
+  }, [leads])
+
+  const duplicateLeadCount = useMemo(
+    () => leads.filter(l => l.mc_number != null && duplicateMcNumbers.has(l.mc_number)).length,
+    [leads, duplicateMcNumbers]
+  )
+
   // ── Summary counts (computed from full unfiltered list) ──────────────────
   const summaryCounts = useMemo((): SummaryCount[] => {
     const untouchedNew  = leads.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0).length
     const dueToday      = leads.filter(l => l.follow_up_date === today).length
     const interested    = leads.filter(l => l.status === 'Interested' || l.status === 'Call Back Later').length
     const converted     = leads.filter(l => l.status === 'Converted' || l.status === 'Signed').length
-    return [
-      { label: 'New / Untouched', count: untouchedNew, color: 'text-gray-400 border-surface-400',              filterApply: { untouched: true } },
-      { label: 'Due Today',       count: dueToday,     color: 'text-orange-400 border-orange-800/40',          filterApply: { followUpToday: true } },
-      { label: 'Warm / Interested', count: interested, color: 'text-yellow-400 border-yellow-800/40',          filterApply: { warm: true } },
-      { label: 'Converted',       count: converted,    color: 'text-emerald-400 border-emerald-800/40',        filterApply: { status: 'Converted' } },
+    const result: SummaryCount[] = [
+      { label: 'New / Untouched',   count: untouchedNew,       color: 'text-gray-400 border-surface-400',       filterApply: { untouched: true } },
+      { label: 'Due Today',         count: dueToday,           color: 'text-orange-400 border-orange-800/40',   filterApply: { followUpToday: true } },
+      { label: 'Warm / Interested', count: interested,         color: 'text-yellow-400 border-yellow-800/40',   filterApply: { warm: true } },
+      { label: 'Converted',         count: converted,          color: 'text-emerald-400 border-emerald-800/40', filterApply: { status: 'Converted' } },
     ]
-  }, [leads, today])
+    if (duplicateLeadCount > 0) {
+      result.push({ label: 'Duplicates', count: duplicateLeadCount, color: 'text-red-400 border-red-800/40', filterApply: { duplicates: true } })
+    }
+    return result
+  }, [leads, today, duplicateLeadCount])
 
   const applyCount = (c: SummaryCount) => {
     setFilters({ ...DEFAULT_FILTERS, ...c.filterApply })
@@ -165,6 +197,7 @@ export function Leads() {
     if (filters.followUpToday) r = r.filter(l => l.follow_up_date === today)
     if (filters.warm)          r = r.filter(l => l.status === 'Interested' || l.status === 'Call Back Later')
     if (filters.untouched)     r = r.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0)
+    if (filters.duplicates)    r = r.filter(l => l.mc_number != null && duplicateMcNumbers.has(l.mc_number))
 
     const INACTIVE_STATUSES = new Set(['Not Interested', 'Bad Fit', 'Rejected', 'Inactive MC'])
 
@@ -233,7 +266,7 @@ export function Leads() {
           )}
         </div>
       ) : (
-        <p className='text-xs text-gray-700'>FMCSA import: never run — click Import FMCSA Leads to start.</p>
+        <p className='text-xs text-gray-400'>FMCSA import: never run — click Import FMCSA Leads to start.</p>
       )}
 
       {importResult && (
@@ -296,6 +329,7 @@ export function Leads() {
         filters={filters}   onFilters={setFilters}
         view={view}         onView={setView}
         total={filtered.length}
+        duplicateCount={duplicateLeadCount}
         onAdd={openAdd}
         onImport={handleImport}
         importBusy={importBusy}
@@ -314,6 +348,7 @@ export function Leads() {
             onEdit={openEdit}
             onDelete={handleDelete}
             onStatusChange={handleStatusChange}
+            duplicateMcNumbers={duplicateMcNumbers}
           />
         : <LeadsKanban
             leads={filtered}  loading={loading}

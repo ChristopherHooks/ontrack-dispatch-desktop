@@ -1,5 +1,99 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-28 — Session 22: Six App Improvements
+
+### Work Completed
+
+Six improvements implemented across compliance tracking, revenue, load intelligence, and invoicing.
+
+**1 — Driver Medical Card Expiry (migration 027)**
+- Migration 027 adds `medical_card_expiry TEXT` to `drivers` via `addColumnIfMissing()`
+- `Driver` + `DriverComplianceRow` interfaces updated
+- `driversRepo.ts` — field included in create, update, and getDriverCompliance
+- `operations.ts` — Medical Card added to `expiringDocs` UNION ALL (60-day lookahead, Active drivers only)
+- `DriverModal.tsx` — Medical Card Expiry date field added
+- `DriverDrawer.tsx` — display row with orange warning when expiring
+- `DriversTable.tsx` — Med. Card column with ExpCell
+
+**2 — Morning Briefing Compliance Row**
+- `Operations.tsx` — fifth BriefRow shows compliance doc status; links to /drivers
+
+**3 — Smart Rate Floor / Broker Avg RPM on Find Loads**
+- `FindLoads.tsx` — parallel fetch of brokers + loads; `buildBrokerIntel()` derives name-keyed Map
+- `BrokerIntelBadge` displays avg RPM, load count, flag on load cards
+- No backend changes; pure frontend computation
+
+**4 — Rate Confirmation PDF**
+- `LoadDrawer.tsx` — `printRateConfirmation()` — letterhead, route, parties, gross rate, dispatch fee
+- Shown for Booked/Picked Up/In Transit loads
+
+**5 — Driver Settlement Statement PDF**
+- `LoadDrawer.tsx` — `printSettlement()` — gross rate minus fee = driver net, signature line
+- Shown for Delivered/Invoiced/Paid loads
+
+**6 — Invoice Follow-Up Email Template**
+- `InvoiceDrawer.tsx` — `followUpMode` state; `daysOverdue` from sent date minus broker payment_terms (default 30)
+- Assertive follow-up body with days overdue, amounts, and clear payment request
+- "Follow-up (Nd)" button in action bar for Sent/Overdue invoices
+- Invoice/Follow-up tabs in email panel; `activeSubject`/`activeBody` drive the mailto href
+
+**Discovered already built — no changes needed:**
+- Weekly revenue goal (`Operations.tsx`)
+- Invoice aging display (`InvoicesTable.tsx` — `effectiveStatus()` + `agingLabel()`)
+
+### Files Changed
+- `electron/main/schema/migrations.ts` — migration 027
+- `src/types/models.ts` — `medical_card_expiry` on Driver + DriverComplianceRow
+- `electron/main/repositories/driversRepo.ts` — create/update/getDriverCompliance
+- `electron/main/operations.ts` — expiringDocs Medical Card UNION branch
+- `src/components/drivers/DriverModal.tsx` — Medical Card Expiry field
+- `src/components/drivers/DriverDrawer.tsx` — Medical Card Expiry display
+- `src/components/drivers/DriversTable.tsx` — Med. Card column
+- `src/pages/Operations.tsx` — compliance BriefRow
+- `src/pages/FindLoads.tsx` — broker intel fetch, BrokerIntelBadge, updated card components
+- `src/components/loads/LoadDrawer.tsx` — rate confirmation + settlement PDF, broker payer score
+- `src/components/loads/LoadModal.tsx` — prefill prop
+- `src/pages/Loads.tsx` — prefill wiring
+- `src/pages/Invoices.tsx` — uninvoiced delivered loads banner
+- `src/components/invoices/InvoiceDrawer.tsx` — follow-up email template
+- `docs/HANDOFF.md` — updated
+- `docs/SESSION_LOG.md` — updated
+
+### TypeScript
+Not re-verified this session (no tsc run available). Changes follow established patterns; no new dependencies or structural changes introduced.
+
+### Pending
+None. All six items complete.
+
+---
+
+## 2026-03-27 — Session 21: Browser Import IPC Fix
+
+### Work Completed
+
+Fixed the browser import delivery path so data POSTed by Claude in Chrome to `localhost:3001` reliably reaches the Find Loads renderer. Live end-to-end test passed: POST returned `{ok:true, count:1}`, result appeared in Find Loads within 2 seconds.
+
+**Root cause:** Electron renderer's `fetch()` to `http://localhost:3001` silently fails (CSP / cross-origin). `webContents.send` IPC push also not reaching renderer (cause unknown without DevTools access). Both failure modes bypass the `catch` block, so there was no visible error.
+
+**Fix:** Added `loads:getLastBrowserImport` IPC invoke channel. Renderer polls via `window.api.loads.getLastBrowserImport()` every 2 seconds using the same invoke path used by all other `window.api.*` calls. Seq-based deduplication (`lastSeqRef`) prevents re-rendering on unchanged data.
+
+### Files Changed
+- `electron/main/webServer.ts` — exported `getLastBrowserImport(): { seq, payload }`
+- `electron/main/ipcHandlers.ts` — imported and registered `ipcMain.handle('loads:getLastBrowserImport', ...)`
+- `electron/preload/index.ts` — exposed `getLastBrowserImport` under `loads` contextBridge group
+- `src/types/global.d.ts` — typed `window.api.loads.getLastBrowserImport`
+- `src/pages/FindLoads.tsx` — replaced `fetch()` poll with `window.api.loads.getLastBrowserImport()` poll
+- `docs/HANDOFF.md` — updated
+- `docs/SESSION_LOG.md` — updated
+
+### TypeScript
+`tsc --noEmit` passes with zero errors after all changes.
+
+### Known Issues Carried Forward
+- `offResult` in `preload/index.ts` creates a new anonymous function wrapper on each call, so `ipcRenderer.removeListener` never fires. The `loads:browser-import` push listener leaks on page unmount. Non-blocking — polling is the active mechanism.
+
+---
+
 ## 2026-03-16 — Session 20: Audit Fixes Continued
 
 ### Work Completed

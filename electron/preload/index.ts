@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('api', {
     update:             (id: number, dto: unknown) => ipcRenderer.invoke('drivers:update', id, dto),
     delete:             (id: number) => ipcRenderer.invoke('drivers:delete', id),
     fetchAuthorityDate: (driverId: number, mcNumber: string) => ipcRenderer.invoke('drivers:fetchAuthorityDate', driverId, mcNumber),
+    compliance:         ()                                    => ipcRenderer.invoke('drivers:compliance'),
   },
 
   // -- Driver Documents --
@@ -76,6 +77,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('loads:parseScreenshot', imageBase64, mediaType, driverId, cpm),
     importXlsx: (driverId: number, cpm: number) =>
       ipcRenderer.invoke('loads:importXlsx', driverId, cpm),
+    getLastBrowserImport: () =>
+      ipcRenderer.invoke('loads:getLastBrowserImport'),
   },
 
   // -- Brokers --
@@ -215,6 +218,7 @@ contextBridge.exposeInMainWorld('api', {
       catAnalysis:   () => ipcRenderer.invoke('marketing:groups:catAnalysis'),
       seedGroups:    () => ipcRenderer.invoke('marketing:groups:seedGroups'),
       markReviewed:  (id: number, date: string) => ipcRenderer.invoke('marketing:groups:markReviewed', id, date),
+      snoozeGroup:   (id: number, until: string) => ipcRenderer.invoke('marketing:groups:snoozeGroup', id, until),
       importHtml:    () => ipcRenderer.invoke('marketing:groups:importHtml'),
     },
     post: {
@@ -226,6 +230,17 @@ contextBridge.exposeInMainWorld('api', {
       recentIds:   (days?: number) => ipcRenderer.invoke('marketing:post:recentIds', days),
       usageCounts: () => ipcRenderer.invoke('marketing:post:usageCounts'),
     },
+  },
+
+  // -- Browser import (Claude in Chrome → OnTrack) --
+  // Claude reads a DAT/Truckstop tab, scores the loads, and POSTs to
+  // http://localhost:3001/api/loads/browser-import. The main process
+  // receives it and forwards to the renderer via this event bridge.
+  browserImport: {
+    onResult: (cb: (data: unknown) => void) =>
+      ipcRenderer.on('loads:browser-import', (_e, data) => cb(data)),
+    offResult: (cb: (data: unknown) => void) =>
+      ipcRenderer.removeListener('loads:browser-import', (_e: unknown, data: unknown) => cb(data)),
   },
 
   // -- Shell utilities --

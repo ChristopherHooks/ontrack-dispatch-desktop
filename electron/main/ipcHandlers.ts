@@ -5,7 +5,7 @@ import Store from 'electron-store'
 import { getDb, getDataDir } from './db'
 import {
   listLeads, getLead, createLead, updateLead, deleteLead,
-  listDrivers, getDriver, createDriver, updateDriver, deleteDriver,
+  listDrivers, getDriver, createDriver, updateDriver, deleteDriver, getDriverCompliance,
   listDriverDocuments, getDriverDocument, createDriverDocument, updateDriverDocument, deleteDriverDocument,
   listLoads, getLoad, createLoad, updateLoad, deleteLoad,
   listBrokers, getBroker, createBroker, updateBroker, deleteBroker,
@@ -17,7 +17,7 @@ import {
   listAuditLog,
   listDocuments, getDocument, createDocument, updateDocument, deleteDocument, searchDocuments,
   listMarketingGroups, createMarketingGroup, updateMarketingGroup, markGroupPosted, deleteMarketingGroup,
-  getTodaysGroups, getCategoryAnalysis, seedFbGroups, markGroupReviewed,
+  getTodaysGroups, getCategoryAnalysis, seedFbGroups, markGroupReviewed, snoozeGroup,
   listPostLog, createPostLog, updatePostLog, deletePostLog, getRecentlyUsedTemplateIds, getTemplateUsageCounts,
   listFbConversations, getFbConversation, createFbConversation, updateFbConversation, deleteFbConversation, fbConversationExists,
   listFbPosts, createFbPost, updateFbPost, deleteFbPost, fbPostExists,
@@ -42,6 +42,7 @@ import {
 } from './repositories/loadTimelineRepo'
 import { getBrokerIntelAll, getLaneIntelAll, getDriverLaneFits } from './brokerIntelligence'
 import { parseAndScore, importAndScoreXlsx } from './loadBoardParser'
+import { getLastBrowserImport } from './webServer'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -173,7 +174,8 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('drivers:get',    (_e, id: number) => getDriver(getDb(), id))
   ipcMain.handle('drivers:create', (_e, dto: unknown) => createDriver(getDb(), dto as any))
   ipcMain.handle('drivers:update', (_e, id: number, dto: unknown) => updateDriver(getDb(), id, dto as any))
-  ipcMain.handle('drivers:delete', (_e, id: number) => deleteDriver(getDb(), id))
+  ipcMain.handle('drivers:delete',     (_e, id: number) => deleteDriver(getDb(), id))
+  ipcMain.handle('drivers:compliance', ()               => getDriverCompliance(getDb()))
 
   // Fetch authority grant date from FMCSA SAFER by MC number and save to driver record
   ipcMain.handle('drivers:fetchAuthorityDate', async (_e, driverId: number, mcNumber: string) => {
@@ -214,6 +216,9 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     const brokers = listBrokers(getDb())
     return importAndScoreXlsx(driver, brokers, cpm)
   })
+
+  // -- Browser Import poll channel (renderer calls this to pick up last POST from Claude in Chrome) --
+  ipcMain.handle('loads:getLastBrowserImport', () => getLastBrowserImport())
 
   // -- Brokers --
   ipcMain.handle('brokers:list',   () => listBrokers(getDb()))
@@ -298,6 +303,7 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('marketing:groups:catAnalysis',   () => getCategoryAnalysis(getDb()))
   ipcMain.handle('marketing:groups:seedGroups',    () => { seedFbGroups(getDb()); return { ok: true } })
   ipcMain.handle('marketing:groups:markReviewed',  (_e, id: number, date: string) => markGroupReviewed(getDb(), id, date))
+  ipcMain.handle('marketing:groups:snoozeGroup',   (_e, id: number, until: string) => snoozeGroup(getDb(), id, until))
   ipcMain.handle('marketing:groups:importHtml',    async () => {
     const result = await dialog.showOpenDialog({
       title: 'Select your saved Facebook Groups HTML file',

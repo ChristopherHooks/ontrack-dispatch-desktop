@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Load, LoadStatus, Driver, Broker } from '../types/models'
+import { useSearchParams } from 'react-router-dom'
+import type { Load, LoadStatus, Driver, Broker, CreateLoadDto } from '../types/models'
 import { LoadsToolbar, type LoadFilters } from '../components/loads/LoadsToolbar'
 import { LoadsTable }  from '../components/loads/LoadsTable'
 import { LoadModal }   from '../components/loads/LoadModal'
@@ -8,6 +9,7 @@ import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 
 export function Loads() {
+  const [searchParams]             = useSearchParams()
   const [loads,    setLoads]    = useState<Load[]>([])
   const [drivers,  setDrivers]  = useState<Driver[]>([])
   const [brokers,  setBrokers]  = useState<Broker[]>([])
@@ -20,12 +22,33 @@ export function Loads() {
   const [selected, setSelected] = useState<Load | null>(null)
   const [editLoad, setEditLoad] = useState<Load | null>(null)
   const [modal,    setModal]    = useState(false)
+  const [prefill,  setPrefill]  = useState<Partial<CreateLoadDto> | null>(null)
 
   const reload = async () => {
     setLoading(true)
     try {
       const [l, d, b] = await Promise.all([window.api.loads.list(), window.api.drivers.list(), window.api.brokers.list()])
       setLoads(l); setDrivers(d); setBrokers(b)
+      // Auto-open new load modal if navigated from Find Loads
+      if (searchParams.get('new') === '1') {
+        const brokerName = searchParams.get('broker_name')
+        const matched    = brokerName
+          ? (b as Broker[]).find(br => br.name.toLowerCase() === brokerName.toLowerCase())
+          : null
+        const driverId = searchParams.get('driver_id')
+        setPrefill({
+          origin_city:  searchParams.get('origin_city')  || null,
+          origin_state: searchParams.get('origin_state') || null,
+          dest_city:    searchParams.get('dest_city')    || null,
+          dest_state:   searchParams.get('dest_state')   || null,
+          rate:         searchParams.get('rate')   ? Number(searchParams.get('rate'))  : null,
+          miles:        searchParams.get('miles')  ? Number(searchParams.get('miles')) : null,
+          broker_id:    matched ? matched.id : null,
+          driver_id:    driverId ? Number(driverId) : null,
+          status:       'Booked',
+        })
+        setModal(true)
+      }
     } finally { setLoading(false) }
   }
   useEffect(() => { reload() }, [])
@@ -86,7 +109,7 @@ export function Loads() {
         : <DispatchBoard drivers={drivers} loads={loads} loading={loading} onLoadClick={setSelected}/>
       }
       {selected&&<LoadDrawer load={selected} drivers={drivers} brokers={brokers} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete}/>}
-      {modal&&<LoadModal load={editLoad} onClose={()=>{setModal(false);setEditLoad(null)}} onSave={handleSave}/>}
+      {modal&&<LoadModal load={editLoad} prefill={prefill} onClose={()=>{setModal(false);setEditLoad(null);setPrefill(null)}} onSave={handleSave}/>}
     </div>
   )
 }

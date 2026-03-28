@@ -809,10 +809,58 @@ const migration024: Migration = {
 }
 
 // ---------------------------------------------------------------------------
+// Migration 025 -- snooze_until on marketing_groups
+// ---------------------------------------------------------------------------
+// Lets a dispatcher skip a group for 30 days without deleting it.
+// Groups with snooze_until > today are excluded from getTodaysGroups and the
+// Operations dashboard count.
+
+const migration025: Migration = {
+  version: 25,
+  description: 'Add snooze_until column to marketing_groups for 30-day skip action',
+  up: (db) => {
+    addColumnIfMissing(db, 'marketing_groups', 'snooze_until', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (25)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 026 -- cpm on drivers
+// ---------------------------------------------------------------------------
+// Stores the driver's cost-per-mile so Find Loads can default the CPM field
+// to the driver's actual operating cost instead of the global 0.75 fallback.
+
+const migration026: Migration = {
+  version: 26,
+  description: 'Add cpm column to drivers for per-driver cost-per-mile default',
+  up: (db) => {
+    addColumnIfMissing(db, 'drivers', 'cpm', 'REAL')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (26)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 027 -- Add medical_card_expiry to drivers
+//
+// DOT medical certificates expire every 24 months (or sooner for certain
+// conditions). Tracking this prevents dispatching a driver whose cert has
+// lapsed — a serious compliance violation.
+// ---------------------------------------------------------------------------
+
+const migration027: Migration = {
+  version: 27,
+  description: 'Add medical_card_expiry to drivers for DOT medical certificate compliance tracking',
+  up: (db) => {
+    addColumnIfMissing(db, 'drivers', 'medical_card_expiry', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (27)")
+  },
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

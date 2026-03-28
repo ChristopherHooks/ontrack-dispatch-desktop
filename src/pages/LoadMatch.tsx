@@ -325,13 +325,13 @@ export function LoadMatch() {
           {!selectedDriverId ? (
             <div className='flex flex-col items-center justify-center h-full text-center gap-3'>
               <ArrowRightLeft size={28} className='text-gray-700' />
-              <p className='text-sm text-gray-600'>Select a driver on the left to see matched loads.</p>
+              <p className='text-sm text-gray-400'>Select a driver on the left to see matched loads.</p>
             </div>
           ) : candidateLoads.length === 0 ? (
             <div className='flex flex-col items-center justify-center h-full text-center gap-3'>
               <Package size={28} className='text-gray-700' />
-              <p className='text-sm text-gray-600'>No available loads match this driver right now.</p>
-              <p className='text-xs text-gray-700'>Add loads with status Searching in the Loads page.</p>
+              <p className='text-sm text-gray-400'>No available loads match this driver right now.</p>
+              <p className='text-xs text-gray-400'>Add loads with status Searching in the Loads page.</p>
             </div>
           ) : (
             candidateLoads.map((load, idx) => {
@@ -463,7 +463,7 @@ export function LoadMatch() {
         ) : !selectedLoad ? (
           <div className='flex flex-col items-center justify-center h-full p-6 text-center gap-3'>
             <CheckSquare size={24} className='text-gray-700' />
-            <p className='text-sm text-gray-600'>Select a load from the center panel to open the booking workspace.</p>
+            <p className='text-sm text-gray-400'>Select a load from the center panel to open the booking workspace.</p>
           </div>
 
         /* ── Booking workspace ── */

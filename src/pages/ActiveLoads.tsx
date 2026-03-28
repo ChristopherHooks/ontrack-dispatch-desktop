@@ -176,9 +176,10 @@ export function ActiveLoads() {
   const [eventsLoad,   setEventsLoad]   = useState(false)
 
   // Status change form
-  const [newStatus,    setNewStatus]    = useState<LoadStatus | ''>('')
-  const [statusNote,   setStatusNote]   = useState('')
-  const [statusSaving, setStatusSaving] = useState(false)
+  const [newStatus,       setNewStatus]       = useState<LoadStatus | ''>('')
+  const [statusNote,      setStatusNote]      = useState('')
+  const [statusSaving,    setStatusSaving]    = useState(false)
+  const [deliveredLoadId, setDeliveredLoadId] = useState<number | null>(null)
 
   // Add note form
   const [noteText,     setNoteText]     = useState('')
@@ -237,6 +238,13 @@ export function ActiveLoads() {
     if (selected) fetchEvents(selected.id)
   }
 
+  const handleScheduleCheckCall = async (hoursFromNow: number) => {
+    if (!selected) return
+    const at = new Date(Date.now() + hoursFromNow * 3600000).toISOString()
+    await window.api.timeline.addEvent(selected.id, 'check_call', `Check call — ${selected.driver_name ?? 'driver'}`, at, null)
+    fetchEvents(selected.id)
+  }
+
   const handleDelete = async (eventId: number) => {
     await window.api.timeline.deleteEvent(eventId)
     if (selected) fetchEvents(selected.id)
@@ -244,13 +252,16 @@ export function ActiveLoads() {
 
   const handleStatusChange = async () => {
     if (!selected || !newStatus) return
+    const wasDelivered = newStatus === 'Delivered'
+    const loadId = selected.id
     setStatusSaving(true)
-    await window.api.timeline.statusChange(selected.id, newStatus, statusNote || null)
+    await window.api.timeline.statusChange(loadId, newStatus, statusNote || null)
     setStatusSaving(false)
     setNewStatus('')
     setStatusNote('')
     await refresh()
     if (selected) fetchEvents(selected.id)
+    if (wasDelivered) setDeliveredLoadId(loadId)
   }
 
   const handleAddNote = async () => {
@@ -403,13 +414,21 @@ export function ActiveLoads() {
                   {isOverdue(nextEvent.scheduled_at) && ' — overdue'}
                 </p>
               )}
-              <div className='flex gap-2 mt-2.5'>
+              <div className='flex gap-2 mt-2.5 flex-wrap'>
                 <button
                   onClick={() => handleComplete(nextEvent.id)}
                   className='text-2xs px-2.5 py-1 rounded-lg bg-green-900/50 text-green-400 border border-green-800/50 hover:bg-green-900/80 transition-colors'
                 >
                   Mark Done
                 </button>
+                {nextEvent.event_type === 'check_call' && (
+                  <button
+                    onClick={async () => { await handleComplete(nextEvent.id); handleScheduleCheckCall(4) }}
+                    className='text-2xs px-2.5 py-1 rounded-lg bg-orange-900/40 text-orange-400 border border-orange-800/50 hover:bg-orange-900/70 transition-colors'
+                  >
+                    Done + Schedule Next in 4h
+                  </button>
+                )}
                 {selected.driver_phone && (
                   <a
                     href={`tel:${selected.driver_phone}`}
@@ -419,6 +438,22 @@ export function ActiveLoads() {
                   </a>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Quick schedule — shown when no pending check call exists */}
+          {!nextEvent && selected.status !== 'Delivered' && (
+            <div className='flex items-center gap-2'>
+              <span className='text-xs text-gray-500'>Schedule check call:</span>
+              {[2, 4, 8].map(h => (
+                <button
+                  key={h}
+                  onClick={() => handleScheduleCheckCall(h)}
+                  className='text-2xs px-2 py-0.5 rounded-lg bg-surface-600 hover:bg-orange-900/40 text-gray-400 hover:text-orange-400 border border-surface-400 hover:border-orange-800/50 transition-colors'
+                >
+                  +{h}h
+                </button>
+              ))}
             </div>
           )}
 
@@ -590,13 +625,37 @@ export function ActiveLoads() {
 
         </div>
       ) : (
-        /* Empty state */
+        /* Empty state — or post-delivery invoice prompt */
         <div className='flex-1 flex items-center justify-center'>
-          <div className='text-center'>
-            <Activity size={36} className='text-gray-700 mx-auto mb-3' />
-            <p className='text-sm text-gray-500 font-medium'>Select a load</p>
-            <p className='text-xs text-gray-700 mt-1'>to view its timeline and check call schedule</p>
-          </div>
+          {deliveredLoadId ? (
+            <div className='max-w-sm w-full mx-auto rounded-xl border border-teal-700/50 bg-teal-950/30 p-6 text-center space-y-4'>
+              <CheckCircle size={32} className='text-teal-400 mx-auto' />
+              <div>
+                <p className='text-sm font-semibold text-teal-300'>Load marked as Delivered</p>
+                <p className='text-xs text-gray-500 mt-1'>Ready to send the invoice to the broker?</p>
+              </div>
+              <div className='flex items-center justify-center gap-3'>
+                <button
+                  onClick={() => navigate(`/invoices?new=1&load_id=${deliveredLoadId}`)}
+                  className='text-xs px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-medium transition-colors'
+                >
+                  Create Invoice
+                </button>
+                <button
+                  onClick={() => setDeliveredLoadId(null)}
+                  className='text-xs text-gray-500 hover:text-gray-300 transition-colors'
+                >
+                  Later
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className='text-center'>
+              <Activity size={36} className='text-gray-700 mx-auto mb-3' />
+              <p className='text-sm text-gray-500 font-medium'>Select a load</p>
+              <p className='text-xs text-gray-700 mt-1'>to view its timeline and check call schedule</p>
+            </div>
+          )}
         </div>
       )}
     </div>

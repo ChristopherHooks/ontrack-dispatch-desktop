@@ -24,7 +24,7 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   )
 }
 function Sec({ title }: { title: string }) {
-  return <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>{title}</p>
+  return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
 }
 
 function printInvoice(inv: Invoice, driver: Driver | undefined, load: Load | undefined, broker: Broker | undefined) {
@@ -80,6 +80,7 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
   const [noteText, setNoteText] = useState('')
   const [addNote, setAddNote] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
+  const [followUpMode, setFollowUpMode] = useState(false)
   const [emailTo, setEmailTo] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
 
@@ -102,6 +103,13 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
   const origin = load ? [load.origin_city, load.origin_state].filter(Boolean).join(', ') : null
   const dest = load ? [load.dest_city, load.dest_state].filter(Boolean).join(', ') : null
 
+  const daysSinceSent = invoice.sent_date
+    ? Math.floor((Date.now() - new Date(invoice.sent_date).getTime()) / 86400000)
+    : 0
+  const terms = broker?.payment_terms ?? 30
+  const daysOverdue = Math.max(0, daysSinceSent - terms)
+  const isOverdueOrSent = invoice.status === 'Overdue' || invoice.status === 'Sent'
+
   const emailSubject = `Dispatch Invoice ${invoice.invoice_number}${invoice.week_ending ? ' - Week Ending ' + fmt(invoice.week_ending) : ''}`
   const emailBody = [
     `Hi${driver?.name ? ' ' + driver.name.split(' ')[0] : ''},`,
@@ -119,7 +127,27 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
     'dispatch@ontrackhaulingsolutions.com',
   ].join('%0A')
 
-  const mailtoHref = `mailto:${encodeURIComponent(emailTo)}?subject=${encodeURIComponent(emailSubject)}&body=${emailBody}`
+  const followUpSubject = `Payment Follow-Up: ${invoice.invoice_number}${invoice.week_ending ? ' - Week Ending ' + fmt(invoice.week_ending) : ''}`
+  const followUpBody = [
+    `Hi${driver?.name ? ' ' + driver.name.split(' ')[0] : ''},`,
+    '',
+    `I am following up on dispatch invoice ${invoice.invoice_number}${invoice.week_ending ? ', for the week ending ' + fmt(invoice.week_ending) : ''}. As of today, payment has not been received.`,
+    '',
+    `Invoice: ${invoice.invoice_number}`,
+    `Dispatch Fee: ${fmtMoney(invoice.dispatch_fee)}`,
+    `Gross Rate: ${fmtMoney(invoice.driver_gross)}`,
+    `Sent: ${fmt(invoice.sent_date)}`,
+    daysOverdue > 0 ? `Days Overdue: ${daysOverdue} (terms: ${terms} days)` : `Days Since Sent: ${daysSinceSent}`,
+    '',
+    `Please send payment at your earliest convenience. If there is a discrepancy with this invoice or you have already sent payment, let me know so I can update my records.`,
+    '',
+    'OnTrack Hauling Solutions',
+    'dispatch@ontrackhaulingsolutions.com',
+  ].join('%0A')
+
+  const activeSubject = followUpMode ? followUpSubject : emailSubject
+  const activeBody    = followUpMode ? followUpBody    : emailBody
+  const mailtoHref = `mailto:${encodeURIComponent(emailTo)}?subject=${encodeURIComponent(activeSubject)}&body=${activeBody}`
 
   return (
     <div className='fixed inset-0 z-50 flex'>
@@ -149,6 +177,12 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
             {invoice.status === 'Sent' && (
               <button onClick={() => onStatusChange(invoice, 'Overdue')} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-red-800 hover:bg-red-700 text-white rounded-lg transition-colors'><AlertCircle size={11} />Flag Overdue</button>
             )}
+            {isOverdueOrSent && (
+              <button onClick={() => { setFollowUpMode(true); setShowEmail(true) }}
+                className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-orange-800 hover:bg-orange-700 text-white rounded-lg transition-colors'>
+                <Mail size={11} />Follow-up{daysOverdue > 0 ? ` (${daysOverdue}d)` : ''}
+              </button>
+            )}
             <div className='flex-1' />
             {!confirmDel
               ? <button onClick={() => setConfirmDel(true)} className='p-1.5 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-colors' title='Delete invoice'><Trash2 size={13} /></button>
@@ -162,14 +196,31 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
               className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Printer size={11} />Print PDF</button>
             <button onClick={() => exportCsv(invoice, driver)} title='Export CSV'
               className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Download size={11} />CSV</button>
-            <button onClick={() => setShowEmail(v => !v)}
+            <button onClick={() => { setFollowUpMode(false); setShowEmail(v => !v) }}
               className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Mail size={11} />Email</button>
           </div>
           {/* Email Workflow */}
           {showEmail && (
             <div className='px-5 py-4 border-b border-surface-600 bg-surface-700/40'>
-              <Sec title='Email Invoice' />
-              <p className='text-2xs text-gray-500 mb-3'>Compose and send via your default email app. SMTP integration available in Settings.</p>
+              {isOverdueOrSent ? (
+                <div className='flex items-center gap-1 mb-3'>
+                  <button onClick={() => setFollowUpMode(false)}
+                    className={`px-2.5 h-6 text-2xs rounded-md font-medium transition-colors ${!followUpMode ? 'bg-surface-500 text-gray-200' : 'text-gray-500 hover:text-gray-300'}`}>
+                    Invoice
+                  </button>
+                  <button onClick={() => setFollowUpMode(true)}
+                    className={`px-2.5 h-6 text-2xs rounded-md font-medium transition-colors ${followUpMode ? 'bg-orange-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
+                    Follow-up{daysOverdue > 0 ? ` — ${daysOverdue}d overdue` : ''}
+                  </button>
+                </div>
+              ) : (
+                <Sec title='Email Invoice' />
+              )}
+              <p className='text-2xs text-gray-500 mb-3'>
+                {followUpMode
+                  ? 'Payment follow-up template. Opens in your default email app.'
+                  : 'Compose and send via your default email app. SMTP integration available in Settings.'}
+              </p>
               <div className='mb-2'>
                 <label className='text-2xs text-gray-600 block mb-1'>To</label>
                 <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
@@ -178,7 +229,7 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
               </div>
               <div className='mb-2'>
                 <label className='text-2xs text-gray-600 block mb-1'>Subject</label>
-                <p className='text-xs text-gray-400 px-2 py-1 bg-surface-600 rounded-lg border border-surface-400'>{emailSubject}</p>
+                <p className='text-xs text-gray-400 px-2 py-1 bg-surface-600 rounded-lg border border-surface-400'>{activeSubject}</p>
               </div>
               <div className='flex items-center gap-2 mt-3'>
                 <a href={mailtoHref} className='flex items-center gap-1.5 px-3 h-7 text-xs font-semibold bg-blue-700 hover:bg-blue-600 text-white rounded-lg transition-colors'><Mail size={11} />Open in Email App</a>

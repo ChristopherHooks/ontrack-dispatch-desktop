@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckSquare, Square, Clock, RefreshCw, ChevronRight } from 'lucide-react'
-import type { Task, TaskCompletion } from '../types/models'
+import { CheckSquare, Square, Clock, RefreshCw, ChevronRight, ListChecks } from 'lucide-react'
+import type { Task, TaskCompletion, CreateTaskDto } from '../types/models'
 import { TasksToolbar } from '../components/tasks/TasksToolbar'
 import { TaskModal } from '../components/tasks/TaskModal'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
@@ -8,6 +8,100 @@ import {
   CATEGORY_STYLES, PRIORITY_DOT, PRIORITY_STYLES,
   todayDate, isTaskForToday,
 } from '../components/tasks/constants'
+
+// Daily routine tasks for a new dispatcher — seeded on first use
+const DAILY_ROUTINE: Omit<CreateTaskDto, 'status'>[] = [
+  {
+    title:       'Post in Facebook trucking groups',
+    category:    'Marketing',
+    priority:    'High',
+    due_date:    'Daily',
+    time_of_day: '7:00 AM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Open Marketing tab, copy today\'s suggested post, paste into 2-3 Facebook owner-operator groups. Use a Quick Post template if you want something shorter.',
+  },
+  {
+    title:       'Check for replies to yesterday\'s posts and add new leads',
+    category:    'Leads',
+    priority:    'High',
+    due_date:    'Daily',
+    time_of_day: '7:30 AM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Open Facebook notifications. Anyone who commented or DM\'d about your posts should be added to the Leads tab with their equipment type and home state.',
+  },
+  {
+    title:       'Follow up with warm leads',
+    category:    'Leads',
+    priority:    'High',
+    due_date:    'Daily',
+    time_of_day: '9:00 AM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Open Leads tab. Filter to Contacted and Warm status. Send a follow-up message to anyone you haven\'t heard from in 2+ days. Move dead leads to Inactive.',
+  },
+  {
+    title:       'Check active load pickups and deliveries',
+    category:    'Dispatch',
+    priority:    'High',
+    due_date:    'Daily',
+    time_of_day: '9:30 AM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Open Loads tab or Dispatcher Board. Confirm pickups happening today have checked in. Check that in-transit loads are on track for delivery.',
+  },
+  {
+    title:       'Make broker calls for open load opportunities',
+    category:    'Dispatch',
+    priority:    'High',
+    due_date:    'Daily',
+    time_of_day: '10:00 AM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Call 3-5 brokers about available loads for your drivers. Use the call scripts in Help > Call Scripts. Log rates in the load notes.',
+  },
+  {
+    title:       'Review overdue and unpaid invoices',
+    category:    'Admin',
+    priority:    'Medium',
+    due_date:    'Daily',
+    time_of_day: '11:00 AM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Open Invoices tab. Any invoice marked Overdue gets a follow-up call today using the late invoice script in Help > Call Scripts.',
+  },
+  {
+    title:       'Update driver locations and availability',
+    category:    'Dispatch',
+    priority:    'Medium',
+    due_date:    'Daily',
+    time_of_day: '2:00 PM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Open Drivers tab. Check in with any driver who delivered today or is between loads. Update their current location in their profile.',
+  },
+  {
+    title:       'Review tomorrow\'s load schedule',
+    category:    'Dispatch',
+    priority:    'Medium',
+    due_date:    'Daily',
+    time_of_day: '4:00 PM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Check Loads tab for anything picking up tomorrow. Confirm driver is confirmed, rate con is signed, and broker contact info is logged.',
+  },
+  {
+    title:       'Log all calls and conversations as notes',
+    category:    'Admin',
+    priority:    'Medium',
+    due_date:    'Daily',
+    time_of_day: '5:00 PM',
+    recurring:   1,
+    assigned_to: null,
+    notes:       'Add notes in OnTrack to any lead, broker, or load record you touched today. Notes are how you build institutional memory so nothing gets lost between sessions.',
+  },
+]
 
 export function Tasks() {
   const [tasks, setTasks]             = useState<Task[]>([])
@@ -18,6 +112,7 @@ export function Tasks() {
   const [modalTask, setModalTask]     = useState<Task | null | undefined>(undefined)
   const [drawerTask, setDrawerTask]   = useState<Task | null>(null)
   const [history, setHistory]         = useState<{ date: string; ids: number[] }[]>([])
+  const [seeding, setSeeding]         = useState(false)
   const today = todayDate()
 
   const load = useCallback(async () => {
@@ -65,6 +160,15 @@ export function Tasks() {
     await load()
   }
 
+  async function seedDailyRoutine() {
+    setSeeding(true)
+    for (const t of DAILY_ROUTINE) {
+      await window.api.tasks.create({ ...t, status: 'Pending' })
+    }
+    await load()
+    setSeeding(false)
+  }
+
   async function handleDelete(id: number) {
     await window.api.tasks.delete(id)
     setDrawerTask(null)
@@ -95,6 +199,25 @@ export function Tasks() {
         totalToday={todayTasks.length} doneToday={todayDone}
         onAdd={() => setModalTask(null)}
       />
+
+      {/* Daily routine seed banner — shown when no recurring tasks exist yet */}
+      {tasks.filter(t => t.recurring === 1).length === 0 && (
+        <div className='flex items-center gap-4 px-4 py-3.5 rounded-xl border border-blue-700/40 bg-blue-900/10'>
+          <ListChecks size={18} className='text-blue-400 shrink-0' />
+          <div className='flex-1 min-w-0'>
+            <p className='text-sm font-medium text-gray-200'>No daily routine set up yet</p>
+            <p className='text-xs text-gray-500 mt-0.5'>Load a pre-built dispatcher routine: 9 recurring tasks with times covering marketing, lead follow-up, dispatch, and admin.</p>
+          </div>
+          <button
+            onClick={seedDailyRoutine}
+            disabled={seeding}
+            className='shrink-0 flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium bg-blue-700 hover:bg-blue-600 disabled:opacity-60 text-white rounded-lg transition-colors'
+          >
+            <ListChecks size={12} />
+            {seeding ? 'Adding...' : 'Load daily routine'}
+          </button>
+        </div>
+      )}
 
       {/* TODAY VIEW */}
       {view === 'today' && (

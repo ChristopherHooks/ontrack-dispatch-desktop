@@ -25,7 +25,7 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   )
 }
 function Sec({ title }: { title: string }) {
-  return <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider mb-3'>{title}</p>
+  return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
 }
 
 const INTEL_RATING_STYLE: Record<BrokerRating, string> = {
@@ -199,7 +199,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
           {/* Performance */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
-              <p className='text-2xs font-medium text-gray-600 uppercase tracking-wider'>Performance</p>
+              <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Performance</p>
               <span className={`text-2xs px-2 py-0.5 rounded-full border font-semibold ${INTEL_RATING_STYLE[intelRating]}`}>
                 {intelRating}
               </span>

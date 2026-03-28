@@ -298,6 +298,9 @@ app.whenReady().then(() => {
   startWebServer(
     () => { const { getDb } = require('./db'); return getDb() },
     (key) => store.get(key as any),
+    (channel, data) => mainWindow?.webContents.send(channel, data),
+    (data, seq) => store.set('lastBrowserImport', { seq, payload: data }),
+    () => (store.get('lastBrowserImport') as { seq: number; payload: unknown } | undefined) ?? null,
   )
 
   createWindow()

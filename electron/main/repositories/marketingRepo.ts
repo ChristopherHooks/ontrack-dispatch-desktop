@@ -14,6 +14,7 @@ export interface MarketingGroup {
   category:               string         // hotshot | box_truck | owner_operator | dispatcher | general_loads | reefer | mixed | other
   priority:               string         // High | Medium | Low
   last_reviewed_at:       string | null  // YYYY-MM-DD
+  snooze_until:           string | null  // YYYY-MM-DD — group excluded from queue until this date
   leads_generated_count:  number
   signed_drivers_count:   number
   created_at:             string
@@ -228,8 +229,9 @@ export function seedFbGroups(db: Database.Database): void {
 export function getTodaysGroups(db: Database.Database, n = 8): GroupRecommendation[] {
   const today = new Date().toISOString().split('T')[0]
   const rows = db.prepare(
-    "SELECT * FROM marketing_groups WHERE active = 1 AND platform = 'Facebook'"
-  ).all() as MarketingGroup[]
+    "SELECT * FROM marketing_groups WHERE active = 1 AND platform = 'Facebook'" +
+    " AND (snooze_until IS NULL OR snooze_until <= ?)"
+  ).all(today) as MarketingGroup[]
 
   const scored: GroupRecommendation[] = rows.map(g => {
     const reasons: string[] = []
@@ -345,5 +347,14 @@ export function getCategoryAnalysis(db: Database.Database): CategoryGapAnalysis 
  */
 export function markGroupReviewed(db: Database.Database, id: number, date: string): MarketingGroup | undefined {
   db.prepare('UPDATE marketing_groups SET last_reviewed_at = ? WHERE id = ?').run(date, id)
+  return db.prepare('SELECT * FROM marketing_groups WHERE id = ?').get(id) as MarketingGroup | undefined
+}
+
+/**
+ * Snooze a group — excludes it from getTodaysGroups and the Operations count
+ * until the given date (typically today + 30 days).
+ */
+export function snoozeGroup(db: Database.Database, id: number, until: string): MarketingGroup | undefined {
+  db.prepare('UPDATE marketing_groups SET snooze_until = ? WHERE id = ?').run(until, id)
   return db.prepare('SELECT * FROM marketing_groups WHERE id = ?').get(id) as MarketingGroup | undefined
 }

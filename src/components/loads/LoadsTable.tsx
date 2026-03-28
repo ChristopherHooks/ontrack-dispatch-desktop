@@ -91,7 +91,7 @@ const COLS: { label: string; key: keyof Load }[] = [
   { label: 'Pickup', key: 'pickup_date' }, { label: 'Delivery', key: 'delivery_date' },
   { label: 'Status', key: 'status' },
 ]
-const th = 'text-left text-2xs font-medium text-gray-600 uppercase tracking-wider pb-2 pr-3 select-none cursor-pointer hover:text-gray-400 transition-colors whitespace-nowrap'
+const th = 'text-left text-2xs font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3 select-none cursor-pointer hover:text-gray-400 transition-colors whitespace-nowrap'
 
 export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onStatusChange }: Props) {
   if (loading) return <div className='space-y-2'>{Array.from({length:5}).map((_,i)=><div key={i} className='h-10 rounded-lg bg-surface-700 animate-pulse'/>)}</div>

@@ -50,7 +50,7 @@ function getBenchmark(trailerType: string | null): Benchmark | null {
   return null
 }
 
-interface Props { load: Load | null; onSave: (l: Load) => void; onClose: () => void }
+interface Props { load: Load | null; prefill?: Partial<CreateLoadDto> | null; onSave: (l: Load) => void; onClose: () => void }
 
 const BLANK: CreateLoadDto = {
   load_id: null, driver_id: null, broker_id: null,
@@ -72,7 +72,7 @@ function Sec({ title }: { title: string }) {
   return <div className='col-span-2 pt-1 border-t border-surface-500'><p className='text-2xs font-semibold text-gray-600 uppercase tracking-wider pt-2'>{title}</p></div>
 }
 
-export function LoadModal({ load, onSave, onClose }: Props) {
+export function LoadModal({ load, prefill, onSave, onClose }: Props) {
   const [form, setForm] = useState<CreateLoadDto>(BLANK)
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [brokers, setBrokers] = useState<Broker[]>([])
@@ -82,8 +82,9 @@ export function LoadModal({ load, onSave, onClose }: Props) {
   useEffect(() => {
     Promise.all([window.api.drivers.list(), window.api.brokers.list()]).then(([d,b]) => { setDrivers(d); setBrokers(b) })
     if (load) { const { id, created_at, updated_at, ...rest } = load; setForm({ ...BLANK, ...rest }) }
+    else if (prefill) setForm({ ...BLANK, ...prefill })
     else setForm(BLANK)
-  }, [load])
+  }, [load, prefill])
 
   const str = <K extends keyof CreateLoadDto>(k: K, v: string) => setForm(p => ({ ...p, [k]: v || null }))
   const num = <K extends keyof CreateLoadDto>(k: K, v: string) => setForm(p => ({ ...p, [k]: v ? parseFloat(v) : null }))

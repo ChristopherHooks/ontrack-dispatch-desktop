@@ -10,11 +10,12 @@ export interface LeadFilters {
   followUpToday: boolean  // follow_up_date = today
   warm:          boolean  // status in [Interested, Call Back Later]
   untouched:     boolean  // status = New AND contact_attempt_count = 0
+  duplicates:    boolean  // mc_number appears on more than one lead
 }
 
 export const DEFAULT_FILTERS: LeadFilters = {
   status: '', priority: '', source: '', overdue: false,
-  followUpToday: false, warm: false, untouched: false,
+  followUpToday: false, warm: false, untouched: false, duplicates: false,
 }
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
   view:            'table' | 'kanban'
   onView:          (v: 'table' | 'kanban') => void
   total:           number
+  duplicateCount:  number
   onAdd:           () => void
   onImport:        () => void
   importBusy:      boolean
@@ -54,7 +56,7 @@ function QuickChip({ label, active, onClick }: { label: string; active: boolean;
 }
 
 export function LeadsToolbar({
-  search, onSearch, filters, onFilters, view, onView, total, onAdd,
+  search, onSearch, filters, onFilters, view, onView, total, duplicateCount, onAdd,
   onImport, importBusy, lastImportAt,
   onImportCsv, csvImportBusy,
   onPaste,
@@ -62,9 +64,9 @@ export function LeadsToolbar({
   const hasFilters =
     filters.status !== '' || filters.priority !== '' ||
     filters.source !== '' || filters.overdue ||
-    filters.followUpToday || filters.warm || filters.untouched
+    filters.followUpToday || filters.warm || filters.untouched || filters.duplicates
 
-  const toggle = (key: 'followUpToday' | 'warm' | 'untouched') => {
+  const toggle = (key: 'followUpToday' | 'warm' | 'untouched' | 'duplicates') => {
     onFilters({ ...filters, [key]: !filters[key] })
   }
 
@@ -176,6 +178,13 @@ export function LeadsToolbar({
         <QuickChip label='Due Today'   active={filters.followUpToday} onClick={() => toggle('followUpToday')} />
         <QuickChip label='Warm'        active={filters.warm}          onClick={() => toggle('warm')} />
         <QuickChip label='Untouched'   active={filters.untouched}     onClick={() => toggle('untouched')} />
+        {duplicateCount > 0 && (
+          <QuickChip
+            label={`Duplicates (${duplicateCount})`}
+            active={filters.duplicates}
+            onClick={() => toggle('duplicates')}
+          />
+        )}
 
         <div className='w-px h-4 bg-surface-500 mx-0.5' />
 

@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FileSpreadsheet, Loader2, AlertCircle, ArrowRight,
   CheckCircle2, XCircle, ChevronDown, ChevronUp, Plus,
-  Phone, TrendingUp,
+  Phone, TrendingUp, Globe, Radio, MapPin,
 } from 'lucide-react'
-import type { Driver } from '../types/models'
+import type { Driver, Load, Broker } from '../types/models'
 import type { ScoredLoad, ParseScreenshotResult } from '../types/global'
 
 // ---------------------------------------------------------------------------
@@ -44,7 +44,34 @@ function rpmColor(v: number | null) {
 
 const CALL_BADGE = ['', 'bg-yellow-500', 'bg-gray-400', 'bg-orange-700'] as const
 
-function FirstCallCard({ load, onAdd }: { load: ScoredLoad; onAdd: (l: ScoredLoad) => void }) {
+type BrokerIntelMap = Map<string, { avgRpm: number | null; loadCount: number; flag: string }>
+
+function BrokerIntelBadge({ company, intel }: { company: string | null | undefined; intel: BrokerIntelMap }) {
+  if (!company) return null
+  const row = intel.get(company.toLowerCase())
+  if (!row) return null
+  const flagWarn = row.flag === 'Avoid' || row.flag === 'Blacklisted' || row.flag === 'Slow Pay'
+  return (
+    <div className='flex items-center gap-1.5 flex-wrap'>
+      {row.loadCount > 0 && row.avgRpm != null && (
+        <span className='text-2xs text-gray-500'>
+          Our avg <span className='text-gray-300 font-mono'>${row.avgRpm.toFixed(2)}/mi</span>
+          <span className='text-gray-700'> ({row.loadCount} loads)</span>
+        </span>
+      )}
+      {row.loadCount === 0 && (
+        <span className='text-2xs text-gray-700'>No history</span>
+      )}
+      {flagWarn && (
+        <span className={`text-2xs px-1.5 py-0 rounded border ${
+          row.flag === 'Avoid' || row.flag === 'Blacklisted' ? 'border-red-700/40 text-red-400' : 'border-yellow-700/40 text-yellow-500'
+        }`}>{row.flag}</span>
+      )}
+    </div>
+  )
+}
+
+function FirstCallCard({ load, onAdd, brokerIntel }: { load: ScoredLoad; onAdd: (l: ScoredLoad) => void; brokerIntel: BrokerIntelMap }) {
   const { o, d } = route(load)
   const badge = CALL_BADGE[load.first_call_rank ?? 0] ?? 'bg-gray-600'
   return (
@@ -101,9 +128,12 @@ function FirstCallCard({ load, onAdd }: { load: ScoredLoad; onAdd: (l: ScoredLoa
       )}
 
       {/* Broker + pickup */}
-      <div className='flex items-center justify-between text-2xs text-gray-600'>
-        <span className='truncate max-w-[120px]'>{load.company ?? '—'}</span>
-        <span>{load.pickup_date ?? '—'}</span>
+      <div className='space-y-0.5'>
+        <div className='flex items-center justify-between text-2xs text-gray-600'>
+          <span className='truncate max-w-[120px]'>{load.company ?? '—'}</span>
+          <span>{load.pickup_date ?? '—'}</span>
+        </div>
+        <BrokerIntelBadge company={load.company} intel={brokerIntel} />
       </div>
     </div>
   )
@@ -113,7 +143,7 @@ function FirstCallCard({ load, onAdd }: { load: ScoredLoad; onAdd: (l: ScoredLoa
 // Full ranked load row (Top 5 table)
 // ---------------------------------------------------------------------------
 
-function LoadRow({ load, onAdd }: { load: ScoredLoad; onAdd: (l: ScoredLoad) => void }) {
+function LoadRow({ load, onAdd, brokerIntel }: { load: ScoredLoad; onAdd: (l: ScoredLoad) => void; brokerIntel: BrokerIntelMap }) {
   const [expanded, setExpanded] = useState(false)
   const { o, d } = route(load)
 
@@ -162,7 +192,10 @@ function LoadRow({ load, onAdd }: { load: ScoredLoad; onAdd: (l: ScoredLoad) => 
         <td className='pr-3 py-2.5 text-xs text-gray-500'>{fmtN(load.miles)}mi</td>
 
         {/* Broker */}
-        <td className='pr-3 py-2.5 text-xs text-gray-400 max-w-[130px] truncate'>{load.company ?? '—'}</td>
+        <td className='pr-3 py-2.5 text-xs text-gray-400 max-w-[150px]'>
+          <span className='truncate block'>{load.company ?? '—'}</span>
+          <BrokerIntelBadge company={load.company} intel={brokerIntel} />
+        </td>
 
         {/* Date */}
         <td className='pr-3 py-2.5 text-xs text-gray-600'>{load.pickup_date ?? '—'}</td>
@@ -225,23 +258,123 @@ function LoadRow({ load, onAdd }: { load: ScoredLoad; onAdd: (l: ScoredLoad) => 
 // Page
 // ---------------------------------------------------------------------------
 
+// Compute avg RPM per broker name from completed loads
+function buildBrokerIntel(brokers: Broker[], loads: Load[]): Map<string, { avgRpm: number | null; loadCount: number; flag: string }> {
+  const map = new Map<string, { avgRpm: number | null; loadCount: number; flag: string }>()
+  for (const b of brokers) {
+    const key = b.name.toLowerCase()
+    const bLoads = loads.filter(l => l.broker_id === b.id && ['Delivered','Invoiced','Paid'].includes(l.status))
+    const rpmLoads = bLoads.filter(l => l.rate != null && l.miles != null && l.miles > 0)
+    const avgRpm = rpmLoads.length > 0
+      ? rpmLoads.reduce((s, l) => s + l.rate! / l.miles!, 0) / rpmLoads.length
+      : null
+    map.set(key, { avgRpm, loadCount: bLoads.length, flag: b.flag })
+  }
+  return map
+}
+
 export function FindLoads() {
   const navigate = useNavigate()
   const [drivers,     setDrivers    ] = useState<Driver[]>([])
+  const [brokers,     setBrokers    ] = useState<Broker[]>([])
+  const [allLoads,    setAllLoads   ] = useState<Load[]>([])
   const [driverId,    setDriverId   ] = useState<number | null>(null)
   const [cpm,         setCpm        ] = useState<number>(0.75)
   const [loading,     setLoading    ] = useState(false)
   const [result,      setResult     ] = useState<ParseScreenshotResult | null>(null)
   const [error,       setError      ] = useState<string | null>(null)
-  const [showRejected,setShowRejected] = useState(false)
+  const [showRejected,   setShowRejected]    = useState(false)
+  const [browserListening, setBrowserListening] = useState(false)
+  const [dropCity, setDropCity] = useState<string | null>(null)
+  const lastSeqRef = useRef(0)
 
   useEffect(() => {
     window.api.drivers.list('Active').then(setDrivers)
+    Promise.all([window.api.brokers.list(), window.api.loads.list()])
+      .then(([b, l]) => { setBrokers(b); setAllLoads(l) })
+      .catch(() => {})
+
+    // Restore last import immediately on mount so results survive tab navigation
+    window.api.loads.getLastBrowserImport().then(({ seq, payload }) => {
+      if (seq > 0 && payload?.loads?.length) {
+        lastSeqRef.current = seq
+        setResult(payload)
+      }
+    }).catch(() => {})
+
+    // IPC push listener (kept as fallback — fires if main→renderer IPC is working)
+    const cb = (data: unknown) => {
+      setBrowserListening(false)
+      const payload = data as ParseScreenshotResult
+      if (!payload?.loads?.length) {
+        setError('No loads received. Make sure Claude posted the scored results.')
+        return
+      }
+      setResult(payload)
+    }
+    window.api.browserImport.onResult(cb)
+
+    // Poll via IPC invoke every 2 s — picks up new browser imports while tab is open
+    const interval = setInterval(async () => {
+      try {
+        const { seq, payload } = await window.api.loads.getLastBrowserImport()
+        if (seq > lastSeqRef.current && payload?.loads?.length) {
+          lastSeqRef.current = seq
+          setBrowserListening(false)
+          setResult(payload)
+        }
+      } catch { /* main process not ready — ignore */ }
+    }, 2000)
+
+    return () => {
+      window.api.browserImport.offResult(cb)
+      clearInterval(interval)
+    }
   }, [])
+
+  // Button toggles the "Waiting..." UI panel — listener is always active above
+  // Do NOT clear existing results here; they remain visible until new ones arrive
+  const startBrowserListen = () => {
+    if (browserListening) {
+      setBrowserListening(false)
+      return
+    }
+    setError(null)
+    setBrowserListening(true)
+  }
 
   useEffect(() => {
     if (drivers.length && !driverId) setDriverId(drivers[0].id)
   }, [drivers, driverId])
+
+  // When driver changes, default CPM to their profile value (falls back to 0.75)
+  useEffect(() => {
+    if (!driverId) return
+    const driver = drivers.find(d => d.id === driverId)
+    if (driver?.cpm != null) setCpm(driver.cpm)
+    else if (driver?.min_rpm != null) setCpm(driver.min_rpm)
+    else setCpm(0.75)
+  }, [driverId, drivers])
+
+  // Resolve driver's current position: active load destination → home_base → null
+  useEffect(() => {
+    if (!driverId) { setDropCity(null); return }
+    const driver = drivers.find(d => d.id === driverId)
+    Promise.all([
+      window.api.loads.list('In Transit'),
+      window.api.loads.list('Picked Up'),
+      window.api.loads.list('Booked'),
+    ]).then(([inTransit, pickedUp, booked]: [Load[], Load[], Load[]]) => {
+      const active = [...inTransit, ...pickedUp, ...booked].find(l => l.driver_id === driverId)
+      if (active?.dest_city) {
+        setDropCity([active.dest_city, active.dest_state].filter(Boolean).join(', '))
+      } else if (driver?.current_location) {
+        setDropCity(driver.current_location)
+      } else {
+        setDropCity(driver?.home_base ?? null)
+      }
+    })
+  }, [driverId, drivers])
 
   const handleImport = async () => {
     if (!driverId) return
@@ -273,6 +406,7 @@ export function FindLoads() {
   }
 
   const selectedDriver = drivers.find(d => d.id === driverId)
+  const brokerIntel    = buildBrokerIntel(brokers, allLoads)
 
   // Partition results
   const goodLoads     = result?.loads.filter(l => !l.skip) ?? []
@@ -298,12 +432,21 @@ export function FindLoads() {
           <span className='text-sm text-gray-400 shrink-0'>Driver:</span>
           <select
             value={driverId ?? ''}
-            onChange={e => { setDriverId(Number(e.target.value)); setResult(null) }}
+            onChange={e => setDriverId(Number(e.target.value))}
             className='bg-surface-700 border border-surface-500 text-gray-100 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-orange-500'
           >
             {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
+
+        {/* Current search origin hint */}
+        {dropCity && (
+          <div className='flex items-center gap-1.5 text-sm'>
+            <MapPin size={12} className='text-orange-400 shrink-0' />
+            <span className='text-gray-500'>Search DAT from: </span>
+            <span className='text-orange-300 font-medium'>{dropCity}</span>
+          </div>
+        )}
 
         {/* CPM */}
         <div className='flex items-center gap-2'>
@@ -319,14 +462,33 @@ export function FindLoads() {
           />
         </div>
 
-        {/* Import button */}
+        {/* Import XLSX button */}
         <button
           onClick={handleImport}
-          disabled={!driverId || loading}
+          disabled={!driverId || loading || browserListening}
           className='flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors'
         >
           {loading ? <Loader2 size={15} className='animate-spin' /> : <FileSpreadsheet size={15} />}
           {loading ? 'Analyzing...' : 'Import XLSX'}
+        </button>
+
+        {/* Import from Browser button */}
+        <button
+          onClick={startBrowserListen}
+          disabled={!driverId || loading}
+          className={[
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            browserListening
+              ? 'bg-blue-700 hover:bg-blue-600 text-white'
+              : 'bg-surface-600 hover:bg-surface-500 text-gray-300 border border-surface-400',
+            (!driverId || loading) ? 'opacity-40 cursor-not-allowed' : '',
+          ].join(' ')}
+          title='Have Claude read your DAT or Truckstop tab and import the results'
+        >
+          {browserListening
+            ? <><Radio size={15} className='animate-pulse' /> Listening...</>
+            : <><Globe size={15} /> Import from Browser</>
+          }
         </button>
 
         {/* Driver summary */}
@@ -339,16 +501,62 @@ export function FindLoads() {
         )}
       </div>
 
-      {/* Workflow hint */}
-      {!result && !error && !loading && (
-        <div className='rounded-xl border border-surface-500 bg-surface-700 p-5 space-y-2'>
-          <p className='text-sm font-medium text-gray-300'>How to use</p>
-          <ol className='text-sm text-gray-500 space-y-1 list-decimal list-inside'>
-            <li>Take a screenshot of your Truckstop search results</li>
-            <li>Ask ChatGPT: <span className='font-mono text-xs bg-surface-600 px-1.5 py-0.5 rounded text-gray-300'>"Convert this screenshot to an Excel file"</span></li>
-            <li>Download the XLSX ChatGPT creates</li>
-            <li>Select your driver and CPM above, click Import XLSX, and choose the file</li>
-          </ol>
+      {/* Browser import listening state */}
+      {browserListening && (
+        result ? (
+          // Compact banner when results are already showing
+          <div className='flex items-center justify-between px-4 py-2 rounded-lg border border-blue-700/40 bg-blue-900/10'>
+            <div className='flex items-center gap-2'>
+              <Radio size={13} className='text-blue-400 animate-pulse shrink-0' />
+              <span className='text-xs text-blue-300'>Listening for new import — results will update automatically</span>
+            </div>
+            <button onClick={startBrowserListen} className='text-xs text-gray-600 hover:text-gray-400 transition-colors'>Cancel</button>
+          </div>
+        ) : (
+          // Full instructions panel when no results exist yet
+          <div className='rounded-xl border border-blue-700/50 bg-blue-900/10 p-5 space-y-3'>
+            <div className='flex items-center gap-2'>
+              <Radio size={14} className='text-blue-400 animate-pulse shrink-0' />
+              <p className='text-sm font-medium text-blue-300'>Waiting for Claude to send load data...</p>
+            </div>
+            <div className='space-y-1.5 text-sm text-gray-400'>
+              <p>
+                1. In DAT, set your search origin to{' '}
+                <span className='text-orange-300 font-medium'>{dropCity ?? 'the driver\'s current city'}</span>
+                {' '}and run your search.
+              </p>
+              <p>2. Tell Claude:</p>
+              <p className='font-mono text-xs bg-surface-800 border border-surface-500 px-3 py-2 rounded-lg text-gray-200 leading-relaxed'>
+                Import loads from my {selectedDriver?.trailer_type ?? 'DAT/Truckstop'} tab for {selectedDriver?.name ?? 'my driver'}
+                {selectedDriver?.min_rpm ? `, min $${selectedDriver.min_rpm.toFixed(2)}/mi` : ''}
+                {dropCity ? `, currently dropping in ${dropCity}` : selectedDriver?.home_base ? `, home base ${selectedDriver.home_base}` : ''}
+              </p>
+              <p>3. Claude will read the tab, score the loads using deadhead from that city, and the results will appear here automatically.</p>
+            </div>
+            <button
+              onClick={startBrowserListen}
+              className='text-xs text-gray-600 hover:text-gray-400 transition-colors'
+            >
+              Cancel
+            </button>
+          </div>
+        )
+      )}
+
+      {/* Workflow hint — XLSX method */}
+      {!result && !error && !loading && !browserListening && (
+        <div className='rounded-xl border border-surface-500 bg-surface-700 p-5 space-y-3'>
+          <p className='text-sm font-medium text-gray-300'>Two ways to import loads</p>
+          <div className='space-y-3 text-sm text-gray-500'>
+            <div>
+              <p className='text-gray-400 font-medium mb-1'>Import from Browser (recommended)</p>
+              <p>Click "Import from Browser" above, then tell Claude which tab to read. Works directly with DAT and Truckstop — no export or conversion needed.</p>
+            </div>
+            <div className='border-t border-surface-600 pt-3'>
+              <p className='text-gray-400 font-medium mb-1'>Import XLSX</p>
+              <p>Export search results from DAT or Truckstop as a spreadsheet, then click "Import XLSX" to select the file.</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -399,7 +607,7 @@ export function FindLoads() {
               </div>
               <div className='flex gap-3 flex-wrap'>
                 {firstCalls.map((load, i) => (
-                  <FirstCallCard key={i} load={load} onAdd={handleAdd} />
+                  <FirstCallCard key={i} load={load} onAdd={handleAdd} brokerIntel={brokerIntel} />
                 ))}
               </div>
             </div>
@@ -423,7 +631,7 @@ export function FindLoads() {
                         '#', 'Route', 'Rate', 'Ld RPM', 'All-in RPM',
                         'Est. Margin', 'Nego Target', 'DH', 'Miles', 'Broker', 'Pickup', '',
                       ].map((h, i) => (
-                        <th key={i} className='text-left text-2xs font-medium text-gray-600 uppercase tracking-wider pb-2 pr-3 pl-4 pt-2 whitespace-nowrap select-none'>
+                        <th key={i} className='text-left text-2xs font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3 pl-4 pt-2 whitespace-nowrap select-none'>
                           {h}
                         </th>
                       ))}
@@ -431,7 +639,7 @@ export function FindLoads() {
                   </thead>
                   <tbody>
                     {top5.map((load, i) => (
-                      <LoadRow key={i} load={load} onAdd={handleAdd} />
+                      <LoadRow key={i} load={load} onAdd={handleAdd} brokerIntel={brokerIntel} />
                     ))}
                   </tbody>
                 </table>

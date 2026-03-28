@@ -4,6 +4,7 @@ import {
   Zap, AlertTriangle, Truck, Users, Megaphone,
   FileText, ChevronRight, ChevronDown, Clock, ArrowRight, X,
   CheckSquare, TrendingUp, Package, Star, Phone, Target, MapPin,
+  CheckCircle2, Circle, Receipt,
 } from 'lucide-react'
 import { renderMd } from '../lib/renderMd'
 import { computeLeadScore } from '../lib/leadScore'
@@ -13,6 +14,7 @@ import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
   OperationsData, DriverOpportunity, GroupPerformance, BrokerLane, ProfitRadarData,
+  DriverComplianceRow,
 } from '../types/models'
 
 // ---------------------------------------------------------------------------
@@ -38,7 +40,7 @@ interface NextAction {
 const EMPTY: OperationsData = {
   driversNeedingLoads: 0, loadsInTransit: 0,
   overdueLeads: 0, todaysGroupCount: 0, outstandingInvoices: 0,
-  revenueThisMonth: 0, expiringDocs: [],
+  revenueThisMonth: 0, uninvoicedDelivered: 0, expiringDocs: [],
   warmLeads: [], availableDrivers: [], todayTasks: [], completedToday: [],
 }
 
@@ -63,6 +65,7 @@ export function Operations() {
   const [revenueGoal,     setRevenueGoal]     = useState<number | null>(null)
   const [editingGoal,     setEditingGoal]     = useState(false)
   const [goalInput,       setGoalInput]       = useState('')
+  const [compliance,      setCompliance]      = useState<DriverComplianceRow[]>([])
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -95,6 +98,10 @@ export function Operations() {
 
     window.api.settings.get('revenueGoal')
       .then((v: unknown) => { if (typeof v === 'number' && v > 0) setRevenueGoal(v) })
+      .catch(() => {})
+
+    window.api.drivers.compliance()
+      .then((rows: DriverComplianceRow[]) => setCompliance(rows))
       .catch(() => {})
   }, [])
 
@@ -148,7 +155,7 @@ export function Operations() {
       id: 'leads-overdue', urgent: true,
       label:  'Follow up on overdue leads',
       detail: `${ops.overdueLeads} lead${ops.overdueLeads !== 1 ? 's' : ''} past their follow-up date`,
-      icon:   <AlertTriangle size={14}/>, route: '/leads',
+      icon:   <AlertTriangle size={14}/>, route: '/leads?filter=overdue',
     },
     ops.driversNeedingLoads > 0 && {
       id: 'drivers-loads', urgent: ops.driversNeedingLoads >= 2,
@@ -188,12 +195,94 @@ export function Operations() {
         <h1 className='text-2xl font-bold text-gray-100'>{today}</h1>
       </div>
 
+      {/* Morning Briefing — guided daily workflow */}
+      {!loading && (() => {
+        const overdueCheckCalls = checkCalls.filter(c => c.scheduled_at && c.scheduled_at < new Date().toISOString())
+        type BriefRow = { ok: boolean; label: string; detail: string; action: string; route: string; icon: React.ReactNode }
+        const rows: BriefRow[] = [
+          {
+            ok:     ops.driversNeedingLoads === 0,
+            label:  ops.driversNeedingLoads === 0 ? 'All drivers have loads' : `${ops.driversNeedingLoads} driver${ops.driversNeedingLoads !== 1 ? 's' : ''} need${ops.driversNeedingLoads === 1 ? 's' : ''} a load`,
+            detail: ops.driversNeedingLoads === 0 ? 'Nothing to do here.' : 'Find and book loads for available drivers.',
+            action: 'Find Loads',
+            route:  '/find-loads',
+            icon:   <Truck size={13} />,
+          },
+          {
+            ok:     overdueCheckCalls.length === 0,
+            label:  overdueCheckCalls.length === 0 ? 'No overdue check calls' : `${overdueCheckCalls.length} check call${overdueCheckCalls.length !== 1 ? 's' : ''} overdue`,
+            detail: overdueCheckCalls.length === 0 ? 'All active drivers checked in.' : overdueCheckCalls.map(c => c.driver_name).join(', '),
+            action: 'Active Loads',
+            route:  '/active-loads',
+            icon:   <Phone size={13} />,
+          },
+          {
+            ok:     ops.overdueLeads === 0,
+            label:  ops.overdueLeads === 0 ? 'No overdue follow-ups' : `${ops.overdueLeads} lead${ops.overdueLeads !== 1 ? 's' : ''} past follow-up date`,
+            detail: ops.overdueLeads === 0 ? 'Lead pipeline is current.' : 'These leads need a call or status update.',
+            action: 'View Leads',
+            route:  '/leads?filter=overdue',
+            icon:   <Users size={13} />,
+          },
+          {
+            ok:     ops.uninvoicedDelivered === 0,
+            label:  ops.uninvoicedDelivered === 0 ? 'All delivered loads invoiced' : `${ops.uninvoicedDelivered} delivered load${ops.uninvoicedDelivered !== 1 ? 's' : ''} not invoiced`,
+            detail: ops.uninvoicedDelivered === 0 ? 'Nothing pending.' : 'Create invoices to get paid faster.',
+            action: 'Invoices',
+            route:  '/invoices',
+            icon:   <Receipt size={13} />,
+          },
+          {
+            ok:     ops.expiringDocs.length === 0,
+            label:  ops.expiringDocs.length === 0 ? 'All compliance documents current' : `${ops.expiringDocs.length} document${ops.expiringDocs.length !== 1 ? 's' : ''} expiring soon`,
+            detail: ops.expiringDocs.length === 0 ? 'CDL, insurance, and medical cards are current.' : ops.expiringDocs.map(d => `${d.driver_name} ${d.doc_type}`).join(', '),
+            action: 'Drivers',
+            route:  '/drivers',
+            icon:   <AlertTriangle size={13} />,
+          },
+        ]
+        const allClear = rows.every(r => r.ok)
+        return (
+          <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card overflow-hidden'>
+            <div className='flex items-center justify-between px-5 py-3 border-b border-surface-500/50'>
+              <div className='flex items-center gap-2'>
+                <Zap size={13} className={allClear ? 'text-green-400' : 'text-orange-400'} />
+                <span className='text-sm font-semibold text-gray-100'>Morning Briefing</span>
+              </div>
+              {allClear && <span className='text-xs text-green-400 font-medium'>All clear</span>}
+            </div>
+            <div className='divide-y divide-surface-500/40'>
+              {rows.map((row, i) => (
+                <div key={i} className='flex items-center gap-3 px-5 py-3'>
+                  <div className={`shrink-0 ${row.ok ? 'text-green-500' : 'text-orange-400'}`}>
+                    {row.ok ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                  </div>
+                  <div className={`shrink-0 ${row.ok ? 'text-gray-600' : 'text-gray-400'}`}>{row.icon}</div>
+                  <div className='flex-1 min-w-0'>
+                    <span className={`text-sm font-medium ${row.ok ? 'text-gray-500' : 'text-gray-200'}`}>{row.label}</span>
+                    <span className='text-xs text-gray-600 ml-2'>{row.detail}</span>
+                  </div>
+                  {!row.ok && (
+                    <button
+                      onClick={() => navigate(row.route)}
+                      className='shrink-0 flex items-center gap-1 px-3 py-1 text-xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+                    >
+                      {row.action} <ArrowRight size={11} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Briefing strip — 6 KPI cards */}
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
         <KpiCard label='Revenue MTD'     value={loading ? '—' : `$${ops.revenueThisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`} icon={<TrendingUp size={16}/>} accent={false} sub='dispatch fees paid' onClick={() => navigate('/invoices')} />
         <KpiCard label='Loads In Transit' value={loading ? '—' : String(ops.loadsInTransit)}     icon={<Package size={16}/>}       accent={false}                        sub='currently moving'       onClick={() => navigate('/loads')}     />
         <KpiCard label='Drivers Avail.'  value={loading ? '—' : String(ops.driversNeedingLoads)} icon={<Truck size={16}/>}         accent={ops.driversNeedingLoads > 0}  sub='need loads today'       onClick={() => navigate('/drivers')}   />
-        <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'     onClick={() => navigate('/leads')}     />
+        <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'     onClick={() => navigate('/leads?filter=overdue')}     />
         <KpiCard label='Groups to Post'  value={loading ? '—' : String(ops.todaysGroupCount)}    icon={<Megaphone size={16}/>}     accent={false}                        sub='eligible today'         onClick={() => navigate('/marketing')} />
         <KpiCard label='Open Invoices'   value={loading ? '—' : String(ops.outstandingInvoices)} icon={<FileText size={16}/>}      accent={ops.outstandingInvoices > 0}  sub='draft / sent / overdue' onClick={() => navigate('/invoices')}  />
       </div>
@@ -345,6 +434,11 @@ export function Operations() {
         </div>
       )}
 
+      {/* Carrier Compliance Matrix — always visible when there are active drivers */}
+      {compliance.length > 0 && (
+        <ComplianceMatrix rows={compliance} onNavigate={() => navigate('/drivers')} />
+      )}
+
       {/* Upcoming Check Calls — only rendered when active loads have events */}
       {checkCalls.length > 0 && (
         <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card px-5 py-3'>
@@ -425,7 +519,7 @@ export function Operations() {
               <span className='ml-auto text-2xs text-gray-600'>{radar.idleDrivers.length} available</span>
             </div>
             {radar.idleDrivers.length === 0 ? (
-              <p className='text-xs text-gray-700 italic'>All active drivers are assigned.</p>
+              <p className='text-xs text-gray-400 italic'>All active drivers are assigned.</p>
             ) : (
               <ul className='space-y-2'>
                 {radar.idleDrivers.slice(0, 5).map(d => (
@@ -456,7 +550,7 @@ export function Operations() {
               <span className='ml-auto text-2xs text-gray-600'>by performance</span>
             </div>
             {radar.topGroups.length === 0 ? (
-              <p className='text-xs text-gray-700 italic'>No active Facebook groups.</p>
+              <p className='text-xs text-gray-400 italic'>No active Facebook groups.</p>
             ) : (
               <ul className='space-y-2'>
                 {radar.topGroups.slice(0, 5).map(g => (
@@ -566,7 +660,7 @@ export function Operations() {
               <button onClick={() => navigate('/leads')} className='text-2xs text-orange-500 hover:text-orange-400 transition-colors'>View all</button>
             </div>
             {ops.warmLeads.length === 0 ? (
-              <p className='text-xs text-gray-700 italic'>No warm leads right now.</p>
+              <p className='text-xs text-gray-400 italic'>No warm leads right now.</p>
             ) : (
               <ul className='space-y-1'>
                 {ops.warmLeads.slice(0, 4).map(lead => {
@@ -594,7 +688,7 @@ export function Operations() {
               <button onClick={() => navigate('/dispatcher')} className='text-2xs text-orange-500 hover:text-orange-400 transition-colors'>Open board</button>
             </div>
             {ops.availableDrivers.length === 0 ? (
-              <p className='text-xs text-gray-700 italic'>All active drivers are currently assigned.</p>
+              <p className='text-xs text-gray-400 italic'>All active drivers are currently assigned.</p>
             ) : (
               <ul className='space-y-1'>
                 {ops.availableDrivers.slice(0, 4).map(driver => (
@@ -626,9 +720,9 @@ export function Operations() {
             )}
           </div>
           {loading ? (
-            <p className='text-sm text-gray-600'>Loading...</p>
+            <p className='text-sm text-gray-400'>Loading...</p>
           ) : ops.todayTasks.length === 0 ? (
-            <p className='text-sm text-gray-600'>No tasks scheduled for today.</p>
+            <p className='text-sm text-gray-400'>No tasks scheduled for today.</p>
           ) : (
             <ul className='space-y-1'>
               {ops.todayTasks.map(task => (
@@ -698,9 +792,9 @@ export function Operations() {
           </button>
         </div>
         {leadsLoading ? (
-          <p className='text-sm text-gray-600'>Loading leads...</p>
+          <p className='text-sm text-gray-400'>Loading leads...</p>
         ) : topLeads.length === 0 ? (
-          <p className='text-sm text-gray-600'>No active leads. Run an FMCSA import to populate your pipeline.</p>
+          <p className='text-sm text-gray-400'>No active leads. Run an FMCSA import to populate your pipeline.</p>
         ) : (
           <div className='divide-y divide-surface-600'>
             {topLeads.map((lead, i) => (
@@ -712,6 +806,124 @@ export function Operations() {
 
       {/* Document modal */}
       {docModal && <DocModal title={docModal} onClose={() => setDocModal(null)} />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Carrier Compliance Matrix
+// ---------------------------------------------------------------------------
+
+type ComplianceStatus = 'ok' | 'warn' | 'critical' | 'expired' | 'missing'
+
+function docStatus(expiry: string | null, today: string): ComplianceStatus {
+  if (!expiry) return 'missing'
+  if (expiry < today) return 'expired'
+  const days = Math.round((new Date(expiry).getTime() - new Date(today).getTime()) / 86400000)
+  if (days <= 30)  return 'critical'
+  if (days <= 60)  return 'warn'
+  return 'ok'
+}
+
+const STATUS_LABEL: Record<ComplianceStatus, string> = {
+  ok:       'OK',
+  warn:     'Soon',
+  critical: 'Critical',
+  expired:  'Expired',
+  missing:  'Missing',
+}
+
+const COMPLIANCE_CLS: Record<ComplianceStatus, string> = {
+  ok:       'bg-green-900/30 text-green-400 border-green-800/40',
+  warn:     'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
+  critical: 'bg-red-900/30 text-red-400 border-red-800/40',
+  expired:  'bg-red-950/60 text-red-300 border-red-700/60',
+  missing:  'bg-surface-600 text-gray-600 border-surface-400',
+}
+
+function StatusBadge({ status, expiry }: { status: ComplianceStatus; expiry: string | null }) {
+  const tip = expiry ? new Date(expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Not on file'
+  return (
+    <span title={tip} className={`text-2xs px-1.5 py-0.5 rounded border font-medium ${COMPLIANCE_CLS[status]}`}>
+      {STATUS_LABEL[status]}
+    </span>
+  )
+}
+
+function ComplianceMatrix({ rows, onNavigate }: { rows: DriverComplianceRow[]; onNavigate: () => void }) {
+  const todayIso = new Date().toISOString().split('T')[0]
+  const [collapsed, setCollapsed] = useState(true)
+
+  const withStatus = rows.map(r => ({
+    ...r,
+    cdlStatus: docStatus(r.cdl_expiry, todayIso),
+    insStatus: docStatus(r.insurance_expiry, todayIso),
+    coiStatus: docStatus(r.coi_expiry, todayIso),
+  }))
+
+  const alertCount = withStatus.filter(r =>
+    ['critical','expired','missing'].includes(r.cdlStatus) ||
+    ['critical','expired','missing'].includes(r.insStatus) ||
+    ['critical','expired','missing'].includes(r.coiStatus)
+  ).length
+
+  const allClear = alertCount === 0
+
+  return (
+    <div className={`bg-surface-700 rounded-xl border shadow-card ${allClear ? 'border-surface-400' : 'border-red-800/40'}`}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className='w-full flex items-center justify-between px-5 py-3 hover:bg-surface-600/30 transition-colors rounded-xl'
+      >
+        <div className='flex items-center gap-2'>
+          <FileText size={14} className={allClear ? 'text-green-400' : 'text-red-400'} />
+          <h2 className='text-xs font-semibold text-gray-200'>Carrier Compliance</h2>
+          {allClear
+            ? <span className='text-2xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/40'>All clear</span>
+            : <span className='text-2xs px-2 py-0.5 rounded-full bg-red-900/40 text-red-400 border border-red-800/40'>{alertCount} need attention</span>
+          }
+        </div>
+        <div className='flex items-center gap-2'>
+          <button
+            onClick={e => { e.stopPropagation(); onNavigate() }}
+            className='text-2xs text-orange-500 hover:text-orange-400 flex items-center gap-1 transition-colors'
+          >
+            Open Drivers <ChevronRight size={10} />
+          </button>
+          <ChevronDown size={13} className={`text-gray-600 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className='px-5 pb-4 border-t border-surface-500'>
+          <div className='mt-3 overflow-x-auto'>
+            <table className='w-full text-xs'>
+              <thead>
+                <tr className='border-b border-surface-500'>
+                  <th className='text-left pb-2 text-2xs font-medium text-gray-400 pr-4'>Driver</th>
+                  <th className='text-left pb-2 text-2xs font-medium text-gray-400 pr-3'>CDL</th>
+                  <th className='text-left pb-2 text-2xs font-medium text-gray-400 pr-3'>Insurance</th>
+                  <th className='text-left pb-2 text-2xs font-medium text-gray-400'>COI</th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-surface-600'>
+                {withStatus.map(r => (
+                  <tr key={r.id} className='hover:bg-surface-600/30 transition-colors cursor-pointer' onClick={onNavigate}>
+                    <td className='py-2 pr-4'>
+                      <p className='text-gray-200 font-medium'>{r.name}</p>
+                      {r.mc_number && <p className='text-gray-600 text-2xs font-mono'>{r.mc_number}</p>}
+                    </td>
+                    <td className='py-2 pr-3'><StatusBadge status={r.cdlStatus} expiry={r.cdl_expiry} /></td>
+                    <td className='py-2 pr-3'><StatusBadge status={r.insStatus} expiry={r.insurance_expiry} /></td>
+                    <td className='py-2'><StatusBadge status={r.coiStatus} expiry={r.coi_expiry} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className='text-2xs text-gray-700 mt-3'>CDL / Insurance from driver profile. COI from attached documents. Hover any badge to see the date. Warn = within 60 days, Critical = within 30 days.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -984,7 +1196,7 @@ function DocModal({ title, onClose }: { title: string; onClose: () => void }) {
         </div>
         <div className='flex-1 overflow-y-auto px-6 py-5'>
           {loading ? (
-            <p className='text-sm text-gray-600'>Loading...</p>
+            <p className='text-sm text-gray-400'>Loading...</p>
           ) : current.content ? (
             <div
               dangerouslySetInnerHTML={{ __html: renderMd(current.content) }}

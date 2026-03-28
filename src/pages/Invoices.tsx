@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Receipt } from 'lucide-react'
 import type { Invoice, InvoiceStatus, Driver, Load, Broker } from '../types/models'
 import { InvoicesToolbar, type InvoiceFilters } from '../components/invoices/InvoicesToolbar'
 import { InvoicesTable } from '../components/invoices/InvoicesTable'
@@ -6,6 +8,7 @@ import { InvoiceModal } from '../components/invoices/InvoiceModal'
 import { InvoiceDrawer } from '../components/invoices/InvoiceDrawer'
 
 export function Invoices() {
+  const [searchParams] = useSearchParams()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [drivers, setDrivers]   = useState<Driver[]>([])
   const [loads, setLoads]       = useState<Load[]>([])
@@ -32,6 +35,18 @@ export function Invoices() {
     setLoading(false)
   }
   useEffect(() => { reload() }, [])
+
+  // Auto-open new invoice modal pre-filled from a load (e.g. navigated from Active Loads after delivery)
+  useEffect(() => {
+    const isNew   = searchParams.get('new') === '1'
+    const loadIdP = searchParams.get('load_id')
+    if (!isNew || !loadIdP) return
+    const loadId = Number(loadIdP)
+    if (!loadId) return
+    window.api.loads.get(loadId).then(load => {
+      if (load) { setEditInv(null); setPrefill(load); setModal(true) }
+    })
+  }, [])
 
   const handleSort = (k: keyof Invoice) => {
     if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -60,6 +75,12 @@ export function Invoices() {
     invoices.filter(i => i.status === 'Draft' || i.status === 'Sent' || i.status === 'Overdue')
       .reduce((s, i) => s + (i.dispatch_fee ?? 0), 0),
     [invoices]
+  )
+
+  const invoicedLoadIds = useMemo(() => new Set(invoices.map(i => i.load_id).filter(Boolean)), [invoices])
+  const uninvoicedLoads = useMemo(() =>
+    loads.filter(l => l.status === 'Delivered' && !invoicedLoadIds.has(l.id)),
+    [loads, invoicedLoadIds]
   )
 
   const openGenerate = () => { setEditInv(null); setPrefill(null); setModal(true) }
@@ -94,6 +115,8 @@ export function Invoices() {
     }
   }
 
+  const openPrefilled = (load: Load) => { setEditInv(null); setPrefill(load); setModal(true) }
+
   return (
     <div className='flex flex-col h-full'>
       <InvoicesToolbar
@@ -103,6 +126,38 @@ export function Invoices() {
         totalOutstanding={totalOutstanding}
         onGenerate={openGenerate}
       />
+      {uninvoicedLoads.length > 0 && (
+        <div className='mx-0 mb-3 rounded-xl border border-orange-700/40 bg-orange-950/25 px-4 py-3'>
+          <div className='flex items-center gap-2 mb-2'>
+            <Receipt size={13} className='text-orange-400 shrink-0' />
+            <span className='text-xs font-semibold text-orange-300'>
+              {uninvoicedLoads.length} delivered {uninvoicedLoads.length === 1 ? 'load' : 'loads'} not yet invoiced
+            </span>
+          </div>
+          <div className='space-y-1.5'>
+            {uninvoicedLoads.map(l => {
+              const driver = drivers.find(d => d.id === l.driver_id)
+              const route = [l.origin_city, l.origin_state].filter(Boolean).join(', ') + ' \u2192 ' + [l.dest_city, l.dest_state].filter(Boolean).join(', ')
+              return (
+                <div key={l.id} className='flex items-center justify-between gap-3 rounded-lg bg-orange-900/20 border border-orange-700/20 px-3 py-1.5'>
+                  <div className='min-w-0 flex-1'>
+                    <span className='text-xs text-gray-300 font-medium truncate block'>
+                      {driver?.name ?? 'Unassigned'}{l.load_id ? <span className='text-gray-600 font-normal'> &middot; {l.load_id}</span> : null}
+                    </span>
+                    <span className='text-2xs text-gray-500 truncate block'>{route || 'No route'}{l.rate != null ? <span className='text-gray-400'> &middot; ${l.rate.toLocaleString()}</span> : null}</span>
+                  </div>
+                  <button
+                    onClick={() => openPrefilled(l)}
+                    className='shrink-0 h-6 px-3 text-2xs font-semibold rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition-colors'
+                  >
+                    Invoice
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <InvoicesTable
         invoices={filtered} drivers={drivers} loading={loading}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}

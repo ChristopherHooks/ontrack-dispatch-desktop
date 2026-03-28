@@ -50,7 +50,7 @@ export function Analytics() {
 
   if (loading) return (
     <div className='flex items-center justify-center h-64'>
-      <p className='text-sm text-gray-600'>Loading analytics...</p>
+      <p className='text-sm text-gray-400'>Loading analytics...</p>
     </div>
   )
   if (error) return (

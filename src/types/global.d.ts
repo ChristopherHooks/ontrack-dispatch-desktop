@@ -89,6 +89,7 @@ declare global {
         delete:          (id: number) => Promise<boolean>
         parseScreenshot: (imageBase64: string, mediaType: string, driverId: number, cpm: number) => Promise<ParseScreenshotResult>
         importXlsx:      (driverId: number, cpm: number) => Promise<ParseScreenshotResult>
+        getLastBrowserImport: () => Promise<{ seq: number; payload: ParseScreenshotResult | null }>
       }
       brokers: {
         list:   () => Promise<Broker[]>
@@ -176,6 +177,21 @@ declare global {
         statusChange:    (loadId: number, newStatus: string, notes: string | null)                 => Promise<void>
         initLoad:        (loadId: number)                                                           => Promise<void>
         generateMessage: (payload: { driverName: string; route: string; messageType: string })     => Promise<ClaudeResponse>
+      }
+      marketing: {
+        groups: {
+          list:         () => Promise<unknown[]>
+          create:       (name: string, url: string | null, platform: string, notes: string | null, truckTypeTags: string[], regionTags: string[]) => Promise<unknown>
+          update:       (id: number, updates: object) => Promise<unknown>
+          markPosted:   (id: number, date: string) => Promise<unknown>
+          delete:       (id: number) => Promise<boolean>
+          todaysGroups: (n?: number) => Promise<unknown[]>
+          catAnalysis:  () => Promise<unknown>
+          seedGroups:   () => Promise<{ ok: boolean }>
+          markReviewed: (id: number, date: string) => Promise<unknown>
+          snoozeGroup:  (id: number, until: string) => Promise<unknown>
+          importHtml:   () => Promise<{ added: number; found: number; canceled?: boolean }>
+        }
       }
       shell: {
         openExternal: (url: string) => Promise<void>

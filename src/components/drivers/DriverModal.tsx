@@ -9,8 +9,8 @@ const BLANK: CreateDriverDto = {
   name: '', company: null, mc_number: null, dot_number: null, cdl_number: null,
   cdl_expiry: null, phone: null, email: null, truck_type: null, trailer_type: null, trailer_length: null,
   authority_date: null,
-  home_base: null, current_location: null, preferred_lanes: null, min_rpm: null, dispatch_percent: 7,
-  factoring_company: null, insurance_expiry: null, start_date: null, status: 'Active', notes: null,
+  home_base: null, current_location: null, preferred_lanes: null, cpm: null, min_rpm: null, dispatch_percent: 7,
+  factoring_company: null, insurance_expiry: null, medical_card_expiry: null, start_date: null, status: 'Active', notes: null,
 }
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
 
@@ -109,6 +109,10 @@ export function DriverModal({ driver, onSave, onClose }: Props) {
               <Field label='Insurance Expiry' icon={<Calendar size={10} />}>
                 <input className={inp} type='date' value={form.insurance_expiry??''} onChange={e=>str('insurance_expiry',e.target.value)} />
               </Field>
+              <Field label='Medical Card Expiry' icon={<Calendar size={10} />}>
+                <input className={inp} type='date' value={form.medical_card_expiry??''} onChange={e=>str('medical_card_expiry',e.target.value)} />
+                <p className='text-2xs text-gray-600 mt-1'>DOT physical — renews every 24 months (or sooner per examiner).</p>
+              </Field>
               <Field label='Authority Date (MC Granted)' icon={<Calendar size={10} />}>
                 <input className={inp} type='date' value={form.authority_date??''} onChange={e=>str('authority_date',e.target.value)} />
               </Field>
@@ -132,6 +136,10 @@ export function DriverModal({ driver, onSave, onClose }: Props) {
                 <input className={inp} value={form.trailer_length??''} onChange={e=>str('trailer_length',e.target.value)} placeholder="e.g. 48', 53', 36' Gooseneck" />
               </Field>
               <Sec title='Dispatch Settings' />
+              <Field label='CPM ($/mi cost)' icon={<DollarSign size={10} />}>
+                <input className={inp} type='number' step='0.01' min='0' value={form.cpm??''} onChange={e=>num('cpm',e.target.value)} placeholder='e.g. 0.75' />
+                <p className='text-2xs text-gray-600 mt-1'>Cost-per-mile — pre-fills the CPM field in Find Loads.</p>
+              </Field>
               <Field label='Min RPM ($/mi)' icon={<DollarSign size={10} />}>
                 <input className={inp} type='number' step='0.01' min='0' value={form.min_rpm??''} onChange={e=>num('min_rpm',e.target.value)} placeholder='e.g. 2.50' />
               </Field>
