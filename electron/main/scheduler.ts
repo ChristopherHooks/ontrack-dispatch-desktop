@@ -10,6 +10,7 @@ export type JobName =
   | 'fb-search-1300'
   | 'fb-search-1600'
   | 'fb-groups-update'
+  | 'doc-expiry-check'
 
 interface JobConfig {
   name:        JobName
@@ -119,6 +120,59 @@ async function runFbGroupsUpdate(): Promise<void> {
   }
 }
 
+/**
+ * Checks driver documents expiring within 30 days and fires a native
+ * notification once per day per expiring document.
+ */
+async function runDocExpiryCheck(): Promise<void> {
+  if (!_getDb) {
+    console.warn('[Scheduler] doc-expiry-check: not yet initialised — skipping')
+    return
+  }
+  if (!Notification.isSupported()) return
+  const db = _getDb()
+
+  interface ExpiryRow {
+    driver_name: string
+    doc_type:    string
+    expiry_date: string
+    days_left:   number
+  }
+
+  const today = todayStr()
+  const in30  = new Date()
+  in30.setDate(in30.getDate() + 30)
+  const cutoff = in30.toISOString().split('T')[0]
+
+  const rows = db.prepare(
+    'SELECT d.name AS driver_name, dd.doc_type, dd.expiry_date,' +
+    "  CAST(julianday(dd.expiry_date) - julianday('now') AS INTEGER) AS days_left" +
+    ' FROM driver_documents dd JOIN drivers d ON d.id = dd.driver_id' +
+    " WHERE dd.expiry_date IS NOT NULL AND dd.expiry_date BETWEEN ? AND ?" +
+    " ORDER BY dd.expiry_date ASC"
+  ).all(today, cutoff) as ExpiryRow[]
+
+  if (rows.length === 0) return
+
+  // Fire one summary notification if multiple docs expiring, individual if just one
+  if (rows.length === 1) {
+    const r = rows[0]
+    const urgency = r.days_left <= 7 ? 'URGENT: ' : ''
+    new Notification({
+      title: `${urgency}Document Expiring Soon`,
+      body:  `${r.driver_name} — ${r.doc_type} expires in ${r.days_left} day${r.days_left !== 1 ? 's' : ''} (${r.expiry_date})`,
+    }).show()
+  } else {
+    const urgent = rows.filter(r => r.days_left <= 7)
+    const title = urgent.length > 0 ? `URGENT: ${urgent.length} Document${urgent.length > 1 ? 's' : ''} Expiring This Week` : `${rows.length} Driver Documents Expiring Soon`
+    const body = rows.slice(0, 3).map(r => `${r.driver_name}: ${r.doc_type} (${r.days_left}d)`).join(', ')
+      + (rows.length > 3 ? ` +${rows.length - 3} more` : '')
+    new Notification({ title, body }).show()
+  }
+
+  console.log('[Scheduler] doc-expiry-check: found', rows.length, 'expiring documents')
+}
+
 // ---------------------------------------------------------------------------
 // Lead follow-up reminder checker (runs every tick, not via JOBS array)
 // ---------------------------------------------------------------------------
@@ -188,6 +242,9 @@ const JOBS: JobConfig[] = [
 
   // Sunday 9 AM — review and refresh the FB groups list
   { name: 'fb-groups-update', hour: 9, minute: 0, daysOfWeek: [0], handler: runFbGroupsUpdate },
+
+  // 8 AM daily — check for driver documents expiring within 30 days
+  { name: 'doc-expiry-check', hour: 8, minute: 0, handler: runDocExpiryCheck },
 ]
 
 // ---------------------------------------------------------------------------

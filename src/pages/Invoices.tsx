@@ -22,6 +22,8 @@ export function Invoices() {
   const [editInv, setEditInv]   = useState<Invoice | null>(null)
   const [prefill, setPrefill]   = useState<Load | null>(null)
   const [modal, setModal]       = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -117,6 +119,27 @@ export function Invoices() {
 
   const openPrefilled = (load: Load) => { setEditInv(null); setPrefill(load); setModal(true) }
 
+  const handleToggle = (id: number) => setSelectedIds(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next
+  })
+  const handleToggleAll = (ids: number[]) => {
+    const allSelected = ids.every(id => selectedIds.has(id))
+    setSelectedIds(allSelected ? new Set() : new Set(ids))
+  }
+
+  const handleBulkStatus = async (status: InvoiceStatus) => {
+    if (selectedIds.size === 0 || bulkBusy) return
+    setBulkBusy(true)
+    const today = new Date().toISOString().split('T')[0]
+    const extra: Record<string, string | null> = {}
+    if (status === 'Sent')  extra.sent_date = today
+    if (status === 'Paid')  { extra.sent_date = today; extra.paid_date = today }
+    await window.api.invoices.bulkUpdate([...selectedIds], status, extra)
+    await reload()
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+  }
+
   return (
     <div className='flex flex-col h-full'>
       <InvoicesToolbar
@@ -158,10 +181,32 @@ export function Invoices() {
           </div>
         </div>
       )}
+      {selectedIds.size > 0 && (
+        <div className='flex items-center gap-2 px-4 py-2 bg-surface-700 border-b border-surface-500'>
+          <span className='text-xs text-gray-400'>{selectedIds.size} selected</span>
+          <div className='flex-1'/>
+          <button disabled={bulkBusy} onClick={() => handleBulkStatus('Sent')}
+            className='px-3 h-7 text-xs font-medium bg-blue-700 hover:bg-blue-600 text-white rounded-lg disabled:opacity-50 transition-colors'>
+            Mark Sent
+          </button>
+          <button disabled={bulkBusy} onClick={() => handleBulkStatus('Paid')}
+            className='px-3 h-7 text-xs font-medium bg-green-700 hover:bg-green-600 text-white rounded-lg disabled:opacity-50 transition-colors'>
+            Mark Paid
+          </button>
+          <button disabled={bulkBusy} onClick={() => handleBulkStatus('Draft')}
+            className='px-3 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg disabled:opacity-50 transition-colors'>
+            Reset to Draft
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className='px-3 h-7 text-xs text-gray-500 hover:text-gray-300 transition-colors'>
+            Clear
+          </button>
+        </div>
+      )}
       <InvoicesTable
         invoices={filtered} drivers={drivers} loading={loading}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
         onSelect={setSelected}
+        selectedIds={selectedIds} onToggle={handleToggle} onToggleAll={handleToggleAll}
       />
       {selected && (
         <InvoiceDrawer

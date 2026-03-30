@@ -4,10 +4,12 @@ import { TopBar }  from './TopBar'
 import { GlobalSearch } from '../ui/GlobalSearch'
 import { useSettingsStore } from '../../store/settingsStore'
 import { OnboardingWizard } from '../onboarding/OnboardingWizard'
+import { FirstDispatchGuide } from '../onboarding/FirstDispatchGuide'
 
 export function AppShell() {
-  const collapsed          = useSettingsStore((s) => s.sidebarCollapsed)
-  const onboardingComplete = useSettingsStore((s) => s.onboardingComplete)
+  const collapsed              = useSettingsStore((s) => s.sidebarCollapsed)
+  const onboardingComplete     = useSettingsStore((s) => s.onboardingComplete)
+  const firstDispatchComplete  = useSettingsStore((s) => s.firstDispatchComplete)
 
   return (
     <div className='flex h-screen w-screen overflow-hidden bg-surface-800 text-gray-100'>
@@ -23,6 +25,7 @@ export function AppShell() {
       </div>
       <GlobalSearch />
       {!onboardingComplete && <OnboardingWizard />}
+      {onboardingComplete && !firstDispatchComplete && <FirstDispatchGuide />}
     </div>
   )
 }

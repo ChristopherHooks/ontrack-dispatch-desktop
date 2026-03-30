@@ -11,6 +11,8 @@ import { computeLeadScore } from '../lib/leadScore'
 import { openSaferMc, openSaferDot } from '../lib/saferUrl'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
+import { LaunchSprintPanel } from '../components/operations/LaunchSprintPanel'
+import { useSettingsStore } from '../store/settingsStore'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
   OperationsData, DriverOpportunity, GroupPerformance, BrokerLane, ProfitRadarData,
@@ -40,8 +42,10 @@ interface NextAction {
 const EMPTY: OperationsData = {
   driversNeedingLoads: 0, loadsInTransit: 0,
   overdueLeads: 0, todaysGroupCount: 0, outstandingInvoices: 0,
-  revenueThisMonth: 0, uninvoicedDelivered: 0, expiringDocs: [],
+  revenueThisMonth: 0, uninvoicedDelivered: 0, staleLoads: [], expiringDocs: [],
   warmLeads: [], availableDrivers: [], todayTasks: [], completedToday: [],
+  totalDrivers: 0, totalBrokers: 0, totalLeads: 0, hasSentOrPaidInvoice: false,
+  weeklyScorecard: { loadsCompleted: 0, grossRevenue: 0, dispatchRevenue: 0, avgRpm: null, bestLane: null, bestBroker: null, invoicesSent: 0 },
 }
 
 const RADAR_EMPTY: ProfitRadarData = { idleDrivers: [], leadHeat: [], topGroups: [], topLanes: [] }
@@ -66,7 +70,9 @@ export function Operations() {
   const [editingGoal,     setEditingGoal]     = useState(false)
   const [goalInput,       setGoalInput]       = useState('')
   const [compliance,      setCompliance]      = useState<DriverComplianceRow[]>([])
-  const navigate = useNavigate()
+  const navigate         = useNavigate()
+  const companyName      = useSettingsStore((s) => s.companyName)
+  const firstLaunchDate  = useSettingsStore((s) => s.firstLaunchDate)
 
   useEffect(() => {
     Promise.all([
@@ -195,6 +201,14 @@ export function Operations() {
         <h1 className='text-2xl font-bold text-gray-100'>{today}</h1>
       </div>
 
+      {/* 7-Day Launch Sprint — visible until first invoice is sent */}
+      <LaunchSprintPanel
+        ops={ops}
+        companyName={companyName}
+        firstLaunchDate={firstLaunchDate}
+        loading={loading}
+      />
+
       {/* Morning Briefing — guided daily workflow */}
       {!loading && (() => {
         const overdueCheckCalls = checkCalls.filter(c => c.scheduled_at && c.scheduled_at < new Date().toISOString())
@@ -205,7 +219,7 @@ export function Operations() {
             label:  ops.driversNeedingLoads === 0 ? 'All drivers have loads' : `${ops.driversNeedingLoads} driver${ops.driversNeedingLoads !== 1 ? 's' : ''} need${ops.driversNeedingLoads === 1 ? 's' : ''} a load`,
             detail: ops.driversNeedingLoads === 0 ? 'Nothing to do here.' : 'Find and book loads for available drivers.',
             action: 'Find Loads',
-            route:  '/find-loads',
+            route:  '/findloads',
             icon:   <Truck size={13} />,
           },
           {
@@ -213,7 +227,7 @@ export function Operations() {
             label:  overdueCheckCalls.length === 0 ? 'No overdue check calls' : `${overdueCheckCalls.length} check call${overdueCheckCalls.length !== 1 ? 's' : ''} overdue`,
             detail: overdueCheckCalls.length === 0 ? 'All active drivers checked in.' : overdueCheckCalls.map(c => c.driver_name).join(', '),
             action: 'Active Loads',
-            route:  '/active-loads',
+            route:  '/activeloads',
             icon:   <Phone size={13} />,
           },
           {
@@ -239,6 +253,14 @@ export function Operations() {
             action: 'Drivers',
             route:  '/drivers',
             icon:   <AlertTriangle size={13} />,
+          },
+          {
+            ok:     ops.staleLoads.length === 0,
+            label:  ops.staleLoads.length === 0 ? 'All loads progressing on schedule' : `${ops.staleLoads.length} load${ops.staleLoads.length !== 1 ? 's' : ''} past expected date`,
+            detail: ops.staleLoads.length === 0 ? 'No loads are stuck past their pickup or delivery dates.' : ops.staleLoads.map(l => `${l.load_id ?? `#${l.id}`} (${l.status}, ${l.days_past}d past)`).join(', '),
+            action: 'Loads',
+            route:  '/loads',
+            icon:   <Clock size={13} />,
           },
         ]
         const allClear = rows.every(r => r.ok)
@@ -287,20 +309,58 @@ export function Operations() {
         <KpiCard label='Open Invoices'   value={loading ? '—' : String(ops.outstandingInvoices)} icon={<FileText size={16}/>}      accent={ops.outstandingInvoices > 0}  sub='draft / sent / overdue' onClick={() => navigate('/invoices')}  />
       </div>
 
+      {/* Weekly Scorecard */}
+      {!loading && ops.weeklyScorecard.loadsCompleted > 0 && (() => {
+        const sc = ops.weeklyScorecard
+        const fmt$ = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+        return (
+          <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card overflow-hidden'>
+            <div className='flex items-center justify-between px-5 py-3 border-b border-surface-500/50'>
+              <div className='flex items-center gap-2'>
+                <TrendingUp size={13} className='text-green-400' />
+                <span className='text-sm font-semibold text-gray-100'>Last 7 Days</span>
+              </div>
+              <span className='text-xs text-gray-500'>rolling scorecard</span>
+            </div>
+            <div className='grid grid-cols-2 sm:grid-cols-4 gap-0 divide-x divide-surface-500/40'>
+              {[
+                { label: 'Loads Delivered', value: String(sc.loadsCompleted) },
+                { label: 'Gross Revenue', value: fmt$(sc.grossRevenue) },
+                { label: 'Your Fees', value: fmt$(sc.dispatchRevenue) },
+                { label: 'Avg RPM', value: sc.avgRpm != null ? `$${sc.avgRpm.toFixed(2)}` : '—' },
+              ].map((item, i) => (
+                <div key={i} className='px-5 py-3'>
+                  <p className='text-2xs text-gray-500'>{item.label}</p>
+                  <p className='text-lg font-bold font-mono text-gray-100 mt-0.5'>{item.value}</p>
+                </div>
+              ))}
+            </div>
+            {(sc.bestLane || sc.bestBroker) && (
+              <div className='flex items-center gap-6 px-5 py-2.5 border-t border-surface-500/40 bg-surface-700/50'>
+                {sc.bestLane   && <p className='text-2xs text-gray-500'>Top lane: <span className='text-gray-300 font-medium'>{sc.bestLane}</span></p>}
+                {sc.bestBroker && <p className='text-2xs text-gray-500'>Top broker: <span className='text-gray-300 font-medium'>{sc.bestBroker}</span></p>}
+                {sc.invoicesSent > 0 && <p className='text-2xs text-gray-500'>{sc.invoicesSent} invoice{sc.invoicesSent !== 1 ? 's' : ''} sent</p>}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Revenue Goal Tracker */}
       {(() => {
-        const now       = new Date()
-        const daysInMo  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-        const dayOfMo   = now.getDate()
-        const daysLeft  = daysInMo - dayOfMo
-        const revenue   = ops.revenueThisMonth
-        const pct       = revenueGoal ? Math.min(1, revenue / revenueGoal) : 0
-        const onPace    = revenueGoal && dayOfMo > 0
-          ? (revenue / dayOfMo) * daysInMo >= revenueGoal
+        const now        = new Date()
+        const daysInMo   = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+        const dayOfMo    = now.getDate()
+        const daysLeft   = daysInMo - dayOfMo
+        const revenue    = ops.revenueThisMonth
+        const projected  = dayOfMo > 0 ? (revenue / dayOfMo) * daysInMo : 0
+        const pct        = revenueGoal ? Math.min(1, revenue / revenueGoal) : 0
+        const onPace     = revenueGoal && dayOfMo > 0
+          ? projected >= revenueGoal
           : false
-        const remaining = revenueGoal ? Math.max(0, revenueGoal - revenue) : 0
-        const perDay    = daysLeft > 0 ? remaining / daysLeft : remaining
-        const fmt$      = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+        const remaining  = revenueGoal ? Math.max(0, revenueGoal - revenue) : 0
+        const perDay     = daysLeft > 0 ? remaining / daysLeft : remaining
+        const fmt$       = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
 
         if (!revenueGoal && !editingGoal) {
           return (
@@ -377,12 +437,16 @@ export function Operations() {
                 <p className='text-sm font-bold text-gray-200'>{fmt$(revenueGoal!)}</p>
               </div>
               <div>
+                <p className='text-2xs text-gray-600'>Projected Month End</p>
+                <p className={`text-sm font-bold font-mono ${onPace ? 'text-green-400' : 'text-orange-400'}`}>{fmt$(projected)}</p>
+              </div>
+              <div>
                 <p className='text-2xs text-gray-600'>Remaining</p>
                 <p className={`text-sm font-bold ${remaining > 0 ? 'text-orange-400' : 'text-green-400'}`}>{fmt$(remaining)}</p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Days left</p>
-                <p className='text-sm font-bold text-gray-200'>{daysLeft}</p>
+                <p className='text-2xs text-gray-600'>Day {dayOfMo} of {daysInMo}</p>
+                <p className='text-sm font-bold text-gray-400'>{daysLeft}d left</p>
               </div>
               {daysLeft > 0 && remaining > 0 && (
                 <div>
@@ -666,7 +730,7 @@ export function Operations() {
                 {ops.warmLeads.slice(0, 4).map(lead => {
                   const overdue = lead.follow_up_date && lead.follow_up_date < todayIso
                   return (
-                    <li key={lead.id} className='flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-600 transition-colors cursor-pointer' onClick={() => navigate('/leads')}>
+                    <li key={lead.id} className='flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-600 transition-colors cursor-pointer' onClick={() => navigate(`/leads?open=${lead.id}`)}>
                       <span className={['text-2xs px-1 py-0.5 rounded shrink-0',
                         lead.priority === 'High'   ? 'bg-red-900/30 text-red-400' :
                         lead.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' :

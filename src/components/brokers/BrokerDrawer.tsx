@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight, Pencil, Check } from 'lucide-react'
-import type { Broker, BrokerFlag, BrokerRating, Load, Note } from '../../types/models'
+import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight, Pencil, Check, MessageSquare, BarChart2 } from 'lucide-react'
+import type { Broker, BrokerFlag, BrokerRating, Load, Note, Invoice } from '../../types/models'
 import { FLAG_STYLES, BROKER_FLAGS } from './constants'
 import { LOAD_STATUS_STYLES } from '../loads/constants'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -45,9 +45,18 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
   const [editNoteText,  setEditNoteText]  = useState('')
   const [confirmDel,    setConf]          = useState(false)
   const [intelRating,   setIntelRating]   = useState<BrokerRating>('Neutral')
+  const [payGrade,      setPayGrade]      = useState<string | null>(null)
+  const [avgDaysToPay,  setAvgDaysToPay]  = useState<number | null>(null)
+  const [invoiceCount,  setInvoiceCount]  = useState<number>(0)
   // Local state for inline-editable authority fields so React re-renders on change
-  const [localNewAuth,  setLocalNewAuth]  = useState(broker.new_authority)
-  const [localMinDays,  setLocalMinDays]  = useState(broker.min_authority_days)
+  const [localNewAuth,   setLocalNewAuth]  = useState(broker.new_authority)
+  const [localMinDays,   setLocalMinDays]  = useState(broker.min_authority_days)
+  type CallLogEntry = { id: number; broker_id: number; note: string; created_at: string }
+  const [callLog,        setCallLog]       = useState<CallLogEntry[]>([])
+  const [callNote,       setCallNote]      = useState('')
+  const [addingCall,     setAddingCall]    = useState(false)
+  const [brokerInvoices, setBrokerInvoices] = useState<Invoice[]>([])
+  const [creditOpen,     setCreditOpen]    = useState(false)
 
   useEffect(() => {
     setLocalNewAuth(broker.new_authority)
@@ -56,11 +65,20 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
       window.api.loads.list(),
       window.api.notes.list('broker', broker.id),
       window.api.intel.allBrokers(),
-    ]).then(([allLoads, notesData, intelData]) => {
+      window.api.brokerCallLog.list(broker.id),
+      window.api.invoices.list(),
+    ]).then(([allLoads, notesData, intelData, logData, allInvs]) => {
       setLoads(allLoads.filter(l => l.broker_id === broker.id))
       setNotes(notesData)
+      setCallLog(logData)
+      setBrokerInvoices((allInvs as Invoice[]).filter(i => i.broker_id === broker.id))
       const row = intelData.find(r => r.broker_id === broker.id)
-      if (row) setIntelRating(row.rating)
+      if (row) {
+        setIntelRating(row.rating)
+        setPayGrade(row.payment_grade ?? null)
+        setAvgDaysToPay(row.avg_days_to_pay ?? null)
+        setInvoiceCount(row.invoice_count ?? 0)
+      }
     })
   }, [broker.id])
 
@@ -78,6 +96,16 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
     setEditingNoteId(null); setEditNoteText('')
   }
   const delNote = async (id: number) => { await window.api.notes.delete(id); setNotes(p => p.filter(n => n.id !== id)) }
+
+  const saveCallLog = async () => {
+    if (!callNote.trim()) return
+    const entry = await window.api.brokerCallLog.create({ broker_id: broker.id, note: callNote.trim() })
+    setCallLog(p => [entry, ...p]); setCallNote(''); setAddingCall(false)
+  }
+  const delCallLog = async (id: number) => {
+    await window.api.brokerCallLog.delete(id)
+    setCallLog(p => p.filter(e => e.id !== id))
+  }
 
   const completedLoads = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status))
   const totalRevenue = completedLoads.reduce((s, l) => s + (l.rate ?? 0), 0)
@@ -134,8 +162,105 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               <Row label='Credit Rating' value={broker.credit_rating ?? 'Unknown'} />
               <Row label='Avg Days to Pay' value={broker.avg_days_pay != null ? `${broker.avg_days_pay} days` : '---'} />
               {payScore && <div><p className='text-2xs text-gray-600'>Payer Score</p><p className={`text-sm mt-0.5 font-semibold ${payColor}`}>{payScore}</p></div>}
+              {payGrade && (
+                <div>
+                  <p className='text-2xs text-gray-600 mb-1'>Payment Grade</p>
+                  <div className='flex items-center gap-2'>
+                    <span className={`text-sm font-bold px-2.5 py-0.5 rounded-lg border ${
+                      payGrade === 'A' ? 'bg-green-500/15 text-green-400 border-green-500/30' :
+                      payGrade === 'B' ? 'bg-green-500/10 text-green-300 border-green-500/20' :
+                      payGrade === 'C' ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' :
+                      payGrade === 'D' ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
+                                         'bg-red-500/15 text-red-400 border-red-500/30'
+                    }`}>{payGrade}</span>
+                    <span className='text-2xs text-gray-600'>
+                      {avgDaysToPay != null ? `avg ${Math.round(avgDaysToPay)}d` : ''}{invoiceCount > 0 ? ` · ${invoiceCount} inv` : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+          {/* Credit Quality Panel */}
+          {(() => {
+            const outstanding = brokerInvoices.filter(i => ['Sent','Overdue'].includes(i.status))
+            const outstandingTotal = outstanding.reduce((s,i) => s + (i.dispatch_fee ?? 0), 0)
+            const paidInvs = brokerInvoices.filter(i => i.status === 'Paid' && i.sent_date && i.paid_date)
+            const avgActualDays = paidInvs.length > 0
+              ? paidInvs.reduce((s, i) => {
+                  const d = (new Date(i.paid_date!).getTime() - new Date(i.sent_date!).getTime()) / 86400000
+                  return s + d
+                }, 0) / paidInvs.length
+              : null
+            const overLimitWarning = broker.credit_limit != null && outstandingTotal > broker.credit_limit
+            return (
+              <div className='px-5 py-3 border-b border-surface-600'>
+                <button onClick={() => setCreditOpen(v => !v)} className='flex items-center justify-between w-full'>
+                  <div className='flex items-center gap-2'>
+                    <BarChart2 size={12} className='text-gray-600'/>
+                    <span className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Credit Quality</span>
+                    {overLimitWarning && <span className='text-2xs text-red-400 font-semibold'>Over Limit</span>}
+                  </div>
+                  <span className='text-gray-600 text-sm'>{creditOpen ? '−' : '+'}</span>
+                </button>
+                {creditOpen && (
+                  <div className='mt-3 grid grid-cols-2 gap-3'>
+                    <div>
+                      <p className='text-2xs text-gray-600'>Outstanding Balance</p>
+                      <p className={`text-sm font-mono font-semibold mt-0.5 ${outstandingTotal > 0 ? 'text-yellow-400' : 'text-gray-700'}`}>
+                        ${outstandingTotal.toFixed(2)}
+                      </p>
+                      <p className='text-2xs text-gray-700 mt-0.5'>{outstanding.length} invoice{outstanding.length !== 1 ? 's' : ''} open</p>
+                    </div>
+                    <div>
+                      <p className='text-2xs text-gray-600'>Credit Limit</p>
+                      <p className={`text-sm font-mono font-semibold mt-0.5 ${overLimitWarning ? 'text-red-400' : broker.credit_limit != null ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {broker.credit_limit != null ? `$${broker.credit_limit.toLocaleString()}` : 'Not set'}
+                      </p>
+                      {overLimitWarning && <p className='text-2xs text-red-500 mt-0.5'>Limit exceeded</p>}
+                    </div>
+                    <div>
+                      <p className='text-2xs text-gray-600'>Stated Terms</p>
+                      <p className='text-sm text-gray-300 mt-0.5'>Net {broker.payment_terms}d</p>
+                    </div>
+                    <div>
+                      <p className='text-2xs text-gray-600'>Actual Avg Pay</p>
+                      <p className={`text-sm font-semibold mt-0.5 ${
+                        avgActualDays == null ? 'text-gray-700' :
+                        avgActualDays <= broker.payment_terms ? 'text-green-400' :
+                        avgActualDays <= broker.payment_terms + 7 ? 'text-yellow-400' : 'text-red-400'
+                      }`}>
+                        {avgActualDays != null ? `${Math.round(avgActualDays)}d` : '—'}
+                      </p>
+                      {avgActualDays != null && paidInvs.length > 0 && (
+                        <p className='text-2xs text-gray-700 mt-0.5'>{paidInvs.length} paid invoices</p>
+                      )}
+                    </div>
+                    {outstanding.length > 0 && (
+                      <div className='col-span-2'>
+                        <p className='text-2xs text-gray-600 mb-1.5'>Open Invoices</p>
+                        <div className='space-y-1'>
+                          {outstanding.map(i => {
+                            const daysOut = i.sent_date
+                              ? Math.floor((Date.now() - new Date(i.sent_date).getTime()) / 86400000)
+                              : null
+                            return (
+                              <div key={i.id} className='flex items-center justify-between text-2xs'>
+                                <span className='text-gray-500 font-mono'>{i.invoice_number}</span>
+                                <span className={`px-1.5 py-0.5 rounded border text-2xs ${i.status === 'Overdue' ? 'bg-red-900/20 border-red-700/30 text-red-400' : 'bg-surface-600 border-surface-500 text-gray-500'}`}>{i.status}</span>
+                                <span className='text-gray-600'>${(i.dispatch_fee ?? 0).toFixed(2)}</span>
+                                <span className='text-gray-700'>{daysOut != null ? `${daysOut}d` : '—'}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
           {/* New Authority Policy */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title='New Authority Policy' />
@@ -236,6 +361,42 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                 </div>
             }
           </div>
+          {/* Contact Log */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <div className='flex items-center justify-between mb-3'>
+              <Sec title='Contact Log' />
+              <button onClick={() => setAddingCall(v => !v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10} />Log Contact</button>
+            </div>
+            {addingCall && (
+              <div className='mb-3'>
+                <input
+                  value={callNote}
+                  onChange={e => setCallNote(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveCallLog() }}
+                  placeholder='e.g. Called about TX-FL corridor, offered $2.60/mi — follow up Fri'
+                  className='w-full h-8 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60'
+                />
+                <div className='flex gap-2 mt-1.5'>
+                  <button onClick={saveCallLog} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'>Save</button>
+                  <button onClick={() => { setAddingCall(false); setCallNote('') }} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                </div>
+              </div>
+            )}
+            {callLog.length === 0
+              ? <p className='text-2xs text-gray-700 italic'>No contact history yet. Log calls, negotiations, and follow-ups here.</p>
+              : callLog.map(e => (
+                <div key={e.id} className='group/cl flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
+                  <MessageSquare size={10} className='text-gray-600 mt-0.5 shrink-0' />
+                  <div className='flex-1 min-w-0'>
+                    <p className='text-xs text-gray-300'>{e.note}</p>
+                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(e.created_at)}</p>
+                  </div>
+                  <button onClick={() => delCallLog(e.id)} className='opacity-0 group-hover/cl:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10} /></button>
+                </div>
+              ))
+            }
+          </div>
+
           {/* Notes */}
           <div className='px-5 py-4'>
             <div className='flex items-center justify-between mb-3'>

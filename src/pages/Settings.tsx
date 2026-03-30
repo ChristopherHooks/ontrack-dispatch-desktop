@@ -11,7 +11,7 @@ interface BackupEntry {
 }
 
 export function Settings() {
-  const { theme, setTheme, companyName, ownerName, ownerEmail, ownerPhone, defaultDispatchPct, persistSetting, loadFromStore } = useSettingsStore()
+  const { theme, setTheme, companyName, ownerName, ownerEmail, ownerPhone, defaultDispatchPct, fuelPricePerGallon, persistSetting, loadFromStore } = useSettingsStore()
   const [backups, setBackups]         = useState<BackupEntry[]>([])
   const [creatingBackup, setCreating] = useState(false)
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
@@ -30,6 +30,9 @@ export function Settings() {
   const [clearConfirm,   setClearConfirm]   = useState(false)
   const [docReseedBusy,  setDocReseedBusy]  = useState(false)
   const [docReseedMsg,   setDocReseedMsg]   = useState('')
+  const [taskReseedBusy, setTaskReseedBusy] = useState(false)
+  const [taskReseedMsg,  setTaskReseedMsg]  = useState('')
+  const [taskReseedConfirm, setTaskReseedConfirm] = useState(false)
 
   // Business Info local edit state
   const [bizCompany,     setBizCompany]     = useState(companyName)
@@ -37,6 +40,8 @@ export function Settings() {
   const [bizEmail,       setBizEmail]       = useState(ownerEmail)
   const [bizPhone,       setBizPhone]       = useState(ownerPhone)
   const [bizPct,         setBizPct]         = useState(String(defaultDispatchPct))
+  const [bizGoal,        setBizGoal]        = useState('')
+  const [bizFuel,        setBizFuel]        = useState(String(fuelPricePerGallon))
   const [bizSaved,       setBizSaved]       = useState(false)
 
   useEffect(() => {
@@ -45,7 +50,8 @@ export function Settings() {
     setBizEmail(ownerEmail)
     setBizPhone(ownerPhone)
     setBizPct(String(defaultDispatchPct))
-  }, [companyName, ownerName, ownerEmail, ownerPhone, defaultDispatchPct])
+    setBizFuel(String(fuelPricePerGallon))
+  }, [companyName, ownerName, ownerEmail, ownerPhone, defaultDispatchPct, fuelPricePerGallon])
 
   useEffect(() => {
     loadBackups()
@@ -53,6 +59,8 @@ export function Settings() {
     window.api.settings.get('fmcsa_web_key').then(v => { if (v) setFmcsaKey(String(v)) }).catch(() => {})
     window.api.settings.get('fmcsa_search_terms').then(v => { if (v) setFmcsaTerms(String(v)) }).catch(() => {})
     window.api.settings.get('claude_api_key').then(v => { if (v) setClaudeKey(String(v)) }).catch(() => {})
+    window.api.settings.get('revenueGoal').then(v => { if (typeof v === 'number' && v > 0) setBizGoal(String(v)) }).catch(() => {})
+    window.api.settings.get('fuelPricePerGallon').then(v => { if (typeof v === 'number' && v > 0) setBizFuel(String(v)) }).catch(() => {})
   }, [])
 
   async function handleSaveBizInfo() {
@@ -61,7 +69,11 @@ export function Settings() {
     await persistSetting('ownerName',   bizOwner.trim())
     await persistSetting('ownerEmail',  bizEmail.trim())
     await persistSetting('ownerPhone',  bizPhone.trim())
-    await persistSetting('defaultDispatchPct', isNaN(pct) ? 7 : pct)
+    await persistSetting('defaultDispatchPct',  isNaN(pct) ? 7 : pct)
+    const goal = parseFloat(bizGoal)
+    await persistSetting('revenueGoal', isNaN(goal) ? 0 : goal)
+    const fuel = parseFloat(bizFuel)
+    await persistSetting('fuelPricePerGallon', isNaN(fuel) ? 4.0 : fuel)
     await loadFromStore()
     setBizSaved(true)
     setTimeout(() => setBizSaved(false), 2500)
@@ -126,6 +138,21 @@ export function Settings() {
       setDocReseedMsg('Failed. Check the console for details.')
     } finally {
       setDocReseedBusy(false)
+    }
+  }
+
+  async function handleReseedTasks() {
+    if (!taskReseedConfirm) { setTaskReseedConfirm(true); return }
+    setTaskReseedConfirm(false)
+    setTaskReseedBusy(true)
+    setTaskReseedMsg('')
+    try {
+      await window.api.dev.reseedTasks()
+      setTaskReseedMsg('Task checklist rebuilt — 39 tasks updated. Navigate to Tasks to see the changes.')
+    } catch {
+      setTaskReseedMsg('Rebuild failed. Check the console for details.')
+    } finally {
+      setTaskReseedBusy(false)
     }
   }
 
@@ -259,6 +286,30 @@ export function Settings() {
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
           </div>
+          <div>
+            <Label>Monthly Revenue Goal ($)</Label>
+            <input
+              type='number'
+              min='0'
+              step='100'
+              value={bizGoal}
+              onChange={e => setBizGoal(e.target.value)}
+              placeholder='e.g. 2500'
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
+          <div>
+            <Label>Fuel Price ($/gallon)</Label>
+            <input
+              type='number'
+              min='0'
+              step='0.01'
+              value={bizFuel}
+              onChange={e => setBizFuel(e.target.value)}
+              placeholder='e.g. 4.00'
+              className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+            />
+          </div>
         </div>
         <div className='flex items-center gap-3 mt-4'>
           <button
@@ -286,6 +337,11 @@ export function Settings() {
           {docReseedMsg && (
             <div className='flex items-center gap-2 text-xs px-3 py-2 bg-green-900/20 border border-green-700/40 text-green-300 rounded-lg'>
               <CheckCircle size={13} /> {docReseedMsg}
+            </div>
+          )}
+          {taskReseedMsg && (
+            <div className='flex items-center gap-2 text-xs px-3 py-2 bg-orange-900/20 border border-orange-700/40 text-orange-300 rounded-lg'>
+              <CheckCircle size={13} /> {taskReseedMsg}
             </div>
           )}
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
@@ -316,6 +372,39 @@ export function Settings() {
               >
                 {docReseedBusy ? 'Rebuilding...' : 'Rebuild Document Library'}
               </button>
+            </div>
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
+              <p className='text-xs font-semibold text-gray-300'>Rebuild Task Checklist</p>
+              <p className='text-xs text-gray-500'>
+                Replaces all 39 task rows (IDs 101-139) with the current template using the correct
+                titles, times, and day assignments. Resets all task statuses to Pending.
+                Use this to apply checklist updates to an existing database.
+              </p>
+              {taskReseedConfirm ? (
+                <div className='flex items-center gap-2'>
+                  <span className='text-2xs text-yellow-400'>This resets all task statuses. Continue?</span>
+                  <button
+                    onClick={handleReseedTasks}
+                    className='text-2xs px-2 py-1 bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors'
+                  >
+                    Yes, rebuild
+                  </button>
+                  <button
+                    onClick={() => setTaskReseedConfirm(false)}
+                    className='text-2xs text-gray-500 hover:text-gray-300'
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleReseedTasks}
+                  disabled={taskReseedBusy}
+                  className='text-xs px-3 py-1.5 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-600/40 text-orange-300 rounded-lg transition-colors disabled:opacity-50'
+                >
+                  {taskReseedBusy ? 'Rebuilding...' : 'Rebuild Task Checklist'}
+                </button>
+              )}
             </div>
             <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2'>
               <p className='text-xs font-semibold text-gray-300'>Remove Sample Business Data</p>

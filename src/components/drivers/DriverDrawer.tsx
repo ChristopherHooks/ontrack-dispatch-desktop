@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown } from 'lucide-react'
-import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note } from '../../types/models'
+import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer } from 'lucide-react'
+import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { openSaferMc } from '../../lib/saferUrl'
 import { DispatchAgreementModal } from './DispatchAgreementModal'
@@ -49,6 +49,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [docs,setDocs]         = useState<DriverDocument[]>([])
   const [notes,setNotes]       = useState<Note[]>([])
   const [load,setLoad]         = useState<Load|null>(null)
+  const [payHistory,setPayHistory] = useState<Invoice[]>([])
   const [noteText,setNoteText] = useState('')
   const [addNote,setAddNote]   = useState(false)
   const [addDoc,setAddDoc]     = useState(false)
@@ -61,6 +62,11 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [showAgreement,setShowAgreement]     = useState(false)
   const [setupChecks,setSetupChecks]         = useState<Record<string,boolean>>({})
   const [setupOpen,setSetupOpen]             = useState(true)
+  const [approvals,setApprovals]             = useState<CarrierBrokerApprovalRow[]>([])
+  const [approvalsOpen,setApprovalsOpen]     = useState(false)
+  const [addApproval,setAddApproval]         = useState(false)
+  const [allBrokers,setAllBrokers]           = useState<{ id:number; name:string }[]>([])
+  const [apprForm,setApprForm]               = useState<{ broker_id:string; status:'Submitted'|'Approved'|'Denied'; notes:string; submitted_at:string; approved_at:string }>({ broker_id:'', status:'Submitted', notes:'', submitted_at:'', approved_at:'' })
 
   useEffect(() => {
     // Sync whenever we switch to a different driver OR the saved value changes
@@ -82,23 +88,153 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
 
   // useEffect for data fetch below
   useEffect(() => {
-    Promise.all([
-      window.api.driverDocs.list(driver.id),
-      window.api.notes.list('driver', driver.id),
-      window.api.loads.list(),
-      window.api.settings.get(`carrierChecklist_${driver.id}`),
-    ]).then(([d,n,loads,rawChecks]) => {
-      setDocs(d); setNotes(n)
-      const active = (loads as Load[]).filter(l=>l.driver_id===driver.id&&['Booked','Picked Up','In Transit'].includes(l.status))
-      setLoad(active[0]??null)
-      try { if (rawChecks) setSetupChecks(JSON.parse(rawChecks as string)) } catch { /* ignore */ }
-    })
+    try {
+      Promise.all([
+        window.api.driverDocs.list(driver.id),
+        window.api.notes.list('driver', driver.id),
+        window.api.loads.list(),
+        window.api.settings.get(`carrierChecklist_${driver.id}`),
+        window.api.invoices.list(),
+        window.api.carrierApprovals.list(driver.id),
+        window.api.brokers.list(),
+      ]).then(([d,n,loads,rawChecks,invs,apprvs,brkrs]) => {
+        setDocs(d); setNotes(n)
+        const active = (loads as Load[]).filter(l=>l.driver_id===driver.id&&['Booked','Picked Up','In Transit'].includes(l.status))
+        setLoad(active[0]??null)
+        try { if (rawChecks) setSetupChecks(JSON.parse(rawChecks as string)) } catch { /* ignore */ }
+        const history = (invs as Invoice[]).filter(i=>i.driver_id===driver.id&&i.status==='Paid')
+          .sort((a,b)=>(b.paid_date??'').localeCompare(a.paid_date??'')).slice(0,20)
+        setPayHistory(history)
+        setApprovals(apprvs as CarrierBrokerApprovalRow[])
+        setAllBrokers((brkrs as { id:number; name:string }[]).map(b => ({ id:b.id, name:b.name })))
+      }).catch(err => {
+        console.error('DriverDrawer: data fetch error', err)
+        // Fall back to core data only (works even when app window hasn't been fully reloaded)
+        Promise.all([
+          window.api.driverDocs.list(driver.id),
+          window.api.notes.list('driver', driver.id),
+          window.api.loads.list(),
+          window.api.settings.get(`carrierChecklist_${driver.id}`),
+        ]).then(([d,n,loads,rawChecks]) => {
+          setDocs(d); setNotes(n)
+          const active = (loads as Load[]).filter(l=>l.driver_id===driver.id&&['Booked','Picked Up','In Transit'].includes(l.status))
+          setLoad(active[0]??null)
+          try { if (rawChecks) setSetupChecks(JSON.parse(rawChecks as string)) } catch { /* ignore */ }
+        }).catch(() => { /* non-critical */ })
+      })
+    } catch (err) {
+      // Catches synchronous access errors (e.g. window.api.X undefined during dev hot-reload)
+      console.error('DriverDrawer: API unavailable', err)
+    }
   }, [driver.id])
 
   const toggleSetupCheck = async (id: string) => {
     const next = { ...setupChecks, [id]: !setupChecks[id] }
     setSetupChecks(next)
     await window.api.settings.set(`carrierChecklist_${driver.id}`, JSON.stringify(next))
+  }
+
+  const saveApproval = async () => {
+    if (!apprForm.broker_id) return
+    const brokerId = parseInt(apprForm.broker_id)
+    const broker   = allBrokers.find(b => b.id === brokerId)
+    if (!broker) return
+    const row = await window.api.carrierApprovals.upsert({
+      driver_id:    driver.id,
+      broker_id:    brokerId,
+      broker_name:  broker.name,
+      status:       apprForm.status,
+      notes:        apprForm.notes.trim() || null,
+      submitted_at: apprForm.submitted_at || null,
+      approved_at:  apprForm.approved_at  || null,
+    })
+    setApprovals(p => {
+      const filtered = p.filter(a => a.broker_id !== brokerId)
+      return [...filtered, row].sort((a,b) => a.broker_name.localeCompare(b.broker_name))
+    })
+    setApprForm({ broker_id:'', status:'Submitted', notes:'', submitted_at:'', approved_at:'' })
+    setAddApproval(false)
+  }
+  const delApproval = async (id: number) => {
+    await window.api.carrierApprovals.delete(id)
+    setApprovals(p => p.filter(a => a.id !== id))
+  }
+
+  const [earningsMonth, setEarningsMonth] = useState(() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+  })
+  const [showEarningsPicker, setShowEarningsPicker] = useState(false)
+
+  const printEarningsStatement = () => {
+    const [yr, mo] = earningsMonth.split('-').map(Number)
+    const monthName = new Date(yr, mo - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+    const monthLoads = payHistory.filter(inv => {
+      const d = inv.paid_date ?? inv.week_ending ?? ''
+      return d.startsWith(earningsMonth)
+    })
+    if (monthLoads.length === 0) {
+      // Include all available history for chosen month across all invoices — re-query the full list
+    }
+    const invLines = monthLoads
+    const totalGross     = invLines.reduce((s,i) => s + (i.driver_gross ?? 0), 0)
+    const totalDispatch  = invLines.reduce((s,i) => s + (i.dispatch_fee ?? 0), 0)
+    const totalNet       = totalGross - totalDispatch
+
+    const PRINT_STYLE = `<style>
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:36px;}
+      h1{font-size:20px;font-weight:700;margin-bottom:2px;}
+      .sub{color:#555;font-size:11px;margin-bottom:20px;}
+      table{width:100%;border-collapse:collapse;margin-top:16px;}
+      th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#666;border-bottom:2px solid #ddd;padding:6px 8px;text-align:left;}
+      td{padding:7px 8px;border-bottom:1px solid #eee;font-size:11px;}
+      td.num{text-align:right;font-family:monospace;}
+      .total-row td{font-weight:700;border-top:2px solid #999;border-bottom:none;}
+      .summary{margin-top:24px;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:14px 18px;}
+      .summary-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;}
+      .summary-row.net{font-size:16px;font-weight:700;margin-top:10px;padding-top:10px;border-top:1px solid #ccc;}
+      .footer{margin-top:32px;padding-top:12px;border-top:1px solid #ddd;font-size:9px;color:#999;}
+    </style>`
+
+    const rows = invLines.map(i => `<tr>
+      <td>${i.invoice_number}</td>
+      <td>${fmt(i.week_ending ?? i.paid_date)}</td>
+      <td>${fmt(i.paid_date)}</td>
+      <td class="num">$${(i.driver_gross ?? 0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td class="num">${i.dispatch_fee != null ? '$' + i.dispatch_fee.toFixed(2) : '—'}</td>
+      <td class="num">$${((i.driver_gross ?? 0) - (i.dispatch_fee ?? 0)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+    </tr>`).join('')
+
+    const html = PRINT_STYLE + `
+      <h1>Driver Earnings Statement</h1>
+      <div class="sub">${monthName} &nbsp;&bull;&nbsp; ${driver.name}${driver.company ? ' (' + driver.company + ')' : ''} &nbsp;&bull;&nbsp; OnTrack Hauling Solutions</div>
+      ${invLines.length === 0 ? '<p style="color:#999;font-style:italic;">No paid invoices found for this period.</p>' : `
+      <table>
+        <thead><tr>
+          <th>Invoice #</th><th>Week Ending</th><th>Paid Date</th>
+          <th style="text-align:right">Gross Rate</th><th style="text-align:right">Dispatch Fee</th><th style="text-align:right">Driver Net</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="summary">
+        <div class="summary-row"><span>Total Gross Revenue</span><span>$${totalGross.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+        <div class="summary-row"><span>Total Dispatch Fees</span><span>-$${totalDispatch.toFixed(2)}</span></div>
+        <div class="summary-row net"><span>Driver Net Pay</span><span>$${totalNet.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+      </div>`}
+      <div class="footer">Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} &bull; OnTrack Hauling Solutions &bull; dispatch@ontrackhaulingsolutions.com &bull; For internal use only.</div>
+    `
+    const style = document.createElement('style')
+    style.id = '__es_print_style'
+    style.textContent = '@media print { body > * { display:none !important; } #es-print-root { display:block !important; } } #es-print-root { display:none; }'
+    document.head.appendChild(style)
+    const root = document.createElement('div')
+    root.id = 'es-print-root'
+    root.innerHTML = html
+    document.body.appendChild(root)
+    window.print()
+    document.body.removeChild(root)
+    document.head.removeChild(style)
+    setShowEarningsPicker(false)
   }
 
   const saveNote = async () => {
@@ -146,6 +282,20 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
             <button onClick={()=>onEdit(driver)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Edit2 size={11}/>Edit</button>
             {driver.phone&&<a href={`tel:${driver.phone}`} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Phone size={11}/>Call</a>}
             <button onClick={()=>setShowAgreement(true)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors' title='Generate dispatch service agreement'><ScrollText size={11}/>Agreement</button>
+            <div className='relative'>
+              <button onClick={()=>setShowEarningsPicker(v=>!v)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors' title='Print monthly earnings statement'><Printer size={11}/>Earnings</button>
+              {showEarningsPicker && (
+                <div className='absolute top-9 left-0 z-20 bg-surface-700 border border-surface-400 rounded-lg shadow-xl p-3 min-w-[200px]'>
+                  <p className='text-2xs text-gray-500 mb-2 uppercase tracking-wider'>Select Month</p>
+                  <input type='month' value={earningsMonth} onChange={e=>setEarningsMonth(e.target.value)}
+                    className='w-full h-8 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50'/>
+                  <button onClick={printEarningsStatement}
+                    className='mt-2 w-full h-7 text-xs bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium'>
+                    Print Statement
+                  </button>
+                </div>
+              )}
+            </div>
             {DRIVER_STATUSES.filter(s=>s!==driver.status).map(s=>(
               <button key={s} onClick={()=>onStatusChange(driver,s)} className='px-2 h-7 text-2xs text-gray-600 hover:text-orange-400 rounded hover:bg-surface-600 transition-colors'>→ {s}</button>
             ))}
@@ -211,6 +361,94 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               </div>
             )
           })()}
+
+          {/* Broker Approvals */}
+          <div className='mx-5 mt-3 rounded-xl border border-surface-500 bg-surface-700 overflow-hidden'>
+            <button
+              onClick={() => setApprovalsOpen(o => !o)}
+              className='w-full flex items-center justify-between px-3 py-2.5 hover:bg-surface-600 transition-colors'
+            >
+              <div className='flex items-center gap-2'>
+                <p className='text-xs font-medium text-gray-300'>Broker Approvals</p>
+                <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${
+                  approvals.filter(a => a.status==='Approved').length > 0
+                    ? 'bg-green-900/40 text-green-400'
+                    : 'bg-surface-500 text-gray-500'
+                }`}>
+                  {approvals.filter(a=>a.status==='Approved').length} approved
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <span className='text-2xs text-gray-600'>{approvals.length} tracked</span>
+                <ChevronDown size={13} className={`text-gray-600 transition-transform ${approvalsOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+            {approvalsOpen && (
+              <div className='border-t border-surface-600'>
+                {approvals.length === 0 && !addApproval && (
+                  <p className='px-3 py-3 text-2xs text-gray-600 italic'>No broker approvals tracked yet. Add the first one below.</p>
+                )}
+                {approvals.map(a => (
+                  <div key={a.id} className='group flex items-center gap-2 px-3 py-2 border-b border-surface-600 last:border-0'>
+                    <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${a.status==='Approved'?'bg-green-400':a.status==='Denied'?'bg-red-400':'bg-yellow-400'}`} />
+                    <div className='flex-1 min-w-0'>
+                      <span className='text-xs text-gray-300 font-medium'>{a.broker_name}</span>
+                      {a.notes && <span className='text-2xs text-gray-600 ml-2'>{a.notes}</span>}
+                    </div>
+                    <span className={`text-2xs px-1.5 py-0.5 rounded font-medium shrink-0 ${
+                      a.status==='Approved'?'bg-green-900/40 text-green-400':
+                      a.status==='Denied'?'bg-red-900/40 text-red-400':
+                      'bg-yellow-900/30 text-yellow-400'
+                    }`}>{a.status}</span>
+                    <button onClick={() => delApproval(a.id)} className='opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all shrink-0'>
+                      <X size={10}/>
+                    </button>
+                  </div>
+                ))}
+                {addApproval ? (
+                  <div className='px-3 py-3 space-y-2 border-t border-surface-600'>
+                    <select
+                      value={apprForm.broker_id}
+                      onChange={e => setApprForm(f => ({...f, broker_id:e.target.value}))}
+                      className='w-full h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50'
+                    >
+                      <option value=''>Select broker...</option>
+                      {allBrokers
+                        .filter(b => !approvals.find(a => a.broker_id===b.id))
+                        .map(b => <option key={b.id} value={b.id}>{b.name}</option>)
+                      }
+                    </select>
+                    <select
+                      value={apprForm.status}
+                      onChange={e => setApprForm(f => ({...f, status:e.target.value as 'Submitted'|'Approved'|'Denied'}))}
+                      className='w-full h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50'
+                    >
+                      <option>Submitted</option>
+                      <option>Approved</option>
+                      <option>Denied</option>
+                    </select>
+                    <input
+                      value={apprForm.notes}
+                      onChange={e => setApprForm(f => ({...f, notes:e.target.value}))}
+                      placeholder='Notes (optional)'
+                      className='w-full h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50 placeholder-gray-600'
+                    />
+                    <div className='flex gap-2'>
+                      <button onClick={saveApproval} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'>Save</button>
+                      <button onClick={() => setAddApproval(false)} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddApproval(true)}
+                    className='flex items-center gap-1 px-3 py-2.5 text-2xs text-gray-600 hover:text-orange-400 transition-colors w-full'
+                  >
+                    <Plus size={10}/> Add broker approval
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Contact */}
           <div className='px-5 py-4 border-b border-surface-600'>
@@ -372,6 +610,26 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               ))
             }
           </div>
+          {/* Pay History */}
+          {payHistory.length > 0 && (
+            <div className='px-5 py-4 border-b border-surface-600'>
+              <Sec title='Pay History'/>
+              <div className='space-y-1'>
+                {payHistory.map(inv => (
+                  <div key={inv.id} className='flex items-center justify-between py-1.5 border-b border-surface-600 last:border-0'>
+                    <div className='min-w-0'>
+                      <p className='text-xs font-mono text-gray-300'>{inv.invoice_number}</p>
+                      <p className='text-2xs text-gray-600 mt-0.5'>Paid {fmt(inv.paid_date)}</p>
+                    </div>
+                    <div className='text-right shrink-0 ml-3'>
+                      <p className='text-xs font-semibold font-mono text-green-400'>${(inv.dispatch_fee??0).toFixed(2)}</p>
+                      {inv.driver_gross!=null&&<p className='text-2xs text-gray-600'>${inv.driver_gross.toLocaleString()} gross</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Notes */}
           <div className='px-5 py-4'>
             <div className='flex items-center justify-between mb-3'>

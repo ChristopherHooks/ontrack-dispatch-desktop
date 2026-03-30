@@ -7,8 +7,8 @@ interface Props {
   onSearch: (v: string) => void
   category: string
   onCategory: (v: string) => void
-  view: 'today' | 'all' | 'history'
-  onView: (v: 'today' | 'all' | 'history') => void
+  view: 'today' | 'week' | 'all' | 'history'
+  onView: (v: 'today' | 'week' | 'all' | 'history') => void
   totalToday: number
   doneToday: number
   onAdd: () => void
@@ -25,7 +25,7 @@ export function TasksToolbar({
       {/* View tabs */}
       <div className='flex items-center justify-between'>
         <div className='flex gap-1 bg-surface-600 rounded-lg p-1 border border-surface-400'>
-          {(['today', 'all', 'history'] as const).map(v => (
+          {(['today', 'week', 'all', 'history'] as const).map(v => (
             <button
               key={v}
               onClick={() => onView(v)}
@@ -36,7 +36,7 @@ export function TasksToolbar({
                   : 'text-gray-400 hover:text-gray-200',
               ].join(' ')}
             >
-              {v === 'today' ? 'Today' : v === 'all' ? 'All Tasks' : 'History'}
+              {v === 'today' ? 'Today' : v === 'week' ? 'Week' : v === 'all' ? 'All Tasks' : 'History'}
             </button>
           ))}
         </div>
@@ -70,8 +70,8 @@ export function TasksToolbar({
         </div>
       )}
 
-      {/* Search + filter row (all/history views) */}
-      {view !== 'today' && (
+      {/* Search + filter row (all/history views only) */}
+      {view !== 'today' && view !== 'week' && (
         <div className='flex gap-2'>
           <div className='relative flex-1'>
             <Search size={14} className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500' />

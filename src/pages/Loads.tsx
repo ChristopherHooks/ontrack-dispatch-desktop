@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, Bell } from 'lucide-react'
 import type { Load, LoadStatus, Driver, Broker, CreateLoadDto } from '../types/models'
-import { LoadsToolbar, type LoadFilters } from '../components/loads/LoadsToolbar'
+import { LoadsToolbar, type LoadFilters, type LoadView } from '../components/loads/LoadsToolbar'
 import { LoadsTable }  from '../components/loads/LoadsTable'
 import { LoadModal }   from '../components/loads/LoadModal'
 import { LoadDrawer }  from '../components/loads/LoadDrawer'
+import { RateHistoryModal } from '../components/loads/RateHistoryModal'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 
@@ -14,7 +16,7 @@ export function Loads() {
   const [drivers,  setDrivers]  = useState<Driver[]>([])
   const [brokers,  setBrokers]  = useState<Broker[]>([])
   const [loading,  setLoading]  = useState(true)
-  const [view,     setView]     = useState<'list' | 'board'>('list')
+  const [view,     setView]     = useState<LoadView>('list')
   const [search,   setSearch]   = useState('')
   const [filters,  setFilters]  = useState<LoadFilters>({ status: '' })
   const [sortKey,  setSortKey]  = useState<keyof Load>('pickup_date')
@@ -23,6 +25,7 @@ export function Loads() {
   const [editLoad, setEditLoad] = useState<Load | null>(null)
   const [modal,    setModal]    = useState(false)
   const [prefill,  setPrefill]  = useState<Partial<CreateLoadDto> | null>(null)
+  const [rateHistoryOpen, setRateHistoryOpen] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -76,6 +79,24 @@ export function Loads() {
   }
   const openEdit = (load: Load) => { setEditLoad(load); setModal(true) }
   const openAdd  = () => { setEditLoad(null); setModal(true) }
+  const handleDuplicate = (load: Load) => {
+    setPrefill({
+      driver_id:    load.driver_id,
+      broker_id:    load.broker_id,
+      origin_city:  load.origin_city,
+      origin_state: load.origin_state,
+      dest_city:    load.dest_city,
+      dest_state:   load.dest_state,
+      miles:        load.miles,
+      dispatch_pct: load.dispatch_pct,
+      trailer_type: load.trailer_type,
+      commodity:    load.commodity,
+      status:       'Searching',
+    })
+    setEditLoad(null)
+    setModal(true)
+    setSelected(null)
+  }
 
   const filtered = useMemo(() => {
     let r = loads
@@ -100,21 +121,139 @@ export function Loads() {
   return (
     <div className='space-y-4 max-w-[1400px] animate-fade-in'>
       <div>
-        <h1 className='text-xl font-semibold text-gray-100'>{view === 'board' ? 'Dispatch Board' : 'Loads'}</h1>
-        <p className='text-sm text-gray-500 mt-0.5'>{view === 'board' ? 'Driver status and current load assignments' : 'Track loads through the full lifecycle'}</p>
+        <h1 className='text-xl font-semibold text-gray-100'>
+          {view === 'board' ? 'Dispatch Board' : view === 'calendar' ? 'Load Calendar' : 'Loads'}
+        </h1>
+        <p className='text-sm text-gray-500 mt-0.5'>
+          {view === 'board' ? 'Driver status and current load assignments'
+            : view === 'calendar' ? 'Loads by pickup date — weekly view'
+            : 'Track loads through the full lifecycle'}
+        </p>
       </div>
-      <LoadsToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} view={view} onView={setView} total={filtered.length} onAdd={openAdd}/>
+      <LoadsToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} view={view} onView={setView} total={filtered.length} onAdd={openAdd} onRateHistory={() => setRateHistoryOpen(true)}/>
       {view === 'list'
         ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onStatusChange={handleStatus}/>
-        : <DispatchBoard drivers={drivers} loads={loads} loading={loading} onLoadClick={setSelected}/>
+        : view === 'board'
+        ? <DispatchBoard drivers={drivers} loads={loads} loading={loading} onLoadClick={setSelected}/>
+        : <LoadCalendar loads={loads} drivers={drivers} onLoadClick={setSelected}/>
       }
-      {selected&&<LoadDrawer load={selected} drivers={drivers} brokers={brokers} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete}/>}
+      {selected&&<LoadDrawer load={selected} drivers={drivers} brokers={brokers} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete} onDuplicate={handleDuplicate}/>}
       {modal&&<LoadModal load={editLoad} prefill={prefill} onClose={()=>{setModal(false);setEditLoad(null);setPrefill(null)}} onSave={handleSave}/>}
+      {rateHistoryOpen&&<RateHistoryModal loads={loads} brokers={brokers} onClose={()=>setRateHistoryOpen(false)}/>}
+    </div>
+  )
+}
+
+// ── Load Calendar ───────────────────────────────────────────────────────────
+const CAL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function getWeekStart(offset = 0): Date {
+  const d = new Date()
+  const dow = d.getDay() === 0 ? 6 : d.getDay() - 1 // 0=Mon
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() - dow + offset * 7)
+  return d
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+interface CalProps {
+  loads: Load[]; drivers: Driver[]; onLoadClick: (l: Load) => void
+}
+
+function LoadCalendar({ loads, drivers, onLoadClick }: CalProps) {
+  const [weekOffset, setWeekOffset] = useState(0)
+  const weekStart = getWeekStart(weekOffset)
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart)
+    d.setDate(weekStart.getDate() + i)
+    return d
+  })
+  const today = isoDate(new Date())
+  const driverMap = Object.fromEntries(drivers.map(d => [d.id, d.name]))
+
+  const loadsForDay = (d: Date) => {
+    const key = isoDate(d)
+    return loads.filter(l => l.pickup_date === key || l.delivery_date === key)
+  }
+
+  const weekLabel = `${MONTH_NAMES[weekStart.getMonth()]} ${weekStart.getDate()} – ${MONTH_NAMES[days[6].getMonth()]} ${days[6].getDate()}, ${days[6].getFullYear()}`
+
+  return (
+    <div className='space-y-3'>
+      <div className='flex items-center justify-between'>
+        <button onClick={() => setWeekOffset(w => w - 1)} className='flex items-center gap-1 h-7 px-2.5 text-xs text-gray-400 hover:text-gray-200 bg-surface-700 hover:bg-surface-600 rounded-lg border border-surface-500 transition-colors'>
+          <ChevronLeft size={13} /> Prev
+        </button>
+        <div className='flex items-center gap-2'>
+          <span className='text-sm text-gray-300 font-medium'>{weekLabel}</span>
+          {weekOffset !== 0 && (
+            <button onClick={() => setWeekOffset(0)} className='text-2xs text-orange-400 hover:text-orange-300 transition-colors'>Today</button>
+          )}
+        </div>
+        <button onClick={() => setWeekOffset(w => w + 1)} className='flex items-center gap-1 h-7 px-2.5 text-xs text-gray-400 hover:text-gray-200 bg-surface-700 hover:bg-surface-600 rounded-lg border border-surface-500 transition-colors'>
+          Next <ChevronRight size={13} />
+        </button>
+      </div>
+      <div className='grid grid-cols-7 gap-2'>
+        {days.map((d, i) => {
+          const key = isoDate(d)
+          const dayLoads = loadsForDay(d)
+          const isToday = key === today
+          return (
+            <div key={key} className={['rounded-xl border overflow-hidden', isToday ? 'border-orange-600/50 bg-orange-950/20' : 'border-surface-500 bg-surface-700'].join(' ')}>
+              <div className={['flex items-center justify-between px-2 py-1.5 border-b', isToday ? 'border-orange-700/30 bg-orange-900/20' : 'border-surface-600'].join(' ')}>
+                <span className='text-2xs font-medium text-gray-400'>{CAL_DAYS[i]}</span>
+                <span className={['text-2xs font-bold', isToday ? 'text-orange-400' : 'text-gray-500'].join(' ')}>{d.getDate()}</span>
+              </div>
+              <div className='p-1.5 space-y-1 min-h-[80px]'>
+                {dayLoads.length === 0 && (
+                  <p className='text-2xs text-gray-700 italic px-1'>—</p>
+                )}
+                {dayLoads.map(l => {
+                  const isPickup = l.pickup_date === key
+                  const origin = [l.origin_city, l.origin_state].filter(Boolean).join(', ')
+                  const dest   = [l.dest_city,   l.dest_state  ].filter(Boolean).join(', ')
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => onLoadClick(l)}
+                      className={['w-full text-left rounded px-1.5 py-1 transition-colors',
+                        isPickup ? 'bg-blue-900/40 hover:bg-blue-900/60 border border-blue-700/30'
+                                 : 'bg-green-900/30 hover:bg-green-900/50 border border-green-700/30',
+                      ].join(' ')}
+                    >
+                      <p className='text-2xs font-medium text-gray-200 truncate'>{l.load_id ?? `#${l.id}`}</p>
+                      <p className='text-2xs text-gray-500 truncate'>{isPickup ? origin || '—' : dest || '—'}</p>
+                      {l.driver_id && <p className='text-2xs text-gray-600 truncate'>{driverMap[l.driver_id] ?? ''}</p>}
+                      <span className={['text-2xs px-1 py-0.5 rounded-sm font-medium', isPickup ? 'text-blue-400' : 'text-green-400'].join(' ')}>
+                        {isPickup ? 'Pickup' : 'Delivery'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p className='text-2xs text-gray-700'>Blue = pickup date, green = delivery date. Click any load to open details.</p>
     </div>
   )
 }
 
 // ── Dispatch Board ──────────────────────────────────────────────────────────
+
+/** Hours since a load was last updated. Returns null if updated_at is missing. */
+function hoursSinceUpdate(load: Load): number | null {
+  if (!load.updated_at) return null
+  const diff = Date.now() - new Date(load.updated_at).getTime()
+  return diff / (1000 * 60 * 60)
+}
+
 const ACTIVE_STATUSES = ['Booked', 'Picked Up', 'In Transit'] as const
 
 interface BoardProps {
@@ -147,11 +286,17 @@ function DispatchBoard({ drivers, loads, loading, onLoadClick }: BoardProps) {
           ? currentLoad.rate / currentLoad.miles : null
         const rpmOk = rpm == null || d.min_rpm == null || rpm >= d.min_rpm
 
+        const hrs = currentLoad ? hoursSinceUpdate(currentLoad) : null
+        const isInTransit = currentLoad?.status === 'In Transit'
+        const checkCallOverdue = isInTransit && hrs != null && hrs >= 4
+        const checkCallWarning = isInTransit && hrs != null && hrs >= 2 && hrs < 4
+
         return (
           <div key={d.id} className={[
             'rounded-xl border p-4 transition-all',
             d.status === 'Inactive' ? 'bg-surface-800 border-surface-600 opacity-50' :
             needsLoad ? 'bg-orange-950/30 border-orange-700/40 shadow-card hover:border-orange-600/60' :
+            checkCallOverdue ? 'bg-red-950/20 border-red-700/40 shadow-card hover:border-red-600/60' :
             'bg-surface-700 border-surface-400 shadow-card hover:shadow-card-hover',
           ].join(' ')}>
             {/* Driver header */}
@@ -186,6 +331,23 @@ function DispatchBoard({ drivers, loads, loading, onLoadClick }: BoardProps) {
                     {[currentLoad.origin_city,currentLoad.origin_state].filter(Boolean).join(', ')||'?'} → {[currentLoad.dest_city,currentLoad.dest_state].filter(Boolean).join(', ')||'?'}
                   </p>
                   {currentLoad.pickup_date&&<p className='text-2xs opacity-60 mt-0.5'>Pickup: {currentLoad.pickup_date}</p>}
+                  {/* Check-call countdown for In Transit loads */}
+                  {isInTransit && hrs != null && (
+                    <div className={`flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-2xs font-medium ${
+                      checkCallOverdue  ? 'bg-red-900/40 text-red-300 border border-red-700/40' :
+                      checkCallWarning  ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-700/30' :
+                                          'bg-surface-600/40 text-gray-500'
+                    }`}>
+                      <Bell size={9} className='shrink-0' />
+                      <span className='ml-0.5'>{
+                        checkCallOverdue
+                          ? `Check call overdue — ${Math.floor(hrs)}h since update`
+                          : checkCallWarning
+                          ? `Check call due soon — ${Math.floor(hrs)}h since update`
+                          : `Updated ${Math.floor(hrs)}h ago`
+                      }</span>
+                    </div>
+                  )}
                 </div>
               </button>
             ) : d.status === 'Inactive' ? (

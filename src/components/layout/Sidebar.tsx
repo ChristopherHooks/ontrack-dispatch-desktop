@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useSettingsStore } from '../../store/settingsStore'
 import {
   Users, Truck, Package, Building2,
   FileText, Megaphone, CheckSquare, FolderOpen,
-  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, ArrowRightLeft, Activity, Radar
+  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, ArrowRightLeft, Activity, Radar, TrendingUp, Calculator
 } from 'lucide-react'
+import { RateCalculator } from '../ui/RateCalculator'
 
 interface NavItem {
   to:    string
@@ -27,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/tasks',      label: 'Tasks',      icon: <CheckSquare size={18} /> },
   { to: '/documents',  label: 'Documents',  icon: <FolderOpen size={18} /> },
   { to: '/analytics',  label: 'Analytics',  icon: <BarChart3 size={18} /> },
+  { to: '/reports',    label: 'Reports',    icon: <TrendingUp size={18} /> },
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [
@@ -35,7 +38,8 @@ const BOTTOM_ITEMS: NavItem[] = [
 ]
 
 export function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar } = useSettingsStore()
+  const { sidebarCollapsed, toggleSidebar, defaultDispatchPct, fuelPricePerGallon } = useSettingsStore()
+  const [showCalc, setShowCalc] = useState(false)
   const w = sidebarCollapsed ? 60 : 220
 
   return (
@@ -65,10 +69,18 @@ export function Sidebar() {
 
       {/* Bottom nav */}
       <div className='py-3 px-2 border-t border-surface-400 space-y-0.5'>
+        <button
+          onClick={() => setShowCalc(true)}
+          title='Rate Calculator'
+          className='w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all text-gray-400 hover:bg-surface-600 hover:text-orange-400'>
+          <span className='shrink-0'><Calculator size={18} /></span>
+          {!sidebarCollapsed && <span className='truncate'>Rate Calc</span>}
+        </button>
         {BOTTOM_ITEMS.map((item) => (
           <SidebarLink key={item.to} item={item} collapsed={sidebarCollapsed} />
         ))}
       </div>
+      {showCalc && <RateCalculator onClose={() => setShowCalc(false)} defaultDispatchPct={defaultDispatchPct} fuelPricePerGallon={fuelPricePerGallon} />}
 
       {/* Collapse toggle */}
       <button

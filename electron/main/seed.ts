@@ -87,8 +87,8 @@ export function seedMissingItems(db: Database.Database): void {
     tIns.run(118,'Friday Driver Conversation Review','Leads','Medium','Friday','3:00 PM',1,'Pending','Review all driver conversations from the week. Update lead statuses. Archive dead leads as Rejected with reason. Identify top 3 leads to prioritize next week. Prep outreach for Monday.')
     tIns.run(119,'Weekly Facebook Groups Review','Marketing','Medium','Sunday','9:00 AM',1,'Pending','Review and update the Facebook groups list. Check for inactive groups or low-performing ones. Look for new groups to join in underweight categories. See the How to Update Facebook Groups document in the Documents library.')
 
-    // ── Comprehensive daily operations tasks (120-132) ──────────────────────
-    // These cover every step from morning to EOD, Monday through Friday.
+    // ── Comprehensive daily operations tasks (120-133) ──────────────────────
+    // These cover every step from morning to EOD, Monday through Saturday.
     // Every task has numbered subtasks and [[doc]] links so a new hire
     // can run the business without guesswork.
 
@@ -232,6 +232,135 @@ export function seedMissingItems(db: Database.Database): void {
       '7. Set your top 3 Monday actions in your notes and close the app.\n' +
       'See: [[Weekly Revenue Tracking Guide]] | [[Daily Operations Playbook]]')
 
+    // SATURDAY-SPECIFIC
+    tIns.run(133,'Saturday Revenue and Lead Push','Dispatch','High','Saturday','8:30 AM',1,'Pending',
+      'Saturday is a working day. Load boards are active, brokers answer phones, and drivers are available. Do not waste it.\n\n' +
+      'PRIORITY 1 -- FIND LOADS FOR AVAILABLE DRIVERS\n' +
+      '1. Go to Dispatcher Board. Identify every Active driver with no current load.\n' +
+      '2. Open your load board (DAT or Truckstop). Search for loads near each driver\'s location.\n' +
+      '3. Call brokers directly -- many loads posted Friday afternoon go uncovered over the weekend.\n' +
+      '4. Target Monday-pickup loads if same-day is not available. A driver loaded for Monday beats a driver sitting all weekend.\n' +
+      '5. When you book a load: add it to the Loads page and text the driver pickup details immediately.\n\n' +
+      'PRIORITY 2 -- FOLLOW UP ON OVERDUE LEADS\n' +
+      '1. Go to Leads page. Filter by Overdue Follow-Up (follow_up_date before today).\n' +
+      '2. For each overdue lead: call or send a DM. Do not text a script -- make it sound like you are checking in naturally.\n' +
+      '3. Script: "Hey [Name], I have been working the boards this week. I have loads available in [their lane] right now and I wanted to reach out in case you are still looking for a dispatcher."\n' +
+      '4. Update every lead status and set a new follow-up date before moving to the next one.\n' +
+      '5. Any lead that does not respond today: mark Attempted Contact and follow up Tuesday.\n\n' +
+      'PRIORITY 3 -- FACEBOOK GROUP POSTING\n' +
+      '1. Go to Marketing > Groups. Post in at least 3 recommended groups.\n' +
+      '2. Saturday posts get strong engagement -- drivers are home and on their phones.\n' +
+      '3. Use the Load Availability or Direct Recruitment post style from the [[Facebook Post Script Bank]].\n' +
+      '4. Stay on Facebook 30 minutes after posting to reply to any immediate comments.\n' +
+      '5. Log any qualified replies as new leads in the Leads page.\n\n' +
+      'END-OF-MONTH URGENCY CHECK (last 3 days of month only)\n' +
+      'If today is within the last 3 days of the month and you are behind your monthly revenue goal:\n' +
+      '1. Every booked load counts -- even a short regional run generates a dispatch fee.\n' +
+      '2. Check for any Delivered loads that have not been invoiced -- invoice them today.\n' +
+      '3. Call any Interested leads directly. Do not wait for them to come to you.\n' +
+      '4. Post in Facebook groups twice today -- morning and early afternoon.\n\n' +
+      'See: [[Daily Operations Playbook]] | [[Load Booking and Status SOP]] | [[Facebook Post Script Bank]]')
+
+    // ── New workflow tasks (134-139) — reference features added in 2026 session ─
+    tIns.run(134,'Check-Call Dispatch Review','Dispatch','High','Daily','12:00 PM',1,'Pending',
+      'Review the dispatch board for any In Transit loads that have not been updated in 4+ hours.\n' +
+      '1. Go to Loads > Dispatch Board.\n' +
+      '2. Look for any driver card with a red "Check call overdue" badge.\n' +
+      '3. For each overdue card: text or call the driver immediately.\n' +
+      '4. Script: "Hey [Name], quick check-in. What is your current location and ETA?"\n' +
+      '5. Once you have an update: open the load in the app and update the status or notes so the badge clears.\n' +
+      '6. If a driver is unreachable after 2 attempts: call the broker and flag it.\n' +
+      'The red badge means 4+ hours with no update. Yellow means 2-4 hours. Address red first.')
+
+    tIns.run(135,'Overdue Invoice Collection Review','Admin','High','Wednesday','9:00 AM',1,'Pending',
+      'Systematically chase overdue invoices. This is money you have already earned.\n' +
+      '1. Go to Invoices page.\n' +
+      '2. Click "Auto-Flag Overdue" button to update any invoices past their payment terms.\n' +
+      '3. For each Overdue invoice:\n' +
+      '   a. Open the invoice drawer.\n' +
+      '   b. Click the "Follow-up" button in the action bar.\n' +
+      '   c. Use the "Copy Collection Message" button to get a text-ready collection notice.\n' +
+      '   d. Paste and send via text, DM, or email to the driver.\n' +
+      '4. For invoices 30+ days overdue: call the driver directly. Do not send a message -- call.\n' +
+      '5. Log every collection attempt in the invoice notes.\n' +
+      '6. If payment is still not received after 3 attempts: consult your dispatch agreement for next steps.')
+
+    tIns.run(136,'AI Follow-Up Batch for Warm Leads','Leads','High','Tuesday','11:00 AM',1,'Pending',
+      'Use AI to generate personalized follow-up messages for overdue warm leads.\n' +
+      '1. Go to Leads page. Click the Overdue filter button to show all overdue follow-ups.\n' +
+      '2. For each overdue lead with status Contacted or Interested:\n' +
+      '   a. Open the lead drawer by clicking the row.\n' +
+      '   b. In Quick Actions, click the purple "AI Follow-Up" button.\n' +
+      '   c. Wait 3-5 seconds for the draft to appear.\n' +
+      '   d. Read the draft. Personalize it: change any generic details to match what you know about this driver.\n' +
+      '   e. Click "Copy" and paste it into a text, DM, or email.\n' +
+      '   f. Click "Log Attempt" to record the outreach.\n' +
+      '   g. Set a new follow-up date for 3 days from now.\n' +
+      '3. Goal: follow up with every overdue Interested lead every Tuesday and Thursday.\n' +
+      'Note: AI Follow-Up requires a Claude API key in Settings > API Keys.')
+
+    tIns.run(137,'Weekly Revenue Target Check','Admin','Medium','Monday','9:30 AM',1,'Pending',
+      'Check your weekly revenue progress on the Dashboard.\n' +
+      '1. Go to Dashboard.\n' +
+      '2. Look for the Weekly Revenue Target bar below the KPI cards.\n' +
+      '3. If you have not set a target yet: click "Set a weekly revenue target" and enter your goal.\n' +
+      '   Suggested target: $1,000/week for a 1-driver operation. Scale up as you add drivers.\n' +
+      '4. Note the percentage. Under 25% on Monday = normal. Under 50% on Wednesday = act.\n' +
+      '5. If you are behind: your first action is to find a load for any available driver today.\n' +
+      '6. The bar counts dispatch fees from Invoiced and Paid loads this week.\n' +
+      'Tip: update loads to Invoiced as soon as you create the invoice -- not just when paid.')
+
+    tIns.run(138,'Friday Cash Flow Outlook Review','Admin','High','Friday','3:30 PM',1,'Pending',
+      'End every Friday knowing exactly what money is in your pipeline.\n' +
+      '1. Go to Reports page.\n' +
+      '2. Look at the Cash Flow Outlook section near the top.\n' +
+      '3. Review the three buckets:\n' +
+      '   PENDING (yellow): Delivered loads not yet invoiced. These need invoices NOW.\n' +
+      '   OUTSTANDING (orange): Invoices sent but not paid. Follow up on any 15+ days old.\n' +
+      '   COLLECTED (green): Paid this calendar month. This is your real revenue.\n' +
+      '4. For every dollar in PENDING: go to Invoices and create the invoice today.\n' +
+      '5. For every overdue OUTSTANDING invoice: use the Copy Collection Message button in the invoice.\n' +
+      '6. Write down: Collected this month + Outstanding = your effective revenue position.\n' +
+      'Do not leave Delivered loads uninvoiced over the weekend.')
+
+    tIns.run(139,'Monday Broker Flag Audit','Admin','Medium','Monday','10:00 AM',1,'Pending',
+      'Keep your broker list accurate so no bad broker slips through at booking time.\n' +
+      '1. Go to Brokers page.\n' +
+      '2. Review all brokers. For each one you worked with last week:\n' +
+      '   - Did they pay on time? If yes and their flag is Watch, consider changing to Preferred.\n' +
+      '   - Did they take more than 35 days to pay? Flag as Watch.\n' +
+      '   - Did they refuse to pay or ghost you? Flag as Avoid.\n' +
+      '3. Add any new broker you booked with this week and has not been entered yet.\n' +
+      '4. Note: the Load modal now shows a red Avoid warning when you select a flagged broker.\n' +
+      '   A yellow Watch warning means proceed with extra caution -- get a signed rate con first.\n' +
+      '5. Accurate flags prevent one bad broker from costing you a load or a driver.')
+
+    // ── UPDATE patches for existing tasks that reference new features ──────────
+    // These update notes on tasks that were created before the current feature set.
+    db.prepare(
+      "UPDATE tasks SET notes = notes || " +
+      "'\n\nTip: Go to Loads > Dispatch Board. Any In Transit load with 4+ hours since last update shows a red check-call badge. Address those first.'" +
+      " WHERE id = 121 AND notes NOT LIKE '%check-call badge%'"
+    ).run()
+
+    db.prepare(
+      "UPDATE tasks SET notes = notes || " +
+      "'\n\nTip: Dashboard > Weekly Revenue Target bar tracks your dispatch fee progress toward your weekly goal. Set your target in the bar if you have not already.'" +
+      " WHERE id = 126 AND notes NOT LIKE '%Weekly Revenue Target%'"
+    ).run()
+
+    db.prepare(
+      "UPDATE tasks SET notes = notes || " +
+      "'\n\nTip: Reports > Cash Flow Outlook shows Pending (not yet invoiced), Outstanding (sent, awaiting payment), and Collected (paid this month) in one view.'" +
+      " WHERE id = 131 AND notes NOT LIKE '%Cash Flow Outlook%'"
+    ).run()
+
+    db.prepare(
+      "UPDATE tasks SET notes = notes || " +
+      "'\n\nTip: Use the purple AI Follow-Up button in any lead drawer to generate a personalized follow-up message. Requires a Claude API key in Settings.'" +
+      " WHERE id = 117 AND notes NOT LIKE '%AI Follow-Up%'"
+    ).run()
+
     const dIns = db.prepare(
       'INSERT OR IGNORE INTO documents (id, title, category, content, driver_id, doc_type, expiry_date)' +
       ' VALUES (?,?,?,?,?,?,?)'
@@ -245,63 +374,105 @@ export function seedMissingItems(db: Database.Database): void {
 
     dIns.run(125,'Daily Operations Playbook','SOP',
       '# Daily Operations Playbook\n\n' +
-      '## Overview\n' +
-      'This document is the master guide for running OnTrack Hauling Solutions every day. Follow it in order, every weekday, without skipping steps. If you do all of this consistently, you will hit $4,000/month.\n\n' +
-      '## The Core Math\n' +
-      '- Dispatch rate: 7% of driver gross\n' +
-      '- To earn $4,000/month: drivers must gross approximately $57,000/month combined\n' +
-      '- With 3 active drivers each grossing $19,000/month: you hit the goal\n' +
-      '- Average driver earns $1,000-2,000/week gross on regional runs\n' +
-      '- Your job: keep them loaded and find more drivers\n\n' +
-      '## Daily Schedule (Every Weekday)\n\n' +
+      '## Purpose\n' +
+      'This is the master operating guide for OnTrack Hauling Solutions. Every person running this business -- whether that is the owner or a new hire -- should be able to open this document and know exactly what to do today to generate revenue.\n\n' +
+      '## The Core Math (Know This Cold)\n' +
+      'Dispatch rate: 7% of driver gross per load.\n' +
+      'Monthly goal: $3,000-$4,000/month in dispatch fees.\n' +
+      'To earn $4,000/month: drivers must gross approximately $57,000/month combined.\n' +
+      'Example: 3 active drivers each grossing $19,000/month = $57,000 gross = $3,990 in fees.\n' +
+      'A driver earning $1,500/week gross = $105/week in fees for you.\n' +
+      'Two drivers running consistently = $210/week = $840/month. Four drivers = $1,680/month.\n' +
+      'You need at least 3-4 active, consistently running drivers to hit the goal.\n\n' +
+      '## Revenue Priority Order\n' +
+      'Every day, work in this order:\n' +
+      '1. LOADS FIRST -- Any active driver without a load is your top priority. An empty driver earns nothing. Finding and booking a load is the single highest-value action you can take.\n' +
+      '2. LEADS SECOND -- Overdue leads, Interested leads, and warm follow-ups. These convert to new drivers, which multiplies your revenue.\n' +
+      '3. MARKETING THIRD -- Facebook posting builds your pipeline for future months. Important, but never at the expense of current driver loads or warm leads.\n\n' +
+      '## Daily Schedule (Weekdays)\n\n' +
       '### 8:00 AM -- Morning Dashboard Review\n' +
-      '1. Open the Dashboard. Look for any red flags: drivers needing loads, overdue leads, outstanding invoices.\n' +
-      '2. Note your top 3 priorities for today.\n\n' +
+      '1. Open the Dashboard. Check Drivers Needing Loads first -- this is your most urgent number.\n' +
+      '2. Check Loads In Transit -- are all drivers moving? Any overdue ETAs?\n' +
+      '3. Check Overdue Leads -- anyone who needs a call today?\n' +
+      '4. Check Outstanding Invoices -- any unpaid invoices past 30 days? Flag them now.\n' +
+      '5. Write your top 3 priorities for the day before doing anything else.\n' +
+      'See: Tasks page for today\'s full checklist.\n\n' +
       '### 8:15 AM -- Active Load Status Update\n' +
-      '1. Text or call every driver with an active load.\n' +
-      '2. Confirm they are moving. Update load statuses in the app.\n\n' +
+      '1. Text or call every driver with a Booked, Picked Up, or In Transit load.\n' +
+      '2. Confirm they are moving. Update load statuses in the app to match reality.\n' +
+      '3. Any driver who has not responded in 2 hours: call them. After 4 hours with no answer: flag the load.\n' +
+      'See: [[Load Booking and Status SOP]]\n\n' +
+      '### 8:15 AM -- Find Loads for Empty Drivers (CONCURRENT WITH STATUS UPDATE)\n' +
+      'If any Active driver has no load right now, go here immediately after the status update.\n' +
+      '1. Open your load board (DAT or Truckstop).\n' +
+      '2. Search from the driver\'s current location for loads matching their equipment and minimum RPM.\n' +
+      '3. Call the broker, negotiate if needed, get verbal confirmation before hanging up.\n' +
+      '4. Add the load to the Loads page and text pickup details to the driver.\n' +
+      'Do not start marketing tasks while a driver is sitting empty.\n' +
+      'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]\n\n' +
       '### 9:00 AM -- Facebook Driver Search\n' +
-      '1. Open Facebook. Search your target groups for new driver posts.\n' +
+      '1. Search your target Facebook groups for posts matching driver acquisition keywords.\n' +
       '2. Message any promising drivers using the [[Driver Intake Script]].\n' +
-      '3. Log every new contact in Leads immediately.\n\n' +
+      '3. Log every new contact in Leads immediately with status New.\n\n' +
       '### 9:30 AM -- Algorithm Training\n' +
       '1. Like and comment on 5+ posts in driver groups.\n' +
-      '2. This keeps your posts visible to drivers. Do not skip this -- it takes 5 minutes.\n\n' +
+      '2. Takes 5 minutes. Keeps your posts visible to more drivers. Do not skip this.\n\n' +
       '### 10:00 AM -- Facebook Group Posting Session\n' +
-      '1. Go to Marketing > Groups. Look at Today\'s Groups panel.\n' +
-      '2. Post in each recommended group. Use templates from Marketing > Templates.\n' +
+      '1. Go to Marketing > Groups. Look at Today\'s Groups panel for recommendations.\n' +
+      '2. Post in each recommended group using templates from Marketing > Templates.\n' +
       '3. Mark each group as posted in the app after you post.\n' +
+      '4. Change the opening line between groups -- do not copy-paste the exact same post.\n' +
       'See: [[Facebook Post Script Bank]]\n\n' +
       '### 11:30 AM -- Second Driver Sweep\n' +
-      '1. Check Facebook again for any new posts since morning.\n' +
+      '1. Check Facebook again for new driver posts since morning.\n' +
       '2. Message new prospects. Add to Leads.\n\n' +
       '### 1:00 PM -- Midday Driver and Load Check\n' +
-      '1. Open Dispatcher Board. Any active driver without a load is your #1 priority.\n' +
-      '2. Go to your load board and find them a load. Book it. Update the app.\n' +
+      '1. Open Dispatcher Board. Any Active driver without a load is priority one -- go find a load now.\n' +
+      '2. For in-transit loads: check ETAs and confirm drivers are on track.\n' +
+      '3. If a load was delivered this morning: update the status to Delivered and create the invoice.\n' +
       'See: [[Load Booking and Status SOP]]\n\n' +
       '### 2:00 PM -- Lead Response Monitoring\n' +
       '1. Check all Facebook DMs and email for driver responses.\n' +
-      '2. Reply to everyone. Update lead statuses.\n\n' +
-      '### 3:30 PM -- New Driver Inquiry Response\n' +
-      '1. Final check of all incoming messages.\n' +
-      '2. Add any new contacts to Leads. Set follow-up dates.\n' +
-      'See: [[Driver Intake Script]]\n\n' +
-      '### 4:30 PM -- Final Driver Lead Sweep\n' +
-      '1. Last check of Facebook and email.\n' +
-      '2. Set follow-up reminders for tomorrow.\n\n' +
+      '2. Reply to every message. Do not let a response sit more than 2 hours.\n' +
+      '3. Update lead statuses in the app.\n\n' +
+      '### 3:30 PM -- Overdue Lead Follow-Up\n' +
+      '1. Go to Leads page. Pull all leads with follow_up_date on or before today.\n' +
+      '2. Call each one. Do not send a text as your first contact attempt -- call.\n' +
+      '3. Update the lead status and set the next follow-up date before moving to the next lead.\n' +
+      'See: [[Warm Lead Follow-Up Script]]\n\n' +
+      '### 4:30 PM -- Final Sweep and Invoice Check\n' +
+      '1. Last check of Facebook and email -- any messages since 2 PM?\n' +
+      '2. Go to Loads page. Any loads delivered today? Create the invoice now, not tomorrow.\n' +
+      '3. Set follow-up reminders for tomorrow.\n\n' +
       '### 5:00 PM -- End-of-Day Close Out\n' +
-      '1. Update all lead notes and statuses.\n' +
-      '2. Confirm all load statuses are current.\n' +
-      '3. Tomorrow starts at 8:00 AM. Stop working.\n\n' +
+      '1. Update all lead notes and statuses from today.\n' +
+      '2. Confirm all load statuses are accurate.\n' +
+      '3. Write one sentence in your notes: what worked today, what did not.\n' +
+      '4. Tomorrow starts at 8:00 AM. Close the app and stop working.\n\n' +
+      '## Saturday Operations\n' +
+      'Saturday is a working day. Load boards are active, brokers answer phones, and drivers are available.\n' +
+      'Priority order is the same: loads first, leads second, Facebook third.\n' +
+      'See the Saturday Revenue and Lead Push task in your Tasks page for the full Saturday workflow.\n\n' +
+      '## End-of-Month Urgency Protocol\n' +
+      'If you are in the last 3-4 days of the month and behind your monthly revenue goal, run this protocol:\n' +
+      '1. Invoice every Delivered load immediately -- do not let delivered loads sit uninvoiced for even a day.\n' +
+      '2. Call every Interested lead directly. Do not wait for them to respond to a message.\n' +
+      '3. Post in Facebook groups twice daily -- once in the morning, once in the early afternoon.\n' +
+      '4. Check for any short regional loads that could be picked up and delivered before month-end.\n' +
+      '5. Review your Brokers list for any Preferred brokers who owe you a load call -- reach out.\n' +
+      'A single booked load in the last 3 days of the month can be the difference between hitting your goal and missing it.\n\n' +
       '## Non-Negotiable Rules\n' +
+      '- Never leave an active driver empty for more than 24 hours if they want to run\n' +
       '- Respond to every driver message within 2 hours during business hours\n' +
-      '- Never leave a driver empty for more than 24 hours if they want to run\n' +
-      '- Log every contact in the app the same day it happens\n' +
-      '- If you skip a step today, do not skip it tomorrow\n\n' +
+      '- Log every contact, call, and update in the app the same day it happens\n' +
+      '- Invoice every delivered load the same day or the morning after delivery\n' +
+      '- If you skip a step today, run the whole checklist double tomorrow\n\n' +
       '## Related Documents\n' +
+      '- [[Load Booking and Status SOP]]\n' +
+      '- [[Broker Rate Negotiation Script]]\n' +
       '- [[Driver Intake Script]]\n' +
       '- [[Facebook Post Script Bank]]\n' +
-      '- [[Load Booking and Status SOP]]\n' +
+      '- [[Warm Lead Follow-Up Script]]\n' +
       '- [[Driver Onboarding Checklist]]\n' +
       '- [[Weekly Revenue Tracking Guide]]',
       null,null,null)
@@ -567,7 +738,7 @@ export function seedMissingItems(db: Database.Database): void {
     // Seed the Facebook groups list from the static data file (INSERT OR IGNORE -- safe to re-run)
     seedFbGroups(db)
   })()
-  console.log('[Seed] seedMissingItems: tasks 111-132, documents 106-108/123-131, and FB groups applied (INSERT OR IGNORE).')
+  console.log('[Seed] seedMissingItems: tasks 111-139, documents 106-108/123-131/125-updated, task note patches, and FB groups applied.')
 }
 
 export function resetAndReseed(db: Database.Database): void {
@@ -770,23 +941,563 @@ function seedTasks(db: Database.Database): void {
     'INSERT OR IGNORE INTO tasks (id, title, category, priority, due_date, time_of_day, recurring, status, notes)' +
     ' VALUES (?,?,?,?,?,?,?,?,?)'
   )
-  // ── Daily task list (matches current live task setup) ─────────────────────
-  ins.run(101,'Check driver check-ins and update load statuses','Dispatch','High','Daily','8:00 AM',1,'Pending','Confirm all In Transit drivers have checked in. Update load board.')
-  ins.run(121,'Active Load Status Update','Dispatch','High','Daily','8:15 AM',1,'Pending','Text or call every driver with an active load. Confirm status and update the app. If a driver is not responding after 2 hours, flag it. See: [[Load Booking and Status SOP]]')
-  ins.run(102,'Follow up on overdue invoices','Admin','High','Daily','9:00 AM',1,'Pending','Review invoices older than 30 days. Email or call broker AR department.')
-  ins.run(111,'Facebook Driver Search Sweep','Marketing','High','Daily','9:00 AM',1,'Pending','Morning sweep of Facebook groups for driver leads. Search keywords: looking for dispatcher, need dispatch, available truck, looking for loads. Message prospects and log every new contact in the Leads page immediately. See: [[Facebook Driver Search SOP]]')
-  ins.run(122,'Post in today\'s 5 Facebook groups','Marketing','High','Daily','9:00 AM',1,'Pending','Post in your recommended groups for today. Go to Marketing > Groups tab and look at the Today\'s Groups panel. Post content in each group, mark it posted in the app, and change the wording slightly between groups. See: [[Facebook Post Script Bank]]')
-  ins.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending','Like, comment, and share relevant posts in driver groups to train the Facebook algorithm. Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
-  ins.run(103,'Review new FMCSA leads and assign follow-up dates','Leads','Medium','Daily','10:00 AM',1,'Pending','Check FMCSA import queue. Score and prioritize new leads.')
-  ins.run(104,'Post driver availability to Facebook group','Marketing','Medium','Daily','11:00 AM',1,'Pending','Post any available trucks to the freight group with lanes and equipment.')
-  ins.run(123,'Midday Driver and Load Check','Dispatch','Medium','Daily','1:00 PM',1,'Pending','Check Dispatcher Board for any Active drivers without a load. Go to your load board, find a matching load, call the broker, negotiate if needed, and book it. Update the Loads page and text the driver pickup details. See: [[Load Booking and Status SOP]]')
-  ins.run(114,'Driver Lead Response Monitoring','Marketing','High','Daily','2:00 PM',1,'Pending','Check all DMs and comments from morning posts and outreach. Respond within 2 hours. Move qualified responses to Leads page with status Contacted.')
-  ins.run(105,'Confirm next-day pickup appointments','Dispatch','High','Daily','3:00 PM',1,'Pending','Call or message drivers with pickups tomorrow. Confirm time and location.')
-  ins.run(124,'New Driver Inquiry Response','Leads','High','Daily','3:30 PM',1,'Pending','Check Facebook DMs and email for new driver inquiries. Add every new contact to the Leads page with status New. Send the first-contact script and set a follow-up date for tomorrow. Do not leave any inquiry unanswered overnight. See: [[Driver Intake Script]]')
-  ins.run(115,'Final Driver Lead Sweep','Marketing','High','Daily','4:30 PM',1,'Pending','Final check of Facebook groups and DMs. Respond to any messages received since 2:00 PM. Set follow-up reminders for unresponded leads for tomorrow morning. Update Leads page with all new contacts from today. See: [[Facebook Driver Search SOP]]')
-  ins.run(106,'Send weekly revenue report to owner','Admin','Medium','Daily','5:00 PM',1,'Pending','Export load and invoice totals for the week. Send summary email.')
-  ins.run(125,'End-of-Day Close Out','Dispatch','Medium','Daily','5:00 PM',1,'Pending','Update all lead notes and statuses from today. Confirm all load statuses are current. Check Facebook DMs one final time. Set follow-up dates on any open leads. Tomorrow starts at 8:00 AM -- close your browser tabs. See: [[Daily Operations Playbook]]')
+
+  // ── DAILY (Mon–Sat) — 13 tasks, no duplicates ─────────────────────────────
+  ins.run(120,'Morning Dashboard Review','Dispatch','High','Daily','8:00 AM',1,'Pending',
+    'Start every day here. Open the Dashboard and get your bearings before touching anything else.\n' +
+    '1. Look at Drivers Needing Loads -- any Active driver with no load is your top priority.\n' +
+    '2. Look at Loads In Transit -- are all drivers moving? Check the weekly revenue target bar.\n' +
+    '3. Look at Leads Awaiting Follow-Up -- anyone you promised to call today?\n' +
+    '4. Look at Outstanding Invoices -- any unpaid invoices over 30 days? Flag them.\n' +
+    '5. Scroll through Today\'s Tasks -- note your scheduled times.\n' +
+    'See: [[Daily Operations Playbook]]')
+  ins.run(121,'Active Load Status Update','Dispatch','High','Daily','8:15 AM',1,'Pending',
+    'Confirm every in-transit load is moving and update the app.\n' +
+    '1. Go to Loads > Dispatch Board.\n' +
+    '2. Check for any red check-call badge (4h+ since last update) -- text those drivers first.\n' +
+    '3. For every Booked, Picked Up, or In Transit load: text the driver for a status update.\n' +
+    '4. Update load status in the app based on driver response.\n' +
+    '5. If a driver is not responding after 2 attempts: call them. Flag it if still no answer.\n' +
+    '6. Any load delivered yesterday still showing In Transit? Update to Delivered immediately.\n' +
+    'See: [[Load Booking and Status SOP]]')
+  ins.run(111,'Facebook Driver Search Sweep','Marketing','High','Daily','9:00 AM',1,'Pending',
+    'Morning sweep of Facebook groups for driver leads.\n' +
+    '1. Search each group using: looking for dispatcher, need dispatch, available truck, looking for loads.\n' +
+    '2. Message every new prospect using the outreach template.\n' +
+    '3. Log every new contact in the Leads page immediately with status New.\n' +
+    '4. Set a follow-up date for tomorrow on every new lead.\n' +
+    'See: [[Facebook Driver Search SOP]]')
+  ins.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending',
+    'Like, comment, and share relevant posts in driver groups to train the Facebook algorithm.\n' +
+    'Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
+  ins.run(122,'Post in Today\'s Facebook Groups','Marketing','High','Daily','10:00 AM',1,'Pending',
+    'Post content in your recommended groups for today. Primary driver acquisition activity.\n' +
+    '1. Go to Marketing > Groups tab.\n' +
+    '2. Look at the Today\'s Groups panel -- post in each listed group.\n' +
+    '3. After posting each group: click "Mark Posted" in the app.\n' +
+    '4. Change the wording slightly between groups -- never copy-paste the same text.\n' +
+    '5. If a group requires post approval, allow 24 hours before marking done.\n' +
+    'See: [[Facebook Post Script Bank]] | [[Facebook Driver Search SOP]]')
+  ins.run(103,'Review FMCSA Leads','Leads','Medium','Daily','11:00 AM',1,'Pending',
+    'Check FMCSA import queue. Score and prioritize new leads.\n' +
+    '1. Go to Leads page. Filter by New status.\n' +
+    '2. For each new lead: check fleet size, trailer type, and lane match.\n' +
+    '3. Assign a follow-up date based on priority: High = 2 days, Medium = 5 days.\n' +
+    '4. Any lead with 1+ year authority and matching equipment = call today.')
+  ins.run(134,'Check-Call Dispatch Review','Dispatch','High','Daily','12:00 PM',1,'Pending',
+    'Review the dispatch board for any In Transit loads overdue for a check-call.\n' +
+    '1. Go to Loads > Dispatch Board.\n' +
+    '2. Look for red "Check call overdue" badges (4+ hours since last update).\n' +
+    '3. Text each driver with a red badge: "Hey [Name], quick check-in. Location and ETA?"\n' +
+    '4. Update the load in the app once you have a response -- this clears the badge.\n' +
+    '5. If unreachable after 2 attempts: call the broker and flag the load.\n' +
+    'Yellow badge = 2-4 hours. Red = 4+ hours. Address red first.')
+  ins.run(123,'Midday Driver and Load Check','Dispatch','High','Daily','1:00 PM',1,'Pending',
+    'Quick midday check to keep loads moving and find freight for available drivers.\n' +
+    '1. Go to Dispatcher Board. Any Active driver showing "Needs Load"? Find them a load now.\n' +
+    '2. Log in to DAT or Truckstop. Search near the driver\'s location for matching equipment.\n' +
+    '3. Call the broker. Negotiate if the rate is low.\n' +
+    '4. Once booked: add the load in Loads page (status Booked) and text driver pickup details.\n' +
+    'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]')
+  ins.run(114,'Driver Lead Response Monitoring','Marketing','High','Daily','2:00 PM',1,'Pending',
+    'Check all DMs and comments from morning posts and outreach.\n' +
+    '1. Open Facebook and review all DMs and group comment replies.\n' +
+    '2. Respond to every message within 2 hours.\n' +
+    '3. Move every qualified reply to the Leads page with status Contacted.\n' +
+    '4. Set a follow-up date for tomorrow on any new lead.')
+  ins.run(105,'Confirm Next-Day Pickup Appointments','Dispatch','High','Daily','3:00 PM',1,'Pending',
+    'Call or message every driver with a pickup tomorrow.\n' +
+    '1. Go to Loads page. Filter for loads with pickup_date = tomorrow.\n' +
+    '2. For each: call or text the driver to confirm time, address, and shipper contact.\n' +
+    '3. Verify the BOL number and commodity one more time.\n' +
+    '4. If anything changed: update the load record and notify the broker.')
+  ins.run(124,'New Driver Inquiry Response','Leads','High','Daily','3:30 PM',1,'Pending',
+    'Check for new driver inquiries and respond before end of business day.\n' +
+    '1. Open Facebook and check all DMs and group comment replies.\n' +
+    '2. Check email at dispatch@ontrackhaulingsolutions.com.\n' +
+    '3. For every new inquiry: add them to the Leads page with status New immediately.\n' +
+    '4. Send the first-contact response using the script.\n' +
+    '5. Set a follow-up date for tomorrow.\n' +
+    'Do not leave any inquiry unanswered overnight.\n' +
+    'See: [[Driver Intake Script]]')
+  ins.run(115,'Final Driver Lead Sweep','Marketing','High','Daily','4:30 PM',1,'Pending',
+    'Final check of Facebook groups and DMs before end of day.\n' +
+    '1. Respond to any messages received since 2:00 PM.\n' +
+    '2. Set follow-up reminders for unresponded leads for tomorrow morning.\n' +
+    '3. Update Leads page with all new contacts from today.\n' +
+    'See: [[Facebook Driver Search SOP]]')
+  ins.run(125,'End-of-Day Close Out','Dispatch','Medium','Daily','5:00 PM',1,'Pending',
+    'Close out the day properly so tomorrow starts clean.\n' +
+    '1. Go to Leads page -- update status and notes on every lead you interacted with today.\n' +
+    '2. Go to Loads page -- confirm all load statuses are current.\n' +
+    '3. Check Facebook DMs one final time.\n' +
+    '4. Set follow-up dates on any open leads that need a call tomorrow.\n' +
+    '5. Tomorrow starts at 8:00 AM.\n' +
+    'See: [[Daily Operations Playbook]]')
+
+  // ── MONDAY ──────────────────────────────────────────────────────────────────
+  ins.run(101,'Monday Driver Insurance and Authority Check','Dispatch','High','Monday','7:45 AM',1,'Pending',
+    'Verify every active driver has current insurance and active MC authority before the week begins.\n' +
+    '1. Go to Drivers page.\n' +
+    '2. For each Active driver: check insurance_expiry. Expired or within 30 days? Do not dispatch until renewed.\n' +
+    '3. Check MC authority on FMCSA SAFER for any driver you have not verified recently.\n' +
+    '4. Check the Driver Documents section for any expiring CDLs or permits.\n' +
+    '5. The app fires a push notification at 8 AM for any document expiring within 30 days.\n' +
+    'Never dispatch a driver with expired insurance or suspended authority.')
+  ins.run(126,'Monday Weekly Goal Review','Dispatch','High','Monday','8:00 AM',1,'Pending',
+    'Start every Monday knowing exactly where you stand and what you need to accomplish this week.\n' +
+    '1. Go to Dashboard. Check the Weekly Revenue Target bar -- is it set? If not, set it now.\n' +
+    '2. Go to Invoices -- total up dispatch fees paid last week. Are you on pace?\n' +
+    '3. Go to Leads -- how many Signed drivers do you have active right now?\n' +
+    '4. If you are behind: your primary job today is to either find a load or sign a driver.\n' +
+    '5. Write your 3 most important actions for this week.\n' +
+    'See: [[Weekly Revenue Tracking Guide]]')
+  ins.run(116,'Monday FMCSA Lead Review','Leads','High','Monday','8:30 AM',1,'Pending',
+    'Run FMCSA import or review leads imported from the past week. Score by fleet size, trailer type, and lane match. Assign follow-up dates. Move high-priority leads to Contacted. See: [[FMCSA Lead Review Checklist]]')
+  ins.run(137,'Weekly Revenue Target Check','Admin','Medium','Monday','9:30 AM',1,'Pending',
+    'Check your weekly revenue progress on the Dashboard.\n' +
+    '1. Go to Dashboard. Look for the Weekly Revenue Target bar below the KPI cards.\n' +
+    '2. If no target is set: click "Set a weekly revenue target" and enter your goal.\n' +
+    '3. Note the percentage. Under 25% on Monday = normal. Under 50% by Wednesday = act.\n' +
+    '4. If behind: find a load for any available driver today.\n' +
+    'The bar counts dispatch fees from Invoiced and Paid loads this week.')
+  ins.run(139,'Monday Broker Flag Audit','Admin','Medium','Monday','10:00 AM',1,'Pending',
+    'Keep your broker list accurate so the red Avoid warning catches bad brokers before booking.\n' +
+    '1. Go to Brokers page. Review all brokers you worked with last week.\n' +
+    '2. Paid on time? Consider upgrading Watch to Preferred.\n' +
+    '3. Over 35 days to pay? Flag as Watch.\n' +
+    '4. Refused to pay or ghosted you? Flag as Avoid immediately.\n' +
+    '5. Add any new broker you booked with this week that is not yet in the system.')
+
+  // ── TUESDAY ─────────────────────────────────────────────────────────────────
+  ins.run(127,'Tuesday Load Board Search','Dispatch','High','Tuesday','9:00 AM',1,'Pending',
+    'Tuesday morning load board sweep -- find loads for all available drivers.\n' +
+    '1. Go to Dispatcher Board. Identify every Active driver with no current load.\n' +
+    '2. For each: open DAT or Truckstop, search from their location for matching equipment.\n' +
+    '3. Call the broker. Confirm rate, pickup window, commodity, and payment terms.\n' +
+    '4. Get a verbal, then request the rate confirmation.\n' +
+    '5. Add the load in Loads page and text pickup details to the driver.\n' +
+    'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]')
+  ins.run(136,'AI Follow-Up Batch for Warm Leads','Leads','High','Tuesday','11:00 AM',1,'Pending',
+    'Use AI to generate personalized follow-up messages for overdue warm leads.\n' +
+    '1. Go to Leads page. Click the Overdue filter to show all overdue follow-ups.\n' +
+    '2. For each overdue Contacted or Interested lead:\n' +
+    '   a. Open the lead drawer.\n' +
+    '   b. Click the purple "AI Follow-Up" button in Quick Actions.\n' +
+    '   c. Personalize the draft -- change any generic details to match this driver.\n' +
+    '   d. Click "Copy" and send via text, DM, or email.\n' +
+    '   e. Click "Log Attempt" and set a new follow-up date 3 days out.\n' +
+    'Note: requires a Claude API key in Settings > API Keys.')
+  ins.run(128,'Tuesday Driver Onboarding Follow-Up','Leads','Medium','Tuesday','2:00 PM',1,'Pending',
+    'Follow up with every driver who expressed interest but has not signed yet.\n' +
+    '1. Go to Leads page. Filter by status Interested.\n' +
+    '2. For each Interested lead with follow-up date on or before today: call them.\n' +
+    '3. Script: "Hey [Name], this is Chris from OnTrack. I have loads available in your lanes right now. Want to move forward?"\n' +
+    '4. If yes: walk through the [[Driver Onboarding Checklist]] step by step.\n' +
+    '5. If not yet: ask what is holding them back and address it directly.\n' +
+    '6. Update status and set next follow-up date.\n' +
+    'See: [[Driver Intake Script]] | [[Driver Onboarding Checklist]]')
+
+  // ── WEDNESDAY ───────────────────────────────────────────────────────────────
+  ins.run(135,'Overdue Invoice Collection Review','Admin','High','Wednesday','9:00 AM',1,'Pending',
+    'Systematically chase overdue invoices. This is money you have already earned.\n' +
+    '1. Go to Invoices page. Click "Auto-Flag Overdue" to update status on past-due invoices.\n' +
+    '2. For each Overdue invoice:\n' +
+    '   a. Open the invoice drawer.\n' +
+    '   b. Click "Follow-up" in the action bar, then "Copy Collection Message".\n' +
+    '   c. Paste and send via text, DM, or email.\n' +
+    '3. For invoices 30+ days overdue: call the driver directly -- do not send a message.\n' +
+    '4. Log every collection attempt in the invoice notes.')
+  ins.run(117,'Wednesday Warm Lead Follow-Up','Leads','High','Wednesday','10:00 AM',1,'Pending',
+    'Call or message all Contacted and Interested leads that have not responded in 3+ days.\n' +
+    '1. Go to Leads page. Filter by Contacted and Interested status.\n' +
+    '2. Use the AI Follow-Up button to generate a personalized message for each overdue lead.\n' +
+    '3. Phone script: "Hi, this is Chris from OnTrack. I wanted to follow up on our conversation. We work with owner-operators on 7% -- no contracts. Do you have 5 minutes?"\n' +
+    '4. Goal: at least 2 new Interested leads per session.\n' +
+    'See: [[Warm Lead Follow-Up Script]]')
+
+  // ── THURSDAY ────────────────────────────────────────────────────────────────
+  ins.run(104,'Post Driver Availability to Facebook Groups','Marketing','Medium','Thursday','11:00 AM',1,'Pending',
+    'Post available driver lanes and equipment to attract inbound load inquiries.\n' +
+    '1. Go to Marketing > Groups tab.\n' +
+    '2. Post a driver availability notice in your top 3 groups for today.\n' +
+    '3. Include equipment type, home base state, and preferred lanes.\n' +
+    '4. Example: "Owner-operator flatbed available in TX, running TX-TN-IL lanes. Experienced, reliable, seeking consistent freight. DM for details."\n' +
+    '5. Mark each group as posted in the app.\n' +
+    'See: [[Facebook Post Script Bank]]')
+  ins.run(129,'Thursday Broker Outreach','Leads','Medium','Thursday','10:00 AM',1,'Pending',
+    'Build broker relationships to ensure consistent freight for your drivers.\n' +
+    '1. Call your top 3 Preferred brokers: "Do you have consistent freight coming up this week?"\n' +
+    '2. Ask specifically about lanes matching your drivers\' home bases.\n' +
+    '3. For any broker offering good consistent freight: note their lanes in the broker record.\n' +
+    '4. If any broker has been slow to pay: call their accounting department today.\n' +
+    '5. Add any new brokers you worked with this week to the Brokers page.\n' +
+    'See: [[Broker Rate Negotiation Script]]')
+  ins.run(130,'Thursday Driver Pipeline Review','Leads','High','Thursday','2:00 PM',1,'Pending',
+    'Push every warm lead closer to signing. This is your conversion session.\n' +
+    '1. Go to Leads page. Filter by Interested.\n' +
+    '2. For every Interested lead: call them today.\n' +
+    '3. Script: "Hey [Name], I have a load available in [their lane] Monday. I want to offer it to you first if you want to move forward."\n' +
+    '4. For Contacted leads overdue 5+ days with no response: send one final message, then mark Rejected.\n' +
+    'See: [[Driver Onboarding Checklist]] | [[Driver Intake Script]]')
+
+  // ── FRIDAY ──────────────────────────────────────────────────────────────────
+  ins.run(131,'Friday Invoice and Payment Review','Admin','High','Friday','8:30 AM',1,'Pending',
+    'Handle all invoicing and payment tracking before the weekend.\n' +
+    '1. Go to Loads page. Find all Delivered loads not yet invoiced.\n' +
+    '2. Create an invoice for each and update load status to Invoiced.\n' +
+    '3. Send each invoice to the broker with the POD attached.\n' +
+    '4. Check for any Overdue invoices -- call that broker before 5 PM today.\n' +
+    '5. Go to Reports > Cash Flow Outlook. Review Pending, Outstanding, and Collected buckets.\n' +
+    '6. Any dollar sitting in Pending (Delivered, not invoiced) should be invoiced today.\n' +
+    'See: [[Invoice Submission Process]] | [[Weekly Revenue Tracking Guide]]')
+  ins.run(118,'Friday Driver Conversation Review','Leads','Medium','Friday','3:00 PM',1,'Pending',
+    'Review all driver conversations from the week. Update lead statuses. Archive dead leads as Rejected with reason. Identify top 3 leads to prioritize next week. Prep outreach for Monday.')
+  ins.run(138,'Friday Cash Flow Outlook Review','Admin','High','Friday','3:30 PM',1,'Pending',
+    'End every Friday knowing what money is in your pipeline.\n' +
+    '1. Go to Reports page. Look at the Cash Flow Outlook section.\n' +
+    '2. PENDING (yellow): Delivered loads not yet invoiced. Invoice them now.\n' +
+    '3. OUTSTANDING (orange): Invoices sent, not paid. Follow up on any 15+ days old.\n' +
+    '4. COLLECTED (green): Paid this calendar month. Your real revenue.\n' +
+    '5. Do not leave Delivered loads uninvoiced over the weekend.')
+  ins.run(132,'Friday Weekly Revenue and Pipeline Snapshot','Admin','High','Friday','4:00 PM',1,'Pending',
+    'End every Friday knowing exactly where you stand.\n' +
+    '1. Go to Dashboard. Check your weekly revenue target bar. Are you on track?\n' +
+    '2. Go to Analytics. Note this week\'s total revenue and compare to your target.\n' +
+    '3. Go to Leads. Count how many Interested leads you have right now.\n' +
+    '4. Identify your single most likely sign next week -- write their name down.\n' +
+    '5. Go to Dispatcher Board -- any drivers sitting empty going into the weekend?\n' +
+    '6. Set your top 3 Monday actions and close the app.\n' +
+    'See: [[Weekly Revenue Tracking Guide]] | [[Daily Operations Playbook]]')
+  ins.run(106,'Update Weekly Revenue Records','Admin','Medium','Friday','4:45 PM',1,'Pending',
+    'Capture this week\'s numbers before the weekend.\n' +
+    '1. Go to Reports. Note this week\'s paid dispatch fees.\n' +
+    '2. Note total outstanding (Invoiced + Overdue).\n' +
+    '3. Note total Delivered loads not yet invoiced.\n' +
+    '4. Compare to your weekly target. Write down the gap (positive or negative).\n' +
+    '5. Update any driver pay records that need to reflect this week\'s loads.')
+
+  // ── SATURDAY ────────────────────────────────────────────────────────────────
+  ins.run(133,'Saturday Revenue and Lead Push','Dispatch','High','Saturday','8:30 AM',1,'Pending',
+    'Saturday is a working day. Load boards are active, brokers answer phones, and drivers are available.\n\n' +
+    'PRIORITY 1 -- FIND LOADS FOR AVAILABLE DRIVERS\n' +
+    '1. Go to Dispatcher Board. Identify every Active driver with no current load.\n' +
+    '2. Open DAT or Truckstop. Search for loads near each driver\'s location.\n' +
+    '3. Call brokers directly -- many Friday loads go uncovered over the weekend.\n' +
+    '4. When you book a load: add it to Loads page and text the driver immediately.\n\n' +
+    'PRIORITY 2 -- FOLLOW UP ON OVERDUE LEADS\n' +
+    '1. Go to Leads page. Filter by Overdue Follow-Up.\n' +
+    '2. Call or DM each overdue lead. Sound like a person, not a script.\n' +
+    '3. Update every lead status and set a new follow-up date.\n\n' +
+    'PRIORITY 3 -- FACEBOOK GROUP POSTING\n' +
+    '1. Post in at least 3 recommended groups. Saturday posts get strong engagement.\n' +
+    '2. Use Load Availability or Direct Recruitment style from [[Facebook Post Script Bank]].\n' +
+    '3. Stay on Facebook 30 minutes after posting to reply to immediate comments.\n' +
+    'See: [[Daily Operations Playbook]] | [[Load Booking and Status SOP]]')
+
+  // ── SUNDAY ──────────────────────────────────────────────────────────────────
+  ins.run(119,'Weekly Facebook Groups Review','Marketing','Medium','Sunday','9:00 AM',1,'Pending',
+    'Review and update the Facebook groups list every Sunday.\n' +
+    '1. Go to Marketing > Groups tab.\n' +
+    '2. Check the Category Coverage panel for any underweight categories.\n' +
+    '3. Look for inactive groups or ones that have had no activity in 30+ days.\n' +
+    '4. Search Facebook for new groups in underweight categories and add them.\n' +
+    'See: [[How to Update Facebook Groups]]')
+
+  // ── WEDNESDAY (follow-up, already above) / remaining weekly tasks ────────────
+  ins.run(102,'Follow Up on Overdue Invoices','Admin','High','Wednesday','9:00 AM',1,'Pending',
+    'Quick daily check for overdue invoices -- do not let them age.\n' +
+    '1. Go to Invoices. Filter by Overdue status.\n' +
+    '2. For each overdue invoice: open the drawer, click Follow-up, send the collection message.\n' +
+    '3. For any 30+ days overdue: call directly. See the Wednesday Collection Review task for the full process.')
 }
+
+/**
+ * Force-replaces every task row created by seedTasks (IDs 101-139) with the
+ * correct definitions using INSERT OR REPLACE.  Call this from Settings when
+ * the user wants to rebuild their checklist to the current template.
+ *
+ * Status is reset to Pending for every task — this is intentional because the
+ * caller is explicitly rebuilding the list from scratch.
+ */
+export function reseedTasks(db: Database.Database): void {
+  const rep = db.prepare(
+    'INSERT OR REPLACE INTO tasks (id, title, category, priority, due_date, time_of_day, recurring, status, notes)' +
+    ' VALUES (?,?,?,?,?,?,?,?,?)'
+  )
+
+  db.transaction(() => {
+    // ── DAILY ────────────────────────────────────────────────────────────────
+    rep.run(120,'Morning Dashboard Review','Dispatch','High','Daily','8:00 AM',1,'Pending',
+      'Start every day here. Open the Dashboard and get your bearings before touching anything else.\n' +
+      '1. Look at Drivers Needing Loads -- any Active driver with no load is your top priority.\n' +
+      '2. Look at Loads In Transit -- are all drivers moving? Check the weekly revenue target bar.\n' +
+      '3. Look at Leads Awaiting Follow-Up -- anyone you promised to call today?\n' +
+      '4. Look at Outstanding Invoices -- any unpaid invoices over 30 days? Flag them.\n' +
+      '5. Scroll through Today\'s Tasks -- note your scheduled times.\n' +
+      'See: [[Daily Operations Playbook]]')
+    rep.run(121,'Active Load Status Update','Dispatch','High','Daily','8:15 AM',1,'Pending',
+      'Confirm every in-transit load is moving and update the app.\n' +
+      '1. Go to Loads > Dispatch Board.\n' +
+      '2. Check for any red check-call badge (4h+ since last update) -- text those drivers first.\n' +
+      '3. For every Booked, Picked Up, or In Transit load: text the driver for a status update.\n' +
+      '4. Update load status in the app based on driver response.\n' +
+      '5. If a driver is not responding after 2 attempts: call them. Flag it if still no answer.\n' +
+      '6. Any load delivered yesterday still showing In Transit? Update to Delivered immediately.\n' +
+      'See: [[Load Booking and Status SOP]]')
+    rep.run(111,'Facebook Driver Search Sweep','Marketing','High','Daily','9:00 AM',1,'Pending',
+      'Morning sweep of Facebook groups for driver leads.\n' +
+      '1. Search each group using: looking for dispatcher, need dispatch, available truck, looking for loads.\n' +
+      '2. Message every new prospect using the outreach template.\n' +
+      '3. Log every new contact in the Leads page immediately with status New.\n' +
+      '4. Set a follow-up date for tomorrow on every new lead.\n' +
+      'See: [[Facebook Driver Search SOP]]')
+    rep.run(112,'Facebook Algorithm Training','Marketing','Medium','Daily','9:30 AM',1,'Pending',
+      'Like, comment, and share relevant posts in driver groups to train the Facebook algorithm.\n' +
+      'Engage with at least 5 posts per session. Genuine engagement only -- no spam.')
+    rep.run(122,'Post in Today\'s Facebook Groups','Marketing','High','Daily','10:00 AM',1,'Pending',
+      'Post content in your recommended groups for today. Primary driver acquisition activity.\n' +
+      '1. Go to Marketing > Groups tab.\n' +
+      '2. Look at the Today\'s Groups panel -- post in each listed group.\n' +
+      '3. After posting each group: click "Mark Posted" in the app.\n' +
+      '4. Change the wording slightly between groups -- never copy-paste the same text.\n' +
+      '5. If a group requires post approval, allow 24 hours before marking done.\n' +
+      'See: [[Facebook Post Script Bank]] | [[Facebook Driver Search SOP]]')
+    rep.run(103,'Review FMCSA Leads','Leads','Medium','Daily','11:00 AM',1,'Pending',
+      'Check FMCSA import queue. Score and prioritize new leads.\n' +
+      '1. Go to Leads page. Filter by New status.\n' +
+      '2. For each new lead: check fleet size, trailer type, and lane match.\n' +
+      '3. Assign a follow-up date based on priority: High = 2 days, Medium = 5 days.\n' +
+      '4. Any lead with 1+ year authority and matching equipment = call today.')
+    rep.run(134,'Check-Call Dispatch Review','Dispatch','High','Daily','12:00 PM',1,'Pending',
+      'Review the dispatch board for any In Transit loads overdue for a check-call.\n' +
+      '1. Go to Loads > Dispatch Board.\n' +
+      '2. Look for red "Check call overdue" badges (4+ hours since last update).\n' +
+      '3. Text each driver with a red badge: "Hey [Name], quick check-in. Location and ETA?"\n' +
+      '4. Update the load in the app once you have a response -- this clears the badge.\n' +
+      '5. If unreachable after 2 attempts: call the broker and flag the load.\n' +
+      'Yellow badge = 2-4 hours. Red = 4+ hours. Address red first.')
+    rep.run(123,'Midday Driver and Load Check','Dispatch','High','Daily','1:00 PM',1,'Pending',
+      'Quick midday check to keep loads moving and find freight for available drivers.\n' +
+      '1. Go to Dispatcher Board. Any Active driver showing "Needs Load"? Find them a load now.\n' +
+      '2. Log in to DAT or Truckstop. Search near the driver\'s location for matching equipment.\n' +
+      '3. Call the broker. Negotiate if the rate is low.\n' +
+      '4. Once booked: add the load in Loads page (status Booked) and text driver pickup details.\n' +
+      'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]')
+    rep.run(114,'Driver Lead Response Monitoring','Marketing','High','Daily','2:00 PM',1,'Pending',
+      'Check all DMs and comments from morning posts and outreach.\n' +
+      '1. Open Facebook and review all DMs and group comment replies.\n' +
+      '2. Respond to every message within 2 hours.\n' +
+      '3. Move every qualified reply to the Leads page with status Contacted.\n' +
+      '4. Set a follow-up date for tomorrow on any new lead.')
+    rep.run(105,'Confirm Next-Day Pickup Appointments','Dispatch','High','Daily','3:00 PM',1,'Pending',
+      'Call or message every driver with a pickup tomorrow.\n' +
+      '1. Go to Loads page. Filter for loads with pickup_date = tomorrow.\n' +
+      '2. For each: call or text the driver to confirm time, address, and shipper contact.\n' +
+      '3. Verify the BOL number and commodity one more time.\n' +
+      '4. If anything changed: update the load record and notify the broker.')
+    rep.run(124,'New Driver Inquiry Response','Leads','High','Daily','3:30 PM',1,'Pending',
+      'Check for new driver inquiries and respond before end of business day.\n' +
+      '1. Open Facebook and check all DMs and group comment replies.\n' +
+      '2. Check email at dispatch@ontrackhaulingsolutions.com.\n' +
+      '3. For every new inquiry: add them to the Leads page with status New immediately.\n' +
+      '4. Send the first-contact response using the script.\n' +
+      '5. Set a follow-up date for tomorrow.\n' +
+      'Do not leave any inquiry unanswered overnight.\n' +
+      'See: [[Driver Intake Script]]')
+    rep.run(115,'Final Driver Lead Sweep','Marketing','High','Daily','4:30 PM',1,'Pending',
+      'Final check of Facebook groups and DMs before end of day.\n' +
+      '1. Respond to any messages received since 2:00 PM.\n' +
+      '2. Set follow-up reminders for unresponded leads for tomorrow morning.\n' +
+      '3. Update Leads page with all new contacts from today.\n' +
+      'See: [[Facebook Driver Search SOP]]')
+    rep.run(125,'End-of-Day Close Out','Dispatch','Medium','Daily','5:00 PM',1,'Pending',
+      'Close out the day properly so tomorrow starts clean.\n' +
+      '1. Go to Leads page -- update status and notes on every lead you interacted with today.\n' +
+      '2. Go to Loads page -- confirm all load statuses are current.\n' +
+      '3. Check Facebook DMs one final time.\n' +
+      '4. Set follow-up dates on any open leads that need a call tomorrow.\n' +
+      '5. Tomorrow starts at 8:00 AM.\n' +
+      'See: [[Daily Operations Playbook]]')
+
+    // ── MONDAY ───────────────────────────────────────────────────────────────
+    rep.run(101,'Monday Driver Insurance and Authority Check','Dispatch','High','Monday','7:45 AM',1,'Pending',
+      'Verify every active driver has current insurance and active MC authority before the week begins.\n' +
+      '1. Go to Drivers page.\n' +
+      '2. For each Active driver: check insurance_expiry. Expired or within 30 days? Do not dispatch until renewed.\n' +
+      '3. Check MC authority on FMCSA SAFER for any driver you have not verified recently.\n' +
+      '4. Check the Driver Documents section for any expiring CDLs or permits.\n' +
+      '5. The app fires a push notification at 8 AM for any document expiring within 30 days.\n' +
+      'Never dispatch a driver with expired insurance or suspended authority.')
+    rep.run(126,'Monday Weekly Goal Review','Dispatch','High','Monday','8:00 AM',1,'Pending',
+      'Start every Monday knowing exactly where you stand and what you need to accomplish this week.\n' +
+      '1. Go to Dashboard. Check the Weekly Revenue Target bar -- is it set? If not, set it now.\n' +
+      '2. Go to Invoices -- total up dispatch fees paid last week. Are you on pace?\n' +
+      '3. Go to Leads -- how many Signed drivers do you have active right now?\n' +
+      '4. If you are behind: your primary job today is to either find a load or sign a driver.\n' +
+      '5. Write your 3 most important actions for this week.\n' +
+      'See: [[Weekly Revenue Tracking Guide]]')
+    rep.run(116,'Monday FMCSA Lead Review','Leads','High','Monday','8:30 AM',1,'Pending',
+      'Run FMCSA import or review leads imported from the past week. Score by fleet size, trailer type, and lane match. Assign follow-up dates. Move high-priority leads to Contacted. See: [[FMCSA Lead Review Checklist]]')
+    rep.run(137,'Weekly Revenue Target Check','Admin','Medium','Monday','9:30 AM',1,'Pending',
+      'Check your weekly revenue progress on the Dashboard.\n' +
+      '1. Go to Dashboard. Look for the Weekly Revenue Target bar below the KPI cards.\n' +
+      '2. If no target is set: click "Set a weekly revenue target" and enter your goal.\n' +
+      '3. Note the percentage. Under 25% on Monday = normal. Under 50% by Wednesday = act.\n' +
+      '4. If behind: find a load for any available driver today.\n' +
+      'The bar counts dispatch fees from Invoiced and Paid loads this week.')
+    rep.run(139,'Monday Broker Flag Audit','Admin','Medium','Monday','10:00 AM',1,'Pending',
+      'Keep your broker list accurate so the red Avoid warning catches bad brokers before booking.\n' +
+      '1. Go to Brokers page. Review all brokers you worked with last week.\n' +
+      '2. Paid on time? Consider upgrading Watch to Preferred.\n' +
+      '3. Over 35 days to pay? Flag as Watch.\n' +
+      '4. Refused to pay or ghosted you? Flag as Avoid immediately.\n' +
+      '5. Add any new broker you booked with this week that is not yet in the system.')
+
+    // ── TUESDAY ──────────────────────────────────────────────────────────────
+    rep.run(127,'Tuesday Load Board Search','Dispatch','High','Tuesday','9:00 AM',1,'Pending',
+      'Tuesday morning load board sweep -- find loads for all available drivers.\n' +
+      '1. Go to Dispatcher Board. Identify every Active driver with no current load.\n' +
+      '2. For each: open DAT or Truckstop, search from their location for matching equipment.\n' +
+      '3. Call the broker. Confirm rate, pickup window, commodity, and payment terms.\n' +
+      '4. Get a verbal, then request the rate confirmation.\n' +
+      '5. Add the load in Loads page and text pickup details to the driver.\n' +
+      'See: [[Load Booking and Status SOP]] | [[Broker Rate Negotiation Script]]')
+    rep.run(136,'AI Follow-Up Batch for Warm Leads','Leads','High','Tuesday','11:00 AM',1,'Pending',
+      'Use AI to generate personalized follow-up messages for overdue warm leads.\n' +
+      '1. Go to Leads page. Click the Overdue filter to show all overdue follow-ups.\n' +
+      '2. For each overdue Contacted or Interested lead:\n' +
+      '   a. Open the lead drawer.\n' +
+      '   b. Click the purple "AI Follow-Up" button in Quick Actions.\n' +
+      '   c. Personalize the draft -- change any generic details to match this driver.\n' +
+      '   d. Click "Copy" and send via text, DM, or email.\n' +
+      '   e. Click "Log Attempt" and set a new follow-up date 3 days out.\n' +
+      'Note: requires a Claude API key in Settings > API Keys.')
+    rep.run(128,'Tuesday Driver Onboarding Follow-Up','Leads','Medium','Tuesday','2:00 PM',1,'Pending',
+      'Follow up with every driver who expressed interest but has not signed yet.\n' +
+      '1. Go to Leads page. Filter by status Interested.\n' +
+      '2. For each Interested lead with follow-up date on or before today: call them.\n' +
+      '3. Script: "Hey [Name], this is Chris from OnTrack. I have loads available in your lanes right now. Want to move forward?"\n' +
+      '4. If yes: walk through the [[Driver Onboarding Checklist]] step by step.\n' +
+      '5. If not yet: ask what is holding them back and address it directly.\n' +
+      '6. Update status and set next follow-up date.\n' +
+      'See: [[Driver Intake Script]] | [[Driver Onboarding Checklist]]')
+
+    // ── WEDNESDAY ────────────────────────────────────────────────────────────
+    rep.run(135,'Overdue Invoice Collection Review','Admin','High','Wednesday','9:00 AM',1,'Pending',
+      'Systematically chase overdue invoices. This is money you have already earned.\n' +
+      '1. Go to Invoices page. Click "Auto-Flag Overdue" to update status on past-due invoices.\n' +
+      '2. For each Overdue invoice:\n' +
+      '   a. Open the invoice drawer.\n' +
+      '   b. Click "Follow-up" in the action bar, then "Copy Collection Message".\n' +
+      '   c. Paste and send via text, DM, or email.\n' +
+      '3. For invoices 30+ days overdue: call the driver directly -- do not send a message.\n' +
+      '4. Log every collection attempt in the invoice notes.')
+    rep.run(117,'Wednesday Warm Lead Follow-Up','Leads','High','Wednesday','10:00 AM',1,'Pending',
+      'Call or message all Contacted and Interested leads that have not responded in 3+ days.\n' +
+      '1. Go to Leads page. Filter by Contacted and Interested status.\n' +
+      '2. Use the AI Follow-Up button to generate a personalized message for each overdue lead.\n' +
+      '3. Phone script: "Hi, this is Chris from OnTrack. I wanted to follow up on our conversation. We work with owner-operators on 7% -- no contracts. Do you have 5 minutes?"\n' +
+      '4. Goal: at least 2 new Interested leads per session.\n' +
+      'See: [[Warm Lead Follow-Up Script]]')
+    rep.run(102,'Follow Up on Overdue Invoices','Admin','High','Wednesday','9:00 AM',1,'Pending',
+      'Quick daily check for overdue invoices -- do not let them age.\n' +
+      '1. Go to Invoices. Filter by Overdue status.\n' +
+      '2. For each overdue invoice: open the drawer, click Follow-up, send the collection message.\n' +
+      '3. For any 30+ days overdue: call directly. See the Wednesday Collection Review task for the full process.')
+
+    // ── THURSDAY ─────────────────────────────────────────────────────────────
+    rep.run(104,'Post Driver Availability to Facebook Groups','Marketing','Medium','Thursday','11:00 AM',1,'Pending',
+      'Post available driver lanes and equipment to attract inbound load inquiries.\n' +
+      '1. Go to Marketing > Groups tab.\n' +
+      '2. Post a driver availability notice in your top 3 groups for today.\n' +
+      '3. Include equipment type, home base state, and preferred lanes.\n' +
+      '4. Example: "Owner-operator flatbed available in TX, running TX-TN-IL lanes. Experienced, reliable, seeking consistent freight. DM for details."\n' +
+      '5. Mark each group as posted in the app.\n' +
+      'See: [[Facebook Post Script Bank]]')
+    rep.run(129,'Thursday Broker Outreach','Leads','Medium','Thursday','10:00 AM',1,'Pending',
+      'Build broker relationships to ensure consistent freight for your drivers.\n' +
+      '1. Call your top 3 Preferred brokers: "Do you have consistent freight coming up this week?"\n' +
+      '2. Ask specifically about lanes matching your drivers\' home bases.\n' +
+      '3. For any broker offering good consistent freight: note their lanes in the broker record.\n' +
+      '4. If any broker has been slow to pay: call their accounting department today.\n' +
+      '5. Add any new brokers you worked with this week to the Brokers page.\n' +
+      'See: [[Broker Rate Negotiation Script]]')
+    rep.run(130,'Thursday Driver Pipeline Review','Leads','High','Thursday','2:00 PM',1,'Pending',
+      'Push every warm lead closer to signing. This is your conversion session.\n' +
+      '1. Go to Leads page. Filter by Interested.\n' +
+      '2. For every Interested lead: call them today.\n' +
+      '3. Script: "Hey [Name], I have a load available in [their lane] Monday. I want to offer it to you first if you want to move forward."\n' +
+      '4. For Contacted leads overdue 5+ days with no response: send one final message, then mark Rejected.\n' +
+      'See: [[Driver Onboarding Checklist]] | [[Driver Intake Script]]')
+
+    // ── FRIDAY ───────────────────────────────────────────────────────────────
+    rep.run(131,'Friday Invoice and Payment Review','Admin','High','Friday','8:30 AM',1,'Pending',
+      'Handle all invoicing and payment tracking before the weekend.\n' +
+      '1. Go to Loads page. Find all Delivered loads not yet invoiced.\n' +
+      '2. Create an invoice for each and update load status to Invoiced.\n' +
+      '3. Send each invoice to the broker with the POD attached.\n' +
+      '4. Check for any Overdue invoices -- call that broker before 5 PM today.\n' +
+      '5. Go to Reports > Cash Flow Outlook. Review Pending, Outstanding, and Collected buckets.\n' +
+      '6. Any dollar sitting in Pending (Delivered, not invoiced) should be invoiced today.\n' +
+      'See: [[Invoice Submission Process]] | [[Weekly Revenue Tracking Guide]]')
+    rep.run(118,'Friday Driver Conversation Review','Leads','Medium','Friday','3:00 PM',1,'Pending',
+      'Review all driver conversations from the week. Update lead statuses. Archive dead leads as Rejected with reason. Identify top 3 leads to prioritize next week. Prep outreach for Monday.')
+    rep.run(138,'Friday Cash Flow Outlook Review','Admin','High','Friday','3:30 PM',1,'Pending',
+      'End every Friday knowing what money is in your pipeline.\n' +
+      '1. Go to Reports page. Look at the Cash Flow Outlook section.\n' +
+      '2. PENDING (yellow): Delivered loads not yet invoiced. Invoice them now.\n' +
+      '3. OUTSTANDING (orange): Invoices sent, not paid. Follow up on any 15+ days old.\n' +
+      '4. COLLECTED (green): Paid this calendar month. Your real revenue.\n' +
+      '5. Do not leave Delivered loads uninvoiced over the weekend.')
+    rep.run(132,'Friday Weekly Revenue and Pipeline Snapshot','Admin','High','Friday','4:00 PM',1,'Pending',
+      'End every Friday knowing exactly where you stand.\n' +
+      '1. Go to Dashboard. Check your weekly revenue target bar. Are you on track?\n' +
+      '2. Go to Analytics. Note this week\'s total revenue and compare to your target.\n' +
+      '3. Go to Leads. Count how many Interested leads you have right now.\n' +
+      '4. Identify your single most likely sign next week -- write their name down.\n' +
+      '5. Go to Dispatcher Board -- any drivers sitting empty going into the weekend?\n' +
+      '6. Set your top 3 Monday actions and close the app.\n' +
+      'See: [[Weekly Revenue Tracking Guide]] | [[Daily Operations Playbook]]')
+    rep.run(106,'Update Weekly Revenue Records','Admin','Medium','Friday','4:45 PM',1,'Pending',
+      'Capture this week\'s numbers before the weekend.\n' +
+      '1. Go to Reports. Note this week\'s paid dispatch fees.\n' +
+      '2. Note total outstanding (Invoiced + Overdue).\n' +
+      '3. Note total Delivered loads not yet invoiced.\n' +
+      '4. Compare to your weekly target. Write down the gap (positive or negative).\n' +
+      '5. Update any driver pay records that need to reflect this week\'s loads.')
+
+    // ── SATURDAY ─────────────────────────────────────────────────────────────
+    rep.run(133,'Saturday Revenue and Lead Push','Dispatch','High','Saturday','8:30 AM',1,'Pending',
+      'Saturday is a working day. Load boards are active, brokers answer phones, and drivers are available.\n\n' +
+      'PRIORITY 1 -- FIND LOADS FOR AVAILABLE DRIVERS\n' +
+      '1. Go to Dispatcher Board. Identify every Active driver with no current load.\n' +
+      '2. Open DAT or Truckstop. Search for loads near each driver\'s location.\n' +
+      '3. Call brokers directly -- many Friday loads go uncovered over the weekend.\n' +
+      '4. When you book a load: add it to Loads page and text the driver immediately.\n\n' +
+      'PRIORITY 2 -- FOLLOW UP ON OVERDUE LEADS\n' +
+      '1. Go to Leads page. Filter by Overdue Follow-Up.\n' +
+      '2. Call or DM each overdue lead. Sound like a person, not a script.\n' +
+      '3. Update every lead status and set a new follow-up date.\n\n' +
+      'PRIORITY 3 -- FACEBOOK GROUP POSTING\n' +
+      '1. Post in at least 3 recommended groups. Saturday posts get strong engagement.\n' +
+      '2. Use Load Availability or Direct Recruitment style from [[Facebook Post Script Bank]].\n' +
+      '3. Stay on Facebook 30 minutes after posting to reply to immediate comments.\n' +
+      'See: [[Daily Operations Playbook]] | [[Load Booking and Status SOP]]')
+
+    // ── SUNDAY ───────────────────────────────────────────────────────────────
+    rep.run(119,'Weekly Facebook Groups Review','Marketing','Medium','Sunday','9:00 AM',1,'Pending',
+      'Review and update the Facebook groups list every Sunday.\n' +
+      '1. Go to Marketing > Groups tab.\n' +
+      '2. Check the Category Coverage panel for any underweight categories.\n' +
+      '3. Look for inactive groups or ones that have had no activity in 30+ days.\n' +
+      '4. Search Facebook for new groups in underweight categories and add them.\n' +
+      'See: [[How to Update Facebook Groups]]')
+  })()
+
+  console.log('[Seed] reseedTasks: task checklist rebuilt (INSERT OR REPLACE, 39 tasks).')
+}
+
 function seedDocuments(db: Database.Database): void {
   const ins = db.prepare(
     'INSERT OR IGNORE INTO documents (id, title, category, content, driver_id, doc_type, expiry_date)' +

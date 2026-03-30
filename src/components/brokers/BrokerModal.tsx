@@ -10,6 +10,7 @@ const BLANK: CreateBrokerDto = {
   payment_terms: 30, credit_rating: null, avg_days_pay: null,
   flag: 'None', notes: null,
   new_authority: 0, min_authority_days: null,
+  credit_limit: null,
 }
 
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
@@ -121,6 +122,12 @@ export function BrokerModal({ broker, onSave, onClose }: Props) {
                   <option value='90'>90+ days</option>
                   <option value='180'>180+ days</option>
                 </select>
+              </Field>
+              <Field label='Credit Limit ($)' icon={<DollarSign size={10} />}>
+                <input className={inp} type='number' min='0' step='500'
+                  value={form.credit_limit ?? ''}
+                  onChange={e => setForm(p => ({ ...p, credit_limit: e.target.value ? parseFloat(e.target.value) : null }))}
+                  placeholder='e.g. 5000 — alert if exceeded' />
               </Field>
               <div className='col-span-2'>
                 <Field label='Notes' icon={<FileText size={10} />}>

@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('api', {
     data: () => ipcRenderer.invoke('operations:data'),
   },
 
+  // -- Reports --
+  reports: {
+    data: () => ipcRenderer.invoke('reports:data'),
+  },
+
   // -- Profit Radar --
   profitRadar: {
     data:    () => ipcRenderer.invoke('profitRadar:data'),
@@ -41,7 +46,11 @@ contextBridge.exposeInMainWorld('api', {
     importStatus:     () => ipcRenderer.invoke('leads:importStatus'),
     importCsv:        () => ipcRenderer.invoke('leads:importCsv'),
     importPaste:      (text: string) => ipcRenderer.invoke('leads:importPaste', text),
-    backfillLeadData: () => ipcRenderer.invoke('leads:backfillLeadData'),
+    backfillLeadData:  () => ipcRenderer.invoke('leads:backfillLeadData'),
+    generateFollowUp: (payload: {
+      name: string; company: string | null; status: string; trailerType: string | null;
+      lastContactDate: string | null; contactAttempts: number; outreachOutcome: string | null
+    }) => ipcRenderer.invoke('leads:generateFollowUp', payload),
   },
 
   // -- Drivers --
@@ -64,6 +73,22 @@ contextBridge.exposeInMainWorld('api', {
     delete:          (id: number) => ipcRenderer.invoke('driverDocs:delete', id),
     pickFile:        (driverId: number) => ipcRenderer.invoke('driverDocs:pickFile', driverId),
     openAttachment:  (absolutePath: string) => ipcRenderer.invoke('driverDocs:openAttachment', absolutePath),
+  },
+
+  // -- Load Deductions --
+  loadDeductions: {
+    list:   (loadId: number) => ipcRenderer.invoke('loadDeductions:list', loadId),
+    create: (dto: unknown)   => ipcRenderer.invoke('loadDeductions:create', dto),
+    delete: (id: number)     => ipcRenderer.invoke('loadDeductions:delete', id),
+  },
+
+  // -- Load Attachments --
+  loadAttachments: {
+    list:   (loadId: number) => ipcRenderer.invoke('loadAttachments:list', loadId),
+    create: (dto: unknown)   => ipcRenderer.invoke('loadAttachments:create', dto),
+    delete: (id: number)     => ipcRenderer.invoke('loadAttachments:delete', id),
+    open:   (absolutePath: string) => ipcRenderer.invoke('loadAttachments:open', absolutePath),
+    pick:   (loadId: number) => ipcRenderer.invoke('loadAttachments:pick', loadId),
   },
 
   // -- Loads --
@@ -90,13 +115,29 @@ contextBridge.exposeInMainWorld('api', {
     delete: (id: number) => ipcRenderer.invoke('brokers:delete', id),
   },
 
+  // -- Broker Call Log --
+  brokerCallLog: {
+    list:   (brokerId: number) => ipcRenderer.invoke('brokerCallLog:list', brokerId),
+    create: (dto: unknown)     => ipcRenderer.invoke('brokerCallLog:create', dto),
+    delete: (id: number)       => ipcRenderer.invoke('brokerCallLog:delete', id),
+  },
+
+  carrierApprovals: {
+    list:   (driverId: number) => ipcRenderer.invoke('carrierApprovals:list', driverId),
+    upsert: (dto: unknown)     => ipcRenderer.invoke('carrierApprovals:upsert', dto),
+    delete: (id: number)       => ipcRenderer.invoke('carrierApprovals:delete', id),
+  },
+
   // -- Invoices --
   invoices: {
-    list:   (status?: string) => ipcRenderer.invoke('invoices:list', status),
-    get:    (id: number) => ipcRenderer.invoke('invoices:get', id),
-    create: (dto: unknown) => ipcRenderer.invoke('invoices:create', dto),
-    update: (id: number, dto: unknown) => ipcRenderer.invoke('invoices:update', id, dto),
-    delete: (id: number) => ipcRenderer.invoke('invoices:delete', id),
+    list:     (status?: string) => ipcRenderer.invoke('invoices:list', status),
+    get:      (id: number) => ipcRenderer.invoke('invoices:get', id),
+    create:   (dto: unknown) => ipcRenderer.invoke('invoices:create', dto),
+    update:   (id: number, dto: unknown) => ipcRenderer.invoke('invoices:update', id, dto),
+    delete:   (id: number) => ipcRenderer.invoke('invoices:delete', id),
+    autoFlag:    () => ipcRenderer.invoke('invoices:autoFlag'),
+    bulkUpdate:  (ids: number[], status: string, extra?: Record<string, string | null>) =>
+      ipcRenderer.invoke('invoices:bulkUpdate', ids, status, extra),
   },
 
   // -- Tasks --
@@ -257,6 +298,7 @@ contextBridge.exposeInMainWorld('api', {
     seedTasksOnly: () => ipcRenderer.invoke('dev:seedTasksOnly'),
     clearSeedData: () => ipcRenderer.invoke('dev:clearSeedData'),
     reseedDocs:    () => ipcRenderer.invoke('dev:reseedDocs'),
+    reseedTasks:   () => ipcRenderer.invoke('dev:reseedTasks'),
   },
 
 })

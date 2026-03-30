@@ -141,7 +141,9 @@ export interface Load {
   pickup_date: string | null      // YYYY-MM-DD
   delivery_date: string | null    // YYYY-MM-DD
   miles: number | null
+  deadhead_miles: number | null   // empty miles to pickup (migration 029)
   rate: number | null             // total gross rate in dollars
+  fuel_surcharge: number | null   // FSC line item (migration 029)
   dispatch_pct: number | null
   trailer_type: string | null
   commodity: string | null
@@ -167,6 +169,7 @@ export interface Broker {
   notes: string | null
   new_authority: number           // 0 = No, 1 = Yes, 2 = Unknown (migration 023)
   min_authority_days: number | null // minimum MC age in days required (30/60/90/180 or null = any)
+  credit_limit: number | null     // max outstanding invoice balance in dollars (migration 034)
   created_at: string
   updated_at: string
 }
@@ -187,6 +190,12 @@ export interface Invoice {
   paid_date: string | null        // YYYY-MM-DD
   status: InvoiceStatus
   notes: string | null
+  // Factoring
+  factored:           number          // 0 or 1 (SQLite boolean)
+  factoring_company:  string | null
+  advance_rate:       number | null   // percentage e.g. 0.97 = 97%
+  factored_amount:    number | null   // dollar amount advanced
+  factored_date:      string | null   // YYYY-MM-DD
   created_at: string
   updated_at: string
 }
@@ -417,15 +426,18 @@ export type LaneStrength   = 'Strong' | 'Average' | 'Weak'
 export type DriverLaneFit  = 'Strong Fit' | 'Has History' | 'New Lane'
 
 export interface BrokerIntelRow {
-  broker_id:     number
-  broker_name:   string
-  flag:          string
-  loads_count:   number
-  avg_rpm:       number | null
-  total_revenue: number
-  score:         number
-  rating:        BrokerRating
-  caution_note:  string | null
+  broker_id:       number
+  broker_name:     string
+  flag:            string
+  loads_count:     number
+  avg_rpm:         number | null
+  total_revenue:   number
+  score:           number
+  rating:          BrokerRating
+  caution_note:    string | null
+  avg_days_to_pay: number | null
+  payment_grade:   string | null   // 'A' | 'B' | 'C' | 'D' | 'F' | null
+  invoice_count:   number
 }
 
 export interface LaneIntelRow {
@@ -576,6 +588,7 @@ export interface OperationsData {
   driversNeedingLoads:   number
   revenueThisMonth:      number
   expiringDocs: Array<{ driver_id: number; driver_name: string; doc_type: string; expiry_date: string; days_until: number }>
+  staleLoads:   Array<{ id: number; load_id: string | null; status: string; driver_name: string | null; pickup_date: string | null; delivery_date: string | null; days_past: number }>
   loadsInTransit:        number
   overdueLeads:          number
   todaysGroupCount:      number
@@ -585,6 +598,21 @@ export interface OperationsData {
   availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
   todayTasks:    Task[]
   completedToday: number[]
+  // 7-Day Sprint tracking
+  totalDrivers:         number
+  totalBrokers:         number
+  totalLeads:           number
+  hasSentOrPaidInvoice: boolean
+  // Weekly scorecard
+  weeklyScorecard: {
+    loadsCompleted:  number
+    grossRevenue:    number
+    dispatchRevenue: number
+    avgRpm:          number | null
+    bestLane:        string | null
+    bestBroker:      string | null
+    invoicesSent:    number
+  }
 }
 
 // -- Profit Radar --

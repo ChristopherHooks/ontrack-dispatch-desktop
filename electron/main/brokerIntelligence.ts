@@ -16,15 +16,18 @@ import type { Database } from 'better-sqlite3'
 export type BrokerRating = 'Preferred' | 'Strong' | 'Neutral' | 'Caution' | 'Avoid'
 
 export interface BrokerIntelRow {
-  broker_id:    number
-  broker_name:  string
-  flag:         string
-  loads_count:  number
-  avg_rpm:      number | null   // avg rate/miles for loads with miles > 0
-  total_revenue: number
-  score:        number          // 0–100
-  rating:       BrokerRating
-  caution_note: string | null   // short human-readable explanation when rating is Caution/Avoid
+  broker_id:       number
+  broker_name:     string
+  flag:            string
+  loads_count:     number
+  avg_rpm:         number | null   // avg rate/miles for loads with miles > 0
+  total_revenue:   number
+  score:           number          // 0–100
+  rating:          BrokerRating
+  caution_note:    string | null   // short human-readable explanation when rating is Caution/Avoid
+  avg_days_to_pay: number | null   // actual avg days from sent_date to paid_date (from invoices)
+  payment_grade:   string | null   // A / B / C / D / F derived from avg_days_to_pay vs payment_terms
+  invoice_count:   number          // paid invoices used to compute grade
 }
 
 export type LaneStrength = 'Strong' | 'Average' | 'Weak'
@@ -126,12 +129,24 @@ function driverLaneFit(loads_count: number, avg_rpm: number | null): DriverLaneF
  * Returns intelligence rows for all brokers.
  * Scored from existing loads data. No schema changes needed.
  */
+function paymentGrade(avgDays: number | null, paymentTerms: number): string | null {
+  if (avgDays === null) return null
+  const diff = avgDays - paymentTerms  // negative = paid early, positive = paid late
+  if (diff <= 0)  return 'A'
+  if (diff <= 5)  return 'B'
+  if (diff <= 14) return 'C'
+  if (diff <= 30) return 'D'
+  return 'F'
+}
+
 export function getBrokerIntelAll(db: Database): BrokerIntelRow[] {
+  // Load-level aggregates
   const rows = db.prepare(`
     SELECT
       b.id                                           AS broker_id,
       b.name                                         AS broker_name,
       COALESCE(b.flag, 'None')                       AS flag,
+      b.payment_terms                                AS payment_terms,
       COUNT(l.id)                                    AS loads_count,
       AVG(CASE WHEN l.miles > 0 THEN CAST(l.rate AS REAL) / l.miles ELSE NULL END) AS avg_rpm,
       COALESCE(SUM(l.rate), 0)                       AS total_revenue
@@ -140,24 +155,41 @@ export function getBrokerIntelAll(db: Database): BrokerIntelRow[] {
     GROUP BY b.id
     ORDER BY b.name ASC
   `).all() as Array<{
-    broker_id: number; broker_name: string; flag: string
+    broker_id: number; broker_name: string; flag: string; payment_terms: number
     loads_count: number; avg_rpm: number | null; total_revenue: number
   }>
 
+  // Invoice payment speed — avg days sent→paid per broker_id
+  const payRows = db.prepare(`
+    SELECT broker_id,
+      AVG(julianday(paid_date) - julianday(sent_date)) AS avg_days,
+      COUNT(*) AS inv_count
+    FROM invoices
+    WHERE status = 'Paid' AND paid_date IS NOT NULL AND sent_date IS NOT NULL
+      AND broker_id IS NOT NULL
+    GROUP BY broker_id
+  `).all() as Array<{ broker_id: number; avg_days: number | null; inv_count: number }>
+
+  const payMap = new Map(payRows.map(p => [p.broker_id, p]))
+
   return rows.map((r) => {
-    const score  = brokerScore(r.flag, r.loads_count, r.avg_rpm)
+    const pay   = payMap.get(r.broker_id)
+    const score = brokerScore(r.flag, r.loads_count, r.avg_rpm)
     const rating = brokerRating(score, r.flag)
     const caution_note = brokerCautionNote(rating, r.flag, r.avg_rpm, r.loads_count)
     return {
-      broker_id:     r.broker_id,
-      broker_name:   r.broker_name,
-      flag:          r.flag,
-      loads_count:   r.loads_count,
-      avg_rpm:       r.avg_rpm,
-      total_revenue: r.total_revenue,
+      broker_id:       r.broker_id,
+      broker_name:     r.broker_name,
+      flag:            r.flag,
+      loads_count:     r.loads_count,
+      avg_rpm:         r.avg_rpm,
+      total_revenue:   r.total_revenue,
       score,
       rating,
       caution_note,
+      avg_days_to_pay: pay?.avg_days ?? null,
+      payment_grade:   paymentGrade(pay?.avg_days ?? null, r.payment_terms),
+      invoice_count:   pay?.inv_count ?? 0,
     }
   })
 }

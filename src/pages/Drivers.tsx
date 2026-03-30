@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { Driver, DriverStatus } from '../types/models'
-import { DriversToolbar, type DriverFilters } from '../components/drivers/DriversToolbar'
+import { DriversToolbar, type DriverFilters, type DriverView } from '../components/drivers/DriversToolbar'
 import { DriversTable }  from '../components/drivers/DriversTable'
 import { DriverModal }   from '../components/drivers/DriverModal'
 import { DriverDrawer }  from '../components/drivers/DriverDrawer'
+import { DriverAvailabilityCalendar } from '../components/drivers/DriverAvailabilityCalendar'
+import { DriverOnboardingPipeline } from '../components/drivers/DriverOnboardingPipeline'
+import { Export1099Modal } from '../components/drivers/Export1099Modal'
 
 export function Drivers() {
   const [drivers,  setDrivers]  = useState<Driver[]>([])
@@ -15,6 +18,8 @@ export function Drivers() {
   const [selected, setSelected] = useState<Driver | null>(null)
   const [editDrv,  setEditDrv]  = useState<Driver | null>(null)
   const [modal,    setModal]    = useState(false)
+  const [view,     setView]     = useState<DriverView>('list')
+  const [show1099, setShow1099] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -80,14 +85,26 @@ export function Drivers() {
 
   return (
     <div className='space-y-4 max-w-[1400px] animate-fade-in'>
-      <div>
-        <h1 className='text-xl font-semibold text-gray-100'>Drivers</h1>
-        <p className='text-sm text-gray-500 mt-0.5'>Manage carrier profiles, documents, and dispatch settings</p>
+      <div className='flex items-center justify-between'>
+        <div>
+          <h1 className='text-xl font-semibold text-gray-100'>Drivers</h1>
+          <p className='text-sm text-gray-500 mt-0.5'>Manage carrier profiles, documents, and dispatch settings</p>
+        </div>
+        <button onClick={() => setShow1099(true)}
+          className='flex items-center gap-1.5 h-8 px-3 text-xs rounded-lg font-medium bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200 border border-surface-400 transition-colors'>
+          1099 Export
+        </button>
       </div>
-      <DriversToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} total={filtered.length} onAdd={openAdd}/>
-      <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority}/>
+      <DriversToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} total={filtered.length} onAdd={openAdd} view={view} onView={setView}/>
+      {view === 'list'
+        ? <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority}/>
+        : view === 'calendar'
+        ? <DriverAvailabilityCalendar drivers={filtered}/>
+        : <DriverOnboardingPipeline drivers={filtered} onSelectDriver={setSelected}/>
+      }
       {selected&&<DriverDrawer driver={selected} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete} onUpdate={handleUpdate}/>}
       {modal&&<DriverModal driver={editDrv} onClose={()=>{setModal(false);setEditDrv(null)}} onSave={handleSave}/>}
+      {show1099&&<Export1099Modal drivers={drivers} onClose={()=>setShow1099(false)}/>}
     </div>
   )
 }

@@ -1,17 +1,19 @@
-import { Search, X, Plus, ChevronDown, LayoutGrid, List } from 'lucide-react'
+import { Search, X, Plus, ChevronDown, LayoutGrid, List, CalendarDays, TrendingUp } from 'lucide-react'
 import type { LoadStatus } from '../../types/models'
 import { LOAD_STATUSES } from './constants'
 
 export interface LoadFilters { status: LoadStatus | '' }
+export type LoadView = 'list' | 'board' | 'calendar'
 interface Props {
   search: string; onSearch: (v: string) => void
   filters: LoadFilters; onFilters: (f: LoadFilters) => void
-  view: 'list' | 'board'; onView: (v: 'list' | 'board') => void
+  view: LoadView; onView: (v: LoadView) => void
   total: number; onAdd: () => void
+  onRateHistory: () => void
 }
 const sel = 'h-8 px-3 pr-7 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-300 focus:outline-none focus:border-orange-600/50 appearance-none cursor-pointer hover:border-surface-300 transition-colors'
 
-export function LoadsToolbar({ search, onSearch, filters, onFilters, view, onView, total, onAdd }: Props) {
+export function LoadsToolbar({ search, onSearch, filters, onFilters, view, onView, total, onAdd, onRateHistory }: Props) {
   return (
     <div className='flex items-center gap-2 flex-wrap'>
       <div className='relative flex-1 min-w-48'>
@@ -37,9 +39,16 @@ export function LoadsToolbar({ search, onSearch, filters, onFilters, view, onVie
           <List size={13} /> Loads
         </button>
         <button onClick={() => onView('board')} className={`h-8 px-2.5 text-xs flex items-center gap-1.5 transition-colors border-l border-surface-400 ${view === 'board' ? 'bg-surface-500 text-gray-200' : 'bg-surface-600 text-gray-500 hover:text-gray-300'}`}>
-          <LayoutGrid size={13} /> Dispatch Board
+          <LayoutGrid size={13} /> Dispatch
+        </button>
+        <button onClick={() => onView('calendar')} className={`h-8 px-2.5 text-xs flex items-center gap-1.5 transition-colors border-l border-surface-400 ${view === 'calendar' ? 'bg-surface-500 text-gray-200' : 'bg-surface-600 text-gray-500 hover:text-gray-300'}`}>
+          <CalendarDays size={13} /> Calendar
         </button>
       </div>
+      <button onClick={onRateHistory} title='Look up historical rates by lane'
+        className='flex items-center gap-1.5 h-8 px-3 text-xs rounded-lg font-medium transition-colors bg-surface-600 hover:bg-surface-500 text-gray-300 border border-surface-400'>
+        <TrendingUp size={13} /> Rate History
+      </button>
       <button onClick={onAdd} className='flex items-center gap-1.5 h-8 px-3 text-xs rounded-lg font-medium transition-colors bg-orange-600 hover:bg-orange-500 text-white'>
         <Plus size={13} /> Add Load
       </button>

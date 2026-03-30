@@ -16,7 +16,20 @@ import type {
   CreateSopDocumentDto, UpdateSopDocumentDto,
   TimelineEvent, ActiveLoadRow, CheckCallRow,
   BrokerIntelRow, LaneIntelRow, DriverLaneFitRow,
+  DriverComplianceRow,
 } from './models'
+
+interface CarrierBrokerApprovalRow {
+  id:           number
+  driver_id:    number
+  broker_id:    number
+  broker_name:  string
+  status:       'Submitted' | 'Approved' | 'Denied'
+  notes:        string | null
+  submitted_at: string | null
+  approved_at:  string | null
+  created_at:   string
+}
 
 declare global {
 
@@ -31,6 +44,9 @@ declare global {
         stats: () => Promise<DashboardStats>
       }
       operations: {
+        data: () => Promise<unknown>
+      }
+      reports: {
         data: () => Promise<unknown>
       }
       profitRadar: {
@@ -63,6 +79,10 @@ declare global {
         importCsv:        () => Promise<CsvImportResult | null>
         importPaste:      (text: string) => Promise<CsvImportResult>
         backfillLeadData: () => Promise<{ reprioritized: number; enriched: number; errors: string[] }>
+        generateFollowUp: (payload: {
+          name: string; company: string | null; status: string; trailerType: string | null;
+          lastContactDate: string | null; contactAttempts: number; outreachOutcome: string | null
+        }) => Promise<string | null>
       }
       drivers: {
         list:               (status?: string) => Promise<Driver[]>
@@ -71,6 +91,7 @@ declare global {
         update:             (id: number, dto: UpdateDriverDto) => Promise<Driver | undefined>
         delete:             (id: number) => Promise<boolean>
         fetchAuthorityDate: (driverId: number, mcNumber: string) => Promise<Driver | null>
+        compliance: () => Promise<DriverComplianceRow[]>
       }
       driverDocs: {
         list:           (driverId: number) => Promise<DriverDocument[]>
@@ -80,6 +101,18 @@ declare global {
         delete:         (id: number) => Promise<boolean>
         pickFile:       (driverId: number) => Promise<{ storedPath: string; displayName: string } | null>
         openAttachment: (absolutePath: string) => Promise<void>
+      }
+      loadDeductions: {
+        list:   (loadId: number) => Promise<{ id: number; load_id: number; label: string; amount: number; created_at: string }[]>
+        create: (dto: { load_id: number; label: string; amount: number }) => Promise<{ id: number; load_id: number; label: string; amount: number; created_at: string }>
+        delete: (id: number) => Promise<boolean>
+      }
+      loadAttachments: {
+        list:   (loadId: number) => Promise<{ id: number; load_id: number; title: string; file_path: string; file_name: string; created_at: string }[]>
+        create: (dto: { load_id: number; title: string; file_path: string; file_name: string }) => Promise<{ id: number; load_id: number; title: string; file_path: string; file_name: string; created_at: string }>
+        delete: (id: number) => Promise<boolean>
+        open:   (absolutePath: string) => Promise<void>
+        pick:   (loadId: number) => Promise<{ storedPath: string; displayName: string } | null>
       }
       loads: {
         list:            (status?: string) => Promise<Load[]>
@@ -98,11 +131,24 @@ declare global {
         update: (id: number, dto: UpdateBrokerDto) => Promise<Broker | undefined>
         delete: (id: number) => Promise<boolean>
       }
+      brokerCallLog: {
+        list:   (brokerId: number) => Promise<{ id: number; broker_id: number; note: string; created_at: string }[]>
+        create: (dto: { broker_id: number; note: string }) => Promise<{ id: number; broker_id: number; note: string; created_at: string }>
+        delete: (id: number) => Promise<boolean>
+      }
+      carrierApprovals: {
+        list:   (driverId: number) => Promise<CarrierBrokerApprovalRow[]>
+        upsert: (dto: { driver_id: number; broker_id: number; broker_name: string; status: 'Submitted' | 'Approved' | 'Denied'; notes?: string | null; submitted_at?: string | null; approved_at?: string | null }) => Promise<CarrierBrokerApprovalRow>
+        delete: (id: number) => Promise<boolean>
+      }
       invoices: {
-        list:   (status?: string) => Promise<Invoice[]>
-        get:    (id: number) => Promise<Invoice | undefined>
-        create: (dto: CreateInvoiceDto) => Promise<Invoice>
-        update: (id: number, dto: UpdateInvoiceDto) => Promise<Invoice | undefined>
+        list:     (status?: string) => Promise<Invoice[]>
+        get:      (id: number) => Promise<Invoice | undefined>
+        create:   (dto: CreateInvoiceDto) => Promise<Invoice>
+        update:   (id: number, dto: UpdateInvoiceDto) => Promise<Invoice | undefined>
+        delete:   (id: number) => Promise<boolean>
+        autoFlag:   () => Promise<number>
+        bulkUpdate: (ids: number[], status: string, extra?: Record<string, string | null>) => Promise<number>
       }
       tasks: {
         list:           (category?: string, dueDate?: string) => Promise<Task[]>
@@ -205,6 +251,7 @@ declare global {
         seedTasksOnly: () => Promise<{ ok: boolean }>
         clearSeedData: () => Promise<{ ok: boolean }>
         reseedDocs:    () => Promise<{ ok: boolean }>
+        reseedTasks:   () => Promise<{ ok: boolean }>
       }
     }
   }

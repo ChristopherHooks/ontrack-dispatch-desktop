@@ -856,11 +856,147 @@ const migration027: Migration = {
   },
 }
 
+const migration028: Migration = {
+  version: 28,
+  description: 'Create load_attachments table for file attachments on loads',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS load_attachments (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  title TEXT NOT NULL,' +
+      '  file_path TEXT NOT NULL,' +
+      '  file_name TEXT NOT NULL,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_load_attachments_load ON load_attachments(load_id);'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (28)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 029 -- deadhead_miles + fuel_surcharge on loads
+// ---------------------------------------------------------------------------
+
+const migration029: Migration = {
+  version: 29,
+  description: 'Add deadhead_miles and fuel_surcharge columns to loads',
+  up: (db) => {
+    addColumnIfMissing(db, 'loads', 'deadhead_miles', 'REAL')
+    addColumnIfMissing(db, 'loads', 'fuel_surcharge', 'REAL')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (29)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 030 -- load_deductions table for driver settlement deductions
+// ---------------------------------------------------------------------------
+
+const migration030: Migration = {
+  version: 30,
+  description: 'Create load_deductions table for per-load driver deductions',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS load_deductions (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  label TEXT NOT NULL,' +
+      '  amount REAL NOT NULL,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_load_deductions_load ON load_deductions(load_id);'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (30)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 031 -- broker_call_log for timestamped broker contact notes
+//
+// Brokers previously had only a flat `notes` text field. This table provides
+// a timestamped log of calls, negotiations, and contact history per broker —
+// same pattern as lead outreach tracking.
+// ---------------------------------------------------------------------------
+
+const migration031: Migration = {
+  version: 31,
+  description: 'Create broker_call_log table for timestamped broker contact notes',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS broker_call_log (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  broker_id INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,' +
+      '  note TEXT NOT NULL,' +
+      '  created_at TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_broker_call_log_broker ON broker_call_log(broker_id);'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (31)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 032 -- carrier_broker_approvals table
+// ---------------------------------------------------------------------------
+
+const migration032: Migration = {
+  version: 32,
+  description: 'Create carrier_broker_approvals table for per-driver broker approval tracking',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS carrier_broker_approvals (' +
+      '  id           INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  driver_id    INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,' +
+      '  broker_id    INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,' +
+      '  status       TEXT NOT NULL CHECK(status IN (\'Submitted\',\'Approved\',\'Denied\')),' +
+      '  notes        TEXT,' +
+      '  submitted_at TEXT,' +
+      '  approved_at  TEXT,' +
+      '  created_at   TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  UNIQUE(driver_id, broker_id)' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_cba_driver ON carrier_broker_approvals(driver_id);'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (32)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 033 -- factoring columns on invoices
+// ---------------------------------------------------------------------------
+
+const migration033: Migration = {
+  version: 33,
+  description: 'Add factoring columns to invoices table',
+  up: (db) => {
+    addColumnIfMissing(db, 'invoices', 'factored',           'INTEGER NOT NULL DEFAULT 0')
+    addColumnIfMissing(db, 'invoices', 'factoring_company',  'TEXT')
+    addColumnIfMissing(db, 'invoices', 'advance_rate',       'REAL')
+    addColumnIfMissing(db, 'invoices', 'factored_amount',    'REAL')
+    addColumnIfMissing(db, 'invoices', 'factored_date',      'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (33)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 034 -- broker credit limit
+// ---------------------------------------------------------------------------
+
+const migration034: Migration = {
+  version: 34,
+  description: 'Add credit_limit column to brokers for overexposure alerts',
+  up: (db) => {
+    addColumnIfMissing(db, 'brokers', 'credit_limit', 'REAL')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (34)")
+  },
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027]
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

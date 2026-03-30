@@ -11,15 +11,21 @@ interface SettingsState {
   ownerName: string
   ownerEmail: string
   ownerPhone: string
-  defaultDispatchPct: number
+  defaultDispatchPct:   number
+  fuelPricePerGallon:   number   // USD/gallon for rate calculator, default 4.00
   onboardingComplete: boolean
-  wizardMinimized: boolean   // not persisted — survives component remounts, resets on app restart
+  wizardMinimized: boolean           // not persisted — survives component remounts, resets on app restart
+  firstDispatchComplete: boolean
+  firstDispatchGuideMinimized: boolean  // not persisted
+  firstLaunchDate: string   // ISO date set once on first run, persisted
   // Actions
   setTheme: (theme: Theme) => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
   setOnboardingComplete: () => Promise<void>
   setWizardMinimized: (v: boolean) => void
+  setFirstDispatchComplete: () => Promise<void>
+  setFirstDispatchGuideMinimized: (v: boolean) => void
   loadFromStore: () => Promise<void>
   persistSetting: (key: string, value: unknown) => Promise<void>
 }
@@ -32,11 +38,21 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
   ownerName: '',
   ownerEmail: '',
   ownerPhone: '',
-  defaultDispatchPct: 7,
+  defaultDispatchPct:   7,
+  fuelPricePerGallon:   4.00,
   onboardingComplete: false,
   wizardMinimized: false,
+  firstDispatchComplete: false,
+  firstDispatchGuideMinimized: false,
+  firstLaunchDate: '',
 
   setWizardMinimized: (v) => set({ wizardMinimized: v }),
+  setFirstDispatchGuideMinimized: (v) => set({ firstDispatchGuideMinimized: v }),
+
+  setFirstDispatchComplete: async () => {
+    set({ firstDispatchComplete: true })
+    await get().persistSetting('firstDispatchComplete', true)
+  },
 
   setTheme: (theme) => {
     set({ theme })
@@ -70,9 +86,19 @@ export const useSettingsStore = create<SettingsState>()(subscribeWithSelector((s
       ownerName:          typeof all.ownerName    === 'string' ? all.ownerName    : '',
       ownerEmail:         typeof all.ownerEmail   === 'string' ? all.ownerEmail   : '',
       ownerPhone:         typeof all.ownerPhone   === 'string' ? all.ownerPhone   : '',
-      defaultDispatchPct: typeof all.defaultDispatchPct === 'number' ? all.defaultDispatchPct : 7,
-      onboardingComplete: Boolean(all.onboardingComplete),
+      defaultDispatchPct:   typeof all.defaultDispatchPct   === 'number' ? all.defaultDispatchPct   : 7,
+      fuelPricePerGallon:   typeof all.fuelPricePerGallon   === 'number' ? all.fuelPricePerGallon   : 4.00,
+      onboardingComplete:      Boolean(all.onboardingComplete),
+      firstDispatchComplete:   Boolean(all.firstDispatchComplete),
+      firstLaunchDate:         typeof all.firstLaunchDate === 'string' && all.firstLaunchDate
+                                 ? all.firstLaunchDate
+                                 : new Date().toISOString().split('T')[0],
     })
+    // Persist firstLaunchDate if this is the first run
+    if (!all.firstLaunchDate) {
+      const today = new Date().toISOString().split('T')[0]
+      await window.api.settings.set('firstLaunchDate', today)
+    }
     applyTheme(theme)
   },
 

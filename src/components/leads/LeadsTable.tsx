@@ -38,6 +38,23 @@ const authAge = (d: string | null) => {
   return mo < 12 ? `${mo}mo` : `${Math.floor(mo / 12)}y ${mo % 12}mo`
 }
 
+// Days since last contact — uses last_contact_date, falls back to created_at
+function daysSinceContact(lead: Lead): number | null {
+  const ref = lead.last_contact_date ?? null
+  if (!ref) return null
+  const diff = Date.now() - new Date(ref).getTime()
+  return Math.floor(diff / 86400000)
+}
+
+function contactAgeCls(days: number | null, status: string): string {
+  if (days === null) return 'text-gray-700'
+  // Converted / Not Interested / Bad Fit — don't need urgency colouring
+  if (['Converted', 'Signed', 'Not Interested', 'Bad Fit', 'Rejected', 'Inactive MC'].includes(status)) return 'text-gray-600'
+  if (days >= 21) return 'text-red-400 font-medium'
+  if (days >= 14) return 'text-yellow-400'
+  return 'text-gray-500'
+}
+
 const SKELS = [0, 1, 2, 3, 4, 5]
 
 export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect, onEdit, onDelete, onStatusChange, duplicateMcNumbers }: Props) {
@@ -87,6 +104,7 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
             <Th col='fleet_size' label='Fleet' />
             <Th col='authority_date' label='Auth Age' />
             <Th col='follow_up_date' label='Follow-Up' />
+            <Th col='last_contact_date' label='Last Contact' />
             <Th col='priority' label='Priority' />
             <Th col='source' label='Source' />
             <th className='pr-4 w-16' />
@@ -142,6 +160,17 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                   <div className={`flex items-center gap-1 text-xs ${followUpCls(lead.follow_up_date)}`}>
                     <Calendar size={10} />{fmtDate(lead.follow_up_date)}
                   </div>
+                </td>
+                <td className='pr-3 py-2.5'>
+                  {(() => {
+                    const days = daysSinceContact(lead)
+                    if (days === null) return <span className='text-xs text-gray-700'>—</span>
+                    return (
+                      <span className={`text-xs ${contactAgeCls(days, lead.status)}`} title={`Last contact: ${lead.last_contact_date}`}>
+                        {days === 0 ? 'today' : `${days}d ago`}
+                      </span>
+                    )
+                  })()}
                 </td>
                 <td className='pr-3 py-2.5'><span className={`text-2xs px-1.5 py-0.5 rounded-full ${PRIORITY_STYLES[lead.priority]}`}>{lead.priority}</span></td>
                 <td className='pr-3 py-2.5'><span className='text-xs text-gray-500'>{lead.source ?? '—'}</span></td>

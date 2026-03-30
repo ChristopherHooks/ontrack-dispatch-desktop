@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone, ChevronDown, ChevronRight, X, Target } from 'lucide-react'
 import type { Driver, Load, Lead } from '../types/models'
 import { computeLeadScore } from '../lib/leadScore'
 import { openSaferMc, openSaferDot } from '../lib/saferUrl'
@@ -39,6 +39,14 @@ export function Dashboard() {
   const [loading,      setLoading]      = useState(true)
   const [leadsLoading, setLeadsLoading] = useState(true)
   const [docModal,     setDocModal]     = useState<string | null>(null)
+  // Weekly revenue target
+  const [weeklyTarget,   setWeeklyTarget]   = useState<number | null>(null)
+  const [weeklyEarned,   setWeeklyEarned]   = useState<number>(0)
+  const [editingTarget,  setEditingTarget]  = useState(false)
+  const [targetInput,    setTargetInput]    = useState('')
+  type ExpiryAlert = { driver_name: string; doc_type: string; expiry_date: string; days_until: number }
+  const [expiryAlerts,    setExpiryAlerts]    = useState<ExpiryAlert[]>([])
+  const [expiryDismissed, setExpiryDismissed] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -50,7 +58,63 @@ export function Dashboard() {
     window.api.leads.list()
       .then(l => { setLeads(l); setLeadsLoading(false) })
       .catch(() => setLeadsLoading(false))
+    // Check driver document expiry (CDL, insurance, medical card within 30 days)
+    window.api.drivers.compliance()
+      .then(rows => {
+        const now = Date.now()
+        const alerts: ExpiryAlert[] = []
+        const WINDOW = 30 * 86400000
+        for (const r of rows) {
+          const checks: Array<{ doc: string; date: string | null }> = [
+            { doc: 'CDL',          date: r.cdl_expiry },
+            { doc: 'Insurance',    date: r.insurance_expiry },
+            { doc: 'Medical Card', date: r.medical_card_expiry },
+            { doc: 'COI',          date: r.coi_expiry },
+          ]
+          for (const c of checks) {
+            if (!c.date) continue
+            const ms = new Date(c.date).getTime() - now
+            if (ms >= 0 && ms <= WINDOW) {
+              alerts.push({ driver_name: r.name, doc_type: c.doc, expiry_date: c.date, days_until: Math.floor(ms / 86400000) })
+            }
+          }
+        }
+        if (alerts.length > 0) setExpiryAlerts(alerts.sort((a, b) => a.days_until - b.days_until))
+      })
+      .catch(() => {})
+    // Load weekly target from settings
+    window.api.settings.get('weeklyRevenueTarget').then(v => {
+      if (v != null && !isNaN(Number(v))) {
+        setWeeklyTarget(Number(v))
+        setTargetInput(String(v))
+      }
+    }).catch(() => {})
+    // Query this week's paid/invoiced dispatch fees
+    const now = new Date()
+    const dow = now.getDay() === 0 ? 6 : now.getDay() - 1 // 0=Mon
+    const weekStart = new Date(now)
+    weekStart.setDate(now.getDate() - dow)
+    weekStart.setHours(0, 0, 0, 0)
+    const weekStartIso = weekStart.toISOString().split('T')[0]
+    window.api.db.query(
+      `SELECT COALESCE(SUM(dispatch_fee), 0) AS total FROM loads
+       WHERE status IN ('Invoiced','Paid') AND pickup_date >= ?`,
+      [weekStartIso]
+    ).then(res => {
+      if (res.data && res.data.length > 0) {
+        const row = res.data[0] as { total: number }
+        setWeeklyEarned(row.total ?? 0)
+      }
+    }).catch(() => {})
   }, [])
+
+  async function saveWeeklyTarget() {
+    const n = parseFloat(targetInput)
+    if (isNaN(n) || n <= 0) return
+    await window.api.settings.set('weeklyRevenueTarget', n).catch(() => {})
+    setWeeklyTarget(n)
+    setEditingTarget(false)
+  }
 
   const today    = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   const todayIso = new Date().toISOString().split('T')[0]
@@ -99,6 +163,91 @@ export function Dashboard() {
         <KpiCard label='Leads Awaiting Follow-Up'  value={loading?'—':String(stats.leadsFollowUp.c)}       icon={<Users size={18}/>}    accent={stats.leadsFollowUp.c>0}         onClick={() => navigate('/leads')}/>
         <KpiCard label='Outstanding Invoices'      value={loading?'—':String(stats.outstandingInvoices.c)} icon={<FileText size={18}/>} accent={stats.outstandingInvoices.c>0}   onClick={() => navigate('/invoices')}/>
       </div>
+
+      {/* Driver document expiry alert */}
+      {expiryAlerts.length > 0 && !expiryDismissed && (
+        <div className='flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-950/40 border border-amber-700/40'>
+          <Clock size={15} className='text-amber-400 mt-0.5 shrink-0' />
+          <div className='flex-1 min-w-0'>
+            <p className='text-sm font-semibold text-amber-300'>
+              {expiryAlerts.length} driver document{expiryAlerts.length !== 1 ? 's' : ''} expiring within 30 days
+            </p>
+            <p className='text-xs text-amber-600 mt-0.5'>
+              {expiryAlerts.map(r => `${r.driver_name} — ${r.doc_type} expires ${r.expiry_date} (${r.days_until}d)`).join(' · ')}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/drivers')}
+            className='text-2xs px-2.5 py-1 rounded-lg bg-amber-700/40 hover:bg-amber-700/60 text-amber-300 border border-amber-700/40 shrink-0 transition-colors'
+          >
+            View Drivers
+          </button>
+          <button onClick={() => setExpiryDismissed(true)} className='p-1 text-amber-700 hover:text-amber-400 transition-colors shrink-0'>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* Weekly Revenue Target */}
+      {(weeklyTarget != null || editingTarget) ? (
+        <div className='bg-surface-700 rounded-xl border border-surface-400 px-5 py-4 shadow-card'>
+          <div className='flex items-center justify-between mb-3'>
+            <div className='flex items-center gap-2'>
+              <Target size={15} className='text-orange-500' />
+              <h2 className='text-sm font-semibold text-gray-200'>Weekly Revenue Target</h2>
+            </div>
+            {!editingTarget && (
+              <button onClick={() => { setEditingTarget(true); setTargetInput(String(weeklyTarget ?? '')) }}
+                className='text-2xs text-gray-500 hover:text-orange-400 transition-colors'>
+                Edit target
+              </button>
+            )}
+          </div>
+          {editingTarget ? (
+            <div className='flex items-center gap-2'>
+              <span className='text-sm text-gray-400'>$</span>
+              <input
+                type='number' min='0' step='100'
+                value={targetInput}
+                onChange={e => setTargetInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveWeeklyTarget(); if (e.key === 'Escape') setEditingTarget(false) }}
+                className='w-36 h-8 px-3 bg-surface-600 border border-surface-400 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-600/60'
+                autoFocus
+              />
+              <button onClick={saveWeeklyTarget} className='px-3 h-8 text-xs bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'>Save</button>
+              <button onClick={() => setEditingTarget(false)} className='px-3 h-8 text-xs text-gray-400 hover:text-gray-200 transition-colors'>Cancel</button>
+            </div>
+          ) : weeklyTarget != null ? (() => {
+            const pct = Math.min(100, Math.round((weeklyEarned / weeklyTarget) * 100))
+            const remaining = weeklyTarget - weeklyEarned
+            const barColor = pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-orange-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-surface-500'
+            return (
+              <div>
+                <div className='flex items-end justify-between mb-1.5'>
+                  <span className='text-xl font-bold font-mono text-green-400'>${weeklyEarned.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                  <span className='text-sm text-gray-500'>of ${weeklyTarget.toLocaleString()} target · <span className={pct >= 100 ? 'text-green-400 font-semibold' : 'text-gray-400'}>{pct}%</span></span>
+                </div>
+                <div className='h-2.5 bg-surface-500 rounded-full overflow-hidden'>
+                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+                {pct < 100 && (
+                  <p className='text-2xs text-gray-500 mt-1.5'>${remaining.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} remaining this week · based on Invoiced and Paid loads</p>
+                )}
+                {pct >= 100 && (
+                  <p className='text-2xs text-green-400 font-medium mt-1.5'>Target reached this week.</p>
+                )}
+              </div>
+            )
+          })() : null}
+        </div>
+      ) : (
+        <button
+          onClick={() => setEditingTarget(true)}
+          className='flex items-center gap-2 text-2xs text-gray-600 hover:text-orange-400 transition-colors w-full text-left px-1'
+        >
+          <Target size={11} /> Set a weekly revenue target to track progress here
+        </button>
+      )}
 
       {/* Body grid — Tasks + Dispatch Board */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>

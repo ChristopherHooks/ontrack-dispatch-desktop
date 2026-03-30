@@ -52,6 +52,7 @@ export function Leads() {
   const [csvImportBusy,   setCsvImportBusy]   = useState(false)
   const [csvImportResult, setCsvImportResult] = useState<CsvImportResult | null>(null)
   const [showPasteModal,  setShowPasteModal]  = useState(false)
+  const [showSourceStats, setShowSourceStats] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -59,7 +60,16 @@ export function Leads() {
     finally { setLoading(false) }
   }
   useEffect(() => {
-    reload()
+    reload().then(() => {
+      // Auto-open a specific lead drawer when navigated with ?open=<id>
+      const openId = searchParams.get('open')
+      if (openId) {
+        const id = parseInt(openId, 10)
+        window.api.leads.get(id).then(lead => {
+          if (lead) setSelected(lead)
+        }).catch(() => {})
+      }
+    })
     window.api.settings.get('last_fmcsa_import_at').then(v => {
       if (typeof v === 'string') setLastImportAt(v)
     })
@@ -157,6 +167,21 @@ export function Leads() {
     [leads, duplicateMcNumbers]
   )
 
+  // ── Source analytics ─────────────────────────────────────────────────────
+  const sourceStats = useMemo(() => {
+    const map = new Map<string, { total: number; converted: number }>()
+    for (const l of leads) {
+      const src = l.source?.trim() || 'Unknown'
+      const cur = map.get(src) ?? { total: 0, converted: 0 }
+      cur.total++
+      if (['Converted','Signed'].includes(l.status)) cur.converted++
+      map.set(src, cur)
+    }
+    return Array.from(map.entries())
+      .map(([src, { total, converted }]) => ({ src, total, converted, rate: total > 0 ? Math.round((converted / total) * 100) : 0 }))
+      .sort((a, b) => b.total - a.total)
+  }, [leads])
+
   // ── Summary counts (computed from full unfiltered list) ──────────────────
   const summaryCounts = useMemo((): SummaryCount[] => {
     const untouchedNew  = leads.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0).length
@@ -250,6 +275,31 @@ export function Leads() {
           <span className='text-2xs text-gray-700 ml-1'>{leads.length} total leads</span>
         )}
       </div>
+
+      {/* Source Analytics */}
+      {sourceStats.length > 0 && sourceStats.some(s => s.src !== 'Unknown') && (
+        <div className='bg-surface-800 border border-surface-600 rounded-xl overflow-hidden'>
+          <button onClick={() => setShowSourceStats(v => !v)}
+            className='flex items-center justify-between w-full px-4 py-2.5 hover:bg-surface-700/40 transition-colors'>
+            <span className='text-2xs font-medium text-gray-500 uppercase tracking-wider'>Lead Source Analytics</span>
+            <span className='text-gray-600 text-sm'>{showSourceStats ? '−' : '+'}</span>
+          </button>
+          {showSourceStats && (
+            <div className='px-4 pb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4'>
+              {sourceStats.filter(s => s.src !== 'Unknown').map(({ src, total, converted, rate }) => (
+                <button key={src} onClick={() => setFilters({ ...DEFAULT_FILTERS, source: src })}
+                  className='text-left p-2.5 rounded-lg bg-surface-700 hover:bg-surface-600 border border-surface-500 transition-colors'>
+                  <p className='text-xs font-medium text-gray-300 truncate'>{src}</p>
+                  <p className='text-2xs text-gray-600 mt-1'>{total} lead{total !== 1 ? 's' : ''}</p>
+                  <p className={`text-xs font-semibold mt-0.5 ${rate >= 20 ? 'text-green-400' : rate >= 10 ? 'text-yellow-400' : 'text-gray-600'}`}>
+                    {converted} converted ({rate}%)
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {importStatus?.lastAttemptedAt ? (
         <div className='flex flex-wrap items-center gap-x-2 text-xs text-gray-600'>

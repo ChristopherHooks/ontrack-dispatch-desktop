@@ -106,7 +106,7 @@ const DAILY_ROUTINE: Omit<CreateTaskDto, 'status'>[] = [
 export function Tasks() {
   const [tasks, setTasks]             = useState<Task[]>([])
   const [completedIds, setCompletedIds] = useState<Set<number>>(new Set())
-  const [view, setView]               = useState<'today' | 'all' | 'history'>('today')
+  const [view, setView]               = useState<'today' | 'week' | 'all' | 'history'>('today')
   const [search, setSearch]           = useState('')
   const [category, setCategory]       = useState('')
   const [modalTask, setModalTask]     = useState<Task | null | undefined>(undefined)
@@ -185,6 +185,31 @@ export function Tasks() {
       (!search || t.title.toLowerCase().includes(search.toLowerCase()))
     )
 
+  // -- Week view helpers --
+  const WEEK_DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as const
+  const DOW_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const todayDayName = DOW_NAMES[new Date().getDay()]
+
+  function timeToMinutes(t: string | null): number {
+    if (!t) return 9999
+    const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!m) return 9999
+    let h = parseInt(m[1])
+    const min = parseInt(m[2])
+    if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+    if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+    return h * 60 + min
+  }
+
+  const dailyTasks = tasks.filter(t => t.due_date === 'Daily')
+
+  function tasksForDay(day: string): Task[] {
+    return [
+      ...dailyTasks,
+      ...tasks.filter(t => t.due_date === day),
+    ].sort((a, b) => timeToMinutes(a.time_of_day) - timeToMinutes(b.time_of_day))
+  }
+
   return (
     <div className='space-y-5 animate-fade-in'>
       <div>
@@ -238,6 +263,79 @@ export function Tasks() {
       )}
 
       {/* ALL TASKS VIEW */}
+      {/* WEEK VIEW */}
+      {view === 'week' && (
+        <div className='space-y-4'>
+          {WEEK_DAYS.map(day => {
+            const dayTasks = tasksForDay(day)
+            const isToday  = day === todayDayName
+            return (
+              <div
+                key={day}
+                className={[
+                  'bg-surface-700 rounded-xl border overflow-hidden shadow-card',
+                  isToday ? 'border-orange-500/60' : 'border-surface-400',
+                ].join(' ')}
+              >
+                {/* Day header */}
+                <div className={[
+                  'flex items-center justify-between px-4 py-3 border-b',
+                  isToday ? 'bg-orange-600/15 border-orange-500/30' : 'bg-surface-600 border-surface-400',
+                ].join(' ')}>
+                  <div className='flex items-center gap-2'>
+                    <span className={['text-sm font-semibold', isToday ? 'text-orange-300' : 'text-gray-200'].join(' ')}>
+                      {day}
+                    </span>
+                    {isToday && (
+                      <span className='text-2xs px-2 py-0.5 rounded-full bg-orange-600/40 border border-orange-500/40 text-orange-300'>
+                        Today
+                      </span>
+                    )}
+                  </div>
+                  <span className='text-xs text-gray-500'>
+                    {dayTasks.length} task{dayTasks.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {/* Task rows */}
+                <div className='divide-y divide-surface-500/60'>
+                  {dayTasks.map(task => {
+                    const catStyle = CATEGORY_STYLES[task.category ?? 'Other'] ?? CATEGORY_STYLES['Other']
+                    const priDot   = PRIORITY_DOT[task.priority]
+                    const isNew    = task.due_date !== 'Daily'
+                    return (
+                      <div
+                        key={task.id}
+                        onClick={() => setDrawerTask(task)}
+                        className='flex items-center gap-3 px-4 py-2.5 hover:bg-surface-600/50 cursor-pointer transition-colors'
+                      >
+                        {/* Time */}
+                        <span className='text-xs text-gray-500 w-16 flex-shrink-0 font-mono tabular-nums'>
+                          {task.time_of_day ?? '—'}
+                        </span>
+                        {/* Priority dot */}
+                        <span className={['w-1.5 h-1.5 rounded-full flex-shrink-0', priDot].join(' ')} />
+                        {/* Title */}
+                        <span className={['flex-1 text-sm', isNew ? 'text-orange-200' : 'text-gray-200'].join(' ')}>
+                          {task.title}
+                        </span>
+                        {/* Category badge */}
+                        <span className={['text-2xs px-2 py-0.5 rounded-full border flex-shrink-0', catStyle].join(' ')}>
+                          {task.category}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+          <p className='text-2xs text-gray-600 text-center pb-2'>
+            Day-specific tasks are shown in lighter text. All other tasks repeat daily.
+          </p>
+        </div>
+      )}
+
       {view === 'all' && (
         <div className='bg-surface-700 rounded-xl border border-surface-400 overflow-hidden shadow-card'>
           {filteredAll.length === 0 ? (

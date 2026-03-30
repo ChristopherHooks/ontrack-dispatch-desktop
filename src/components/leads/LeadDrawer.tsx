@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Phone, Mail, MapPin, Truck, Calendar, Tag, Trash2,
          Plus, PhoneCall, ChevronDown, AlertTriangle, Check,
-         Zap, UserPlus, Send, Bell } from 'lucide-react'
+         Zap, UserPlus, Send, Bell, Sparkles, Copy, BookOpen } from 'lucide-react'
 import type { Lead, LeadStatus, LeadPriority, Note } from '../../types/models'
 import { useSettingsStore } from '../../store/settingsStore'
 import { LeadScoreBadge } from './LeadScoreBadge'
@@ -38,6 +38,92 @@ const authAge = (d: string | null) => {
   if (!d) return '—'
   const mo = (new Date().getFullYear() - new Date(d).getFullYear()) * 12 + (new Date().getMonth() - new Date(d).getMonth())
   return mo < 12 ? `${mo} months` : `${Math.floor(mo / 12)}y ${mo % 12}mo`
+}
+
+// ---------------------------------------------------------------------------
+// Call Scripts — keyed to lead status
+// ---------------------------------------------------------------------------
+interface CallScript {
+  title:   string
+  opener:  string
+  points:  string[]
+  close:   string
+}
+const CALL_SCRIPTS: Partial<Record<string, CallScript>> = {
+  'New': {
+    title:  'First contact',
+    opener: 'Hi, is this [name]? This is [your name] with [company]. I came across your info and wanted to reach out real quick — I\'m a freight dispatcher and I help owner-operators find loads and grow their revenue. Do you have about 60 seconds?',
+    points: [
+      'What kind of equipment are you running? How many trucks?',
+      'Are you currently working with a dispatcher, or are you finding your own loads?',
+      'What lanes are you running most — do you have a home base you like to work out of?',
+      'What\'s your minimum RPM — what rate per mile do you need to make a load worth it?',
+    ],
+    close: 'I\'d love to send you some info on how we work. What\'s the best email for you? And when\'s a good time to follow up — would later this week work?',
+  },
+  'Attempted': {
+    title:  'Following up after no response',
+    opener: 'Hi [name], this is [your name] again from [company]. I tried to reach you a couple times — I know you\'re busy, I just wanted to touch base real quick. Are you available to talk for one minute?',
+    points: [
+      'I work with owner-operators to find consistent loads at strong rates.',
+      'I\'m not going to waste your time — I just want to know if it\'s worth having a quick conversation.',
+      'Are you actively looking for loads, or are you pretty well covered right now?',
+    ],
+    close: 'If now\'s not the right time, no problem. Can I send you a quick text with my info so you have it when you need it?',
+  },
+  'Voicemail Left': {
+    title:  'Following up after voicemail',
+    opener: 'Hi [name], this is [your name] from [company] — I left you a voicemail recently. I\'m a freight dispatcher and I wanted to talk for a minute about helping you find better loads. Is now a good time?',
+    points: [
+      'I specialize in [equipment type] loads in [lane/region].',
+      'Most of my drivers see consistent rates above their minimums — I do the broker calls so they don\'t have to.',
+      'It takes about 10 minutes to get set up if you\'re interested.',
+    ],
+    close: 'Would you be open to a 10-minute call this week so I can show you what I\'ve been moving lately?',
+  },
+  'Contacted': {
+    title:  'Keeping the conversation moving',
+    opener: 'Hey [name], it\'s [your name] from [company]. We talked [recently / last week] — I wanted to follow up and see if you had any more questions about working together.',
+    points: [
+      'Remind them of what you discussed: their lane, equipment, RPM target.',
+      'Share a specific recent win: "I just moved a flatbed from [origin] to [destination] at $X.XX — that\'s the kind of load I\'m looking for my carriers."',
+      'Address any concern they raised last time.',
+      'Ask: "Is there anything holding you back from moving forward?"',
+    ],
+    close: 'I\'d love to send you the dispatch agreement so you can look it over. It\'s straightforward — two pages. Can I send it to your email?',
+  },
+  'Interested': {
+    title:  'They\'re warm — push toward agreement',
+    opener: 'Hey [name], [your name] here. Just following up — I know you mentioned you were interested in working together. I want to make this as easy as possible to get started.',
+    points: [
+      'Do you have any questions about the dispatch agreement or how the fee works?',
+      'Walk them through the process: I find the load, you approve it, you run it, I handle the paperwork.',
+      'Remind them of the value: "You\'re in the truck — I\'m on the phone with brokers all day so you don\'t have to be."',
+      'If they\'re hesitant: "What would need to be true for you to feel comfortable moving forward?"',
+    ],
+    close: 'Let me send over the agreement today. If everything looks good, you can sign it electronically and we can start looking for your first load this week.',
+  },
+  'Call Back Later': {
+    title:  'They asked you to call back',
+    opener: 'Hey [name], it\'s [your name] from [company]. You asked me to follow up [today / this week] — is now still a good time?',
+    points: [
+      'Reference what they said last time: "You mentioned you might have more availability after [date]."',
+      'Don\'t restart the pitch — pick up where you left off.',
+      'Ask directly: "Have things opened up a bit? Are you ready to start looking at loads?"',
+    ],
+    close: 'If you\'re ready, I can have the agreement to you in the next hour and we can start immediately. If you need another week, I completely understand — when should I follow up again?',
+  },
+  'Agreement Sent': {
+    title:  'Agreement is out — follow up on signature',
+    opener: 'Hey [name], [your name] here. I sent over the dispatch agreement [a few days ago] — did you get a chance to look it over?',
+    points: [
+      'If they haven\'t looked: "Do you want me to walk you through it real quick? It\'s two pages — I can go through the main points in five minutes."',
+      'If they have questions: answer them directly. The most common: fee percentage, what happens if they don\'t like a load, how invoicing works.',
+      'If they\'re hesitant: "Is there something specific in there that doesn\'t feel right? I want to make sure you\'re comfortable with everything."',
+      'Key terms: dispatch fee is X%, paid weekly after broker pays. You approve every load before it\'s booked. 30-day notice to terminate.',
+    ],
+    close: 'If everything looks good, you can sign it electronically right now — it takes 30 seconds. Then I can start looking for loads in your lane today. Want to do that?',
+  },
 }
 
 // Returns YYYY-MM-DD for today + N days
@@ -284,6 +370,11 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
   const [priorityOpen, setPriorityOpen] = useState(false)
   const [converting, setConverting] = useState(false)
   const [convertedMsg, setConvertedMsg] = useState('')
+  const [aiFollowUp, setAiFollowUp]     = useState<string | null>(null)
+  const [aiLoading, setAiLoading]       = useState(false)
+  const [aiCopied, setAiCopied]         = useState(false)
+  const [showScript, setShowScript]     = useState(false)
+  const [scriptCopied, setScriptCopied] = useState(false)
   const { total, grade, factors }   = computeLeadScore(lead)
 
   useEffect(() => {
@@ -329,6 +420,22 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
     await window.api.notes.delete(id); setCalls(p => p.filter(c => c.id !== id))
   }
 
+  const copyScript = (script: CallScript) => {
+    const text = [
+      script.opener,
+      '',
+      'Key questions / points:',
+      ...script.points.map(p => `- ${p}`),
+      '',
+      'Close:',
+      script.close,
+    ].join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      setScriptCopied(true)
+      setTimeout(() => setScriptCopied(false), 2500)
+    }).catch(() => {})
+  }
+
   // ── Quick Actions ────────────────────────────────────────────────────────
 
   const logAttempt = async () => {
@@ -361,6 +468,35 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
   const markNotInterested = async () => {
     const updated = await window.api.leads.update(lead.id, { status: 'Not Interested' })
     if (updated) onUpdate(updated)
+  }
+
+  const generateFollowUp = async () => {
+    setAiLoading(true)
+    setAiFollowUp(null)
+    try {
+      const msg = await window.api.leads.generateFollowUp({
+        name:            lead.name,
+        company:         lead.company ?? null,
+        status:          lead.status,
+        trailerType:     lead.trailer_type ?? null,
+        lastContactDate: lead.last_contact_date ?? null,
+        contactAttempts: lead.contact_attempt_count ?? 0,
+        outreachOutcome: lead.outreach_outcome ?? null,
+      })
+      setAiFollowUp(msg ?? 'No API key configured. Add your Claude API key in Settings.')
+    } catch {
+      setAiFollowUp('Failed to generate message. Check your API key in Settings.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const copyFollowUp = () => {
+    if (!aiFollowUp) return
+    navigator.clipboard.writeText(aiFollowUp).then(() => {
+      setAiCopied(true)
+      setTimeout(() => setAiCopied(false), 2000)
+    }).catch(() => {})
   }
 
   const convertToDriver = async () => {
@@ -561,9 +697,43 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               >
                 <UserPlus size={10} /> {converting ? 'Converting…' : 'Convert to Driver'}
               </button>
+              <div className='w-px h-4 bg-surface-500 self-center mx-0.5' />
+              <button
+                onClick={generateFollowUp}
+                disabled={aiLoading}
+                title='Generate an AI-written follow-up message for this lead'
+                className='flex items-center gap-1 h-6 px-2 text-2xs font-medium bg-purple-900/20 hover:bg-purple-900/40 border border-purple-800/30 hover:border-purple-700/50 text-purple-300 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors'
+              >
+                <Sparkles size={10} /> {aiLoading ? 'Generating…' : 'AI Follow-Up'}
+              </button>
             </div>
             {convertedMsg && (
               <p className='mt-1.5 text-2xs text-emerald-400'>{convertedMsg}</p>
+            )}
+            {/* AI Follow-Up output */}
+            {aiFollowUp && (
+              <div className='mt-3 rounded-lg border border-purple-800/30 bg-purple-900/10 p-3'>
+                <div className='flex items-center justify-between mb-2'>
+                  <div className='flex items-center gap-1.5'>
+                    <Sparkles size={10} className='text-purple-400' />
+                    <span className='text-2xs font-medium text-purple-300 uppercase tracking-wider'>AI Follow-Up Draft</span>
+                  </div>
+                  <div className='flex items-center gap-1'>
+                    <button
+                      onClick={copyFollowUp}
+                      className={`flex items-center gap-1 h-5 px-1.5 text-2xs rounded transition-colors ${aiCopied ? 'bg-green-700 text-white' : 'bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200'}`}
+                    >
+                      {aiCopied ? <Check size={9} /> : <Copy size={9} />}
+                      {aiCopied ? 'Copied' : 'Copy'}
+                    </button>
+                    <button onClick={() => setAiFollowUp(null)} className='h-5 px-1 text-2xs text-gray-600 hover:text-gray-400 transition-colors'>
+                      <X size={9} />
+                    </button>
+                  </div>
+                </div>
+                <p className='text-xs text-gray-300 leading-relaxed whitespace-pre-wrap'>{aiFollowUp}</p>
+                <p className='text-2xs text-gray-600 mt-2'>Review and personalize before sending.</p>
+              </div>
             )}
           </div>
 
@@ -604,6 +774,56 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               )}
             </div>
           )}
+
+          {/* Call Script */}
+          {(() => {
+            const script = CALL_SCRIPTS[lead.status]
+            if (!script) return null
+            return (
+              <div className='mx-5 mt-4 rounded-xl border border-surface-500/60 overflow-hidden'>
+                <button
+                  onClick={() => setShowScript(v => !v)}
+                  className='w-full flex items-center justify-between px-3 py-2.5 bg-surface-700/60 hover:bg-surface-700 transition-colors'
+                >
+                  <div className='flex items-center gap-2'>
+                    <BookOpen size={12} className='text-orange-400 shrink-0' />
+                    <span className='text-xs font-medium text-gray-300'>Call Script — {script.title}</span>
+                  </div>
+                  <ChevronDown size={12} className={`text-gray-600 transition-transform ${showScript ? 'rotate-180' : ''}`} />
+                </button>
+                {showScript && (
+                  <div className='px-3 pb-3 pt-2 bg-surface-700/30 space-y-3'>
+                    <div>
+                      <p className='text-2xs font-semibold text-gray-500 uppercase tracking-wider mb-1'>Opener</p>
+                      <p className='text-xs text-gray-300 leading-relaxed'>{script.opener}</p>
+                    </div>
+                    <div>
+                      <p className='text-2xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5'>Key Points</p>
+                      <ul className='space-y-1'>
+                        {script.points.map((pt, i) => (
+                          <li key={i} className='flex items-start gap-2 text-xs text-gray-400 leading-relaxed'>
+                            <span className='text-gray-600 shrink-0 mt-0.5'>—</span>
+                            {pt}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className='text-2xs font-semibold text-gray-500 uppercase tracking-wider mb-1'>Close</p>
+                      <p className='text-xs text-gray-300 leading-relaxed'>{script.close}</p>
+                    </div>
+                    <button
+                      onClick={() => copyScript(script)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-2xs font-medium rounded-lg transition-colors ${scriptCopied ? 'bg-green-700 text-white' : 'bg-surface-600 hover:bg-surface-500 text-gray-300'}`}
+                    >
+                      {scriptCopied ? <Check size={11} /> : <Copy size={11} />}
+                      {scriptCopied ? 'Copied' : 'Copy full script'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Contact details */}
           <div className='px-5 py-4 border-b border-surface-600'>

@@ -61,6 +61,7 @@ import { Marketing }       from './pages/Marketing'
 import { Tasks }      from './pages/Tasks'
 import { Documents }  from './pages/Documents'
 import { Analytics }  from './pages/Analytics'
+import { Reports }    from './pages/Reports'
 import { Help }       from './pages/Help'
 import { Settings }   from './pages/Settings'
 
@@ -69,6 +70,8 @@ export function App() {
 
   useEffect(() => {
     loadFromStore()
+    // Auto-flag any Sent invoices that have exceeded broker payment terms
+    window.api.invoices.autoFlag().catch(() => { /* non-critical */ })
   }, [loadFromStore])
 
   return (
@@ -94,6 +97,7 @@ export function App() {
           <Route path='tasks'      element={<Tasks />} />
           <Route path='documents'  element={<Documents />} />
           <Route path='analytics'  element={<Analytics />} />
+          <Route path='reports'    element={<Reports />} />
           <Route path='help'       element={<Help />} />
           <Route path='settings'   element={<Settings />} />
         </Route>

@@ -1,5 +1,239 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-03-29 — Session 26: Eight Further App Improvements
+
+### Work Completed
+
+Eight improvements across driver ops, invoicing, broker management, reporting, and lead tracking.
+
+**1 — Driver Run Sheet PDF (LoadDrawer)**
+- `LoadDrawer.tsx` — `printRunSheet(load, driver, broker)` added; same DOM-inject + `window.print()` + cleanup pattern as settlement PDF; sections: Driver & Equipment, Pickup, Delivery, Broker Contact, Special Instructions, mileage/rate summary box
+- "Run Sheet" button visible in action bar only for Booked / Picked Up / In Transit loads
+
+**2 — Invoice Aging Table (Reports)**
+- `reports.ts` — `InvoiceAgingRow` interface + query: joins invoices → loads → brokers, WHERE status IN ('Sent','Overdue'), computes `days_out` via `julianday()`, buckets: 0-15 / 16-30 / 31-60 / 60+; ORDER BY days_out DESC
+- `ReportsData` updated to include `invoiceAging`
+- `Reports.tsx` — "Accounts Receivable Aging" section: 4-bucket summary tiles + line-by-line detail table (before IFTA)
+
+**3 — Broker Contact Log**
+- Migration 031: `broker_call_log` table (id, broker_id FK CASCADE, note TEXT, created_at), index on broker_id
+- `brokerCallLogRepo.ts` (new) — `listBrokerCallLog`, `createBrokerCallLog`, `deleteBrokerCallLog`
+- `repositories/index.ts` — export added
+- `ipcHandlers.ts` — three handlers: `brokerCallLog:list`, `brokerCallLog:create`, `brokerCallLog:delete`
+- `preload/index.ts` — `brokerCallLog` group wired
+- `global.d.ts` — `brokerCallLog` type block added
+- `BrokerDrawer.tsx` — "Contact Log" section (before Notes): single-line input + timestamped note list with delete per entry
+
+**4 — Driver Document Expiry Alert on Dashboard**
+- `global.d.ts` — `compliance: () => Promise<DriverComplianceRow[]>` added to drivers type; `DriverComplianceRow` import added
+- `Dashboard.tsx` — on mount, calls `window.api.drivers.compliance()`; flattens cdl_expiry / insurance_expiry / medical_card_expiry / coi_expiry into individual `ExpiryAlert` entries; filters for 0–30 days; dismissible amber banner above Weekly Revenue Target
+
+**5 — Monthly Revenue Pacing Enhancement (Operations)**
+- `Operations.tsx` — added `projected = (revenue / dayOfMo) * daysInMo` calculation; `onPace` uses projected vs goal; added "Projected Month End" stat (green/orange) and "Day X of Y / N days left" combined stat
+
+**6 — Lane Performance Table (Reports)**
+- `reports.ts` — `LanePerformanceRow` interface + query: groups completed loads by origin_state / dest_state; `avg_rpm` weighted average (CASE WHEN miles > 0), `best_rpm` (MAX), `total_fee`; ORDER BY avg_rpm DESC NULLS LAST LIMIT 30
+- `ReportsData` updated to include `lanePerformance`
+- `Reports.tsx` — "Lane Performance" section with RPM color coding (before IFTA)
+
+**7 — Dispatcher Net Summary in LoadDrawer Financials**
+- `LoadDrawer.tsx` — summary sub-block after financials grid: Your Earnings (dispatch fee) / Driver Net (gross minus dispatch fee minus all deductions); uses already-loaded `deductions` state — no extra IPC
+
+**8 — Leads Last-Contact Aging Column**
+- `LeadsTable.tsx` — `daysSinceContact()` helper (uses `last_contact_date`); `contactAgeCls()` helper (red >= 21d, yellow >= 14d, neutral for terminal statuses); "Last Contact" column added after Follow-Up; displays "today" or "Nd ago" with tooltip
+
+### Files Changed
+- `src/components/loads/LoadDrawer.tsx` — Run Sheet PDF + Dispatcher Net summary
+- `electron/main/reports.ts` — Invoice aging + Lane performance queries + interfaces
+- `src/pages/Reports.tsx` — AR Aging section + Lane Performance section
+- `electron/main/schema/migrations.ts` — migration031 + MIGRATIONS array
+- `electron/main/repositories/brokerCallLogRepo.ts` (new)
+- `electron/main/repositories/index.ts` — brokerCallLogRepo export
+- `electron/main/ipcHandlers.ts` — three brokerCallLog handlers
+- `electron/preload/index.ts` — brokerCallLog group
+- `src/types/global.d.ts` — brokerCallLog type, drivers.compliance, DriverComplianceRow import
+- `src/components/brokers/BrokerDrawer.tsx` — Contact Log section
+- `src/pages/Dashboard.tsx` — document expiry alert banner
+- `src/pages/Operations.tsx` — projected month-end + day counter
+- `src/components/leads/LeadsTable.tsx` — Last Contact column
+- `docs/HANDOFF.md` — Session 26 entry
+
+### Notes for Next Session
+- Run `tsc --noEmit` from `app/` to confirm zero TypeScript errors before next feature work
+- `offResult` listener leak in preload (browserImport group) — non-blocking, carried from Session 21
+- Next migration will be 032
+
+---
+
+## 2026-03-29 — Session 25: Eight More App Improvements
+
+### Work Completed
+
+Eight improvements across load management, invoicing, settlements, broker intelligence, and tooling.
+
+**1 — Check Call Log in LoadDrawer**
+- `LoadDrawer.tsx` — "Check Calls" section added (before Notes); uses existing `window.api.timeline` IPC; filters events by `event_type === 'check_call'`; log-call form with single text input, timestamped list, delete per entry
+- No new migration or IPC required
+
+**2 — Deadhead Miles + FSC on Loads (migration 029)**
+- Migration 029: `deadhead_miles REAL` and `fuel_surcharge REAL` added to loads via `addColumnIfMissing`
+- `models.ts` Load interface updated; `loadsRepo.ts` create/update include new columns
+- `LoadModal.tsx` — Loaded Miles / Deadhead Miles / FSC fields in form; BLANK constant updated
+- `LoadDrawer.tsx` — Route section shows both loaded and deadhead miles; Financials shows FSC; settlement PDF includes FSC + deductions
+- `reports.ts` — broker total_gross includes FSC; IFTA total_miles includes deadhead
+
+**3 — Batch Invoice Actions**
+- `invoicesRepo.ts` — `bulkUpdateInvoices(db, ids, status, extraFields)` function
+- IPC `invoices:bulkUpdate`, preload + global.d.ts wired
+- `InvoicesTable.tsx` — checkbox column (select-all in header, per-row); highlighted selected rows; cell-level clicks to avoid conflict with row click
+- `Invoices.tsx` — `selectedIds` Set; bulk bar (Mark Sent / Mark Paid / Reset to Draft / Clear); auto-sets sent_date/paid_date on bulk action
+
+**4 — Driver Deductions (migration 030)**
+- Migration 030: `load_deductions` table (id, load_id FK CASCADE, label, amount, created_at) + index
+- `loadDeductionsRepo.ts` (new) — list/create/delete
+- IPC handlers + preload + global.d.ts
+- `LoadDrawer.tsx` — Deductions section for Delivered/Invoiced/Paid loads; label + dollar amount; running total; settlement PDF updated to show each deduction as minus line
+
+**5 — Broker Reliability Score**
+- `brokerIntelligence.ts` — `paymentGrade()` helper (A–F from avg_days_to_pay vs payment_terms); `getBrokerIntelAll` joins invoices for actual payment speed; `BrokerIntelRow` extended with `avg_days_to_pay`, `payment_grade`, `invoice_count`
+- `models.ts` — `BrokerIntelRow` updated
+- `BrokerDrawer.tsx` — payment grade badge (A=green → F=red) with avg days and invoice count
+
+**6 — Quick Rate Calculator**
+- `src/components/ui/RateCalculator.tsx` (new) — inputs: miles, RPM, FSC, dispatch %, fuel price, MPG; outputs: gross, total, dispatch fee, driver pay, fuel cost, driver net
+- `Sidebar.tsx` — Calculator button above Help/Settings; mounts modal with settingsStore values
+
+**7 — Settings Additions**
+- `settingsStore.ts` — `fuelPricePerGallon` added (default 4.00), persisted via electron-store
+- `Settings.tsx` — Monthly Revenue Goal field (syncs with Operations `revenueGoal` key); Fuel Price ($/gallon) field; both load on mount
+
+### Files Changed
+- `electron/main/schema/migrations.ts` — migrations 029 + 030
+- `electron/main/repositories/loadsRepo.ts` — deadhead_miles, fuel_surcharge in create/update
+- `electron/main/repositories/loadDeductionsRepo.ts` (new)
+- `electron/main/repositories/invoicesRepo.ts` — bulkUpdateInvoices
+- `electron/main/repositories/index.ts` — loadDeductionsRepo export
+- `electron/main/ipcHandlers.ts` — bulkUpdate, loadDeductions:* handlers
+- `electron/main/brokerIntelligence.ts` — payment grade, invoice join
+- `electron/main/reports.ts` — FSC in broker summary, deadhead in IFTA
+- `electron/preload/index.ts` — bulkUpdate, loadDeductions group
+- `src/types/global.d.ts` — bulkUpdate, loadDeductions types
+- `src/types/models.ts` — Load (2 new fields), BrokerIntelRow (3 new fields)
+- `src/store/settingsStore.ts` — fuelPricePerGallon
+- `src/pages/Settings.tsx` — Monthly Revenue Goal + Fuel Price fields
+- `src/pages/Invoices.tsx` — batch selection state + bulk bar
+- `src/components/loads/LoadModal.tsx` — deadhead + FSC fields
+- `src/components/loads/LoadDrawer.tsx` — check calls, deductions, deadhead/FSC display, updated settlement PDF
+- `src/components/invoices/InvoicesTable.tsx` — checkbox column + multi-select
+- `src/components/brokers/BrokerDrawer.tsx` — payment grade badge
+- `src/components/layout/Sidebar.tsx` — Rate Calc button + modal
+- `src/components/ui/RateCalculator.tsx` (new)
+
+### Notes for Next Session
+- Run `tsc --noEmit` from `app/` to confirm zero TypeScript errors
+- `offResult` listener leak in preload (browserImport group) — non-blocking, carried from Session 21
+- Fuel price in Rate Calculator pre-fills from `fuelPricePerGallon` setting; also editable inline per session
+
+---
+
+## 2026-03-28 — Session 24: Route Fix + Docs and Task Update
+
+### Work Completed
+
+**1 — Morning Briefing "Find Loads" blank screen fix**
+- `src/pages/Operations.tsx` — corrected two route path mismatches in the Morning Briefing `rows` array:
+  - `'/find-loads'` changed to `'/findloads'`
+  - `'/active-loads'` changed to `'/activeloads'`
+- Root cause: React Router found no matching route for the hyphenated paths and silently rendered nothing. All other navigation (Sidebar, OnboardingWizard) already used the correct un-hyphenated paths; the Morning Briefing was the only callsite out of sync.
+
+**2 — Saturday task added to seed (ID 133)**
+- `electron/main/seed.ts` — added Saturday-specific daily task for weekend revenue push (load booking + lead follow-up + Facebook posting), with explicit `day_of_week: 'Saturday'` recurrence and actionable notes
+
+**3 — Daily Operations Playbook SOP updated (ID 125)**
+- `electron/main/seed.ts` — rewrote the Daily Operations Playbook content to be revenue-first, with a clear priority order: loads before leads before marketing, plus an end-of-month urgency protocol
+
+**4 — HANDOFF.md and SESSION_LOG.md updated**
+
+### Files Changed
+- `src/pages/Operations.tsx` — route path fix (2 lines)
+- `electron/main/seed.ts` — Saturday task (ID 133), updated Daily Operations Playbook (ID 125)
+- `docs/HANDOFF.md` — updated
+- `docs/SESSION_LOG.md` — this file
+
+### TypeScript
+No structural changes. The Operations.tsx edit is a string value correction only — no type changes.
+
+### Notes for Next Session
+- Run `tsc --noEmit` to verify zero errors (not run this session)
+- Chris should go to Settings > Reseed Documents to pick up the updated Daily Operations Playbook and new Saturday task in the app
+- `offResult` IPC listener leak in `electron/preload/index.ts` carried forward from Session 21 — non-blocking
+
+---
+
+## 2026-03-28 — Session 23: Eight App Improvements
+
+### Work Completed
+
+Eight improvements implemented across invoicing, load management, driver pay history, morning briefing, reporting, and document attachments.
+
+**1 — Auto-flag Overdue Invoices on Startup**
+- `invoicesRepo.ts` — `autoFlagOverdueInvoices(db)` flips Sent invoices to Overdue when days since sent_date exceeds broker payment_terms (correlated subquery, default 30d)
+- IPC handler `invoices:autoFlag`; preload + global.d.ts wired; called silently in `App.tsx` startup useEffect
+
+**2 — Duplicate Load Button**
+- `LoadDrawer.tsx` — `onDuplicate` prop + Copy button in action bar
+- `Loads.tsx` — `handleDuplicate()` pre-fills modal with route/broker/driver/trailer/commodity, clears rate/dates, forces status to 'Searching'
+
+**3 — Driver Pay History in DriverDrawer**
+- `DriverDrawer.tsx` — last 20 Paid invoices for the driver shown in a Pay History section (invoice number, paid date, dispatch fee, driver gross)
+
+**4 — Stale Load Nudges in Morning Briefing**
+- `operations.ts` — SQL finds Booked loads past pickup date and Picked Up/In Transit loads past delivery date
+- `models.ts` — `staleLoads` added to `OperationsData`
+- `Operations.tsx` — sixth BriefRow with load IDs, status, days past; links to /loads
+
+**5 + 8 — Reports Page (Weekly P&L, Monthly P&L, Broker Performance, IFTA)**
+- `electron/main/reports.ts` (new) — `getReportsData(db)` returns 12-week revenue, 6-month revenue, top-20 broker table, per-state mileage, all-time and YTD totals
+- `src/pages/Reports.tsx` (new) — KPI strip, horizontal bar charts, broker table, IFTA state grid; types inlined to avoid cross-bundle import
+- `Sidebar.tsx` — Reports nav item added; `App.tsx` — `/reports` route added
+
+**6 — Load Calendar View**
+- `LoadsToolbar.tsx` — `LoadView` type exported; Calendar button added; "Dispatch Board" → "Dispatch"
+- `Loads.tsx` — weekly `LoadCalendar` inline component; blue = pickup, green = delivery; prev/next week nav
+
+**7 — Load Document Attachments**
+- Migration 028: `load_attachments` table with FK to loads (CASCADE)
+- `loadAttachmentsRepo.ts` (new) — list/create/delete helpers
+- IPC handlers for list/create/delete/open/pick; pick uses `dialog.showOpenDialog` + `copyFileSync` to `userData/load-attachments/{loadId}/`
+- `LoadDrawer.tsx` — Attachments section with file picker, title input, open/delete per file
+
+### Files Changed
+- `electron/main/repositories/invoicesRepo.ts` — `autoFlagOverdueInvoices`
+- `electron/main/repositories/loadAttachmentsRepo.ts` (new)
+- `electron/main/repositories/index.ts` — loadAttachmentsRepo export
+- `electron/main/schema/migrations.ts` — migration 028
+- `electron/main/ipcHandlers.ts` — autoFlag, reports:data, loadAttachments:* handlers
+- `electron/main/operations.ts` — staleLoads query
+- `electron/main/reports.ts` (new)
+- `electron/preload/index.ts` — invoices.autoFlag, reports group, loadAttachments group
+- `src/types/global.d.ts` — autoFlag, reports, loadAttachments types
+- `src/types/models.ts` — staleLoads on OperationsData
+- `src/App.tsx` — autoFlag startup call, Reports import + route
+- `src/pages/Operations.tsx` — sixth BriefRow (stale loads)
+- `src/pages/Reports.tsx` (new)
+- `src/pages/Loads.tsx` — handleDuplicate, LoadView state, LoadCalendar component
+- `src/components/layout/Sidebar.tsx` — Reports nav item
+- `src/components/loads/LoadsToolbar.tsx` — LoadView type, Calendar button
+- `src/components/loads/LoadDrawer.tsx` — Duplicate button, Attachments section
+- `src/components/drivers/DriverDrawer.tsx` — Pay History section
+
+### Notes for Next Session
+- Run `tsc --noEmit` to verify zero TypeScript errors — not run this session
+- `offResult` listener leak in `electron/preload/index.ts` (browserImport group) — carried over from Session 21, non-blocking
+- IFTA mileage uses destination state as approximation — clearly labeled in UI; GPS per-state tracking not available
+
+---
+
 ## 2026-03-28 — Session 22: Six App Improvements
 
 ### Work Completed

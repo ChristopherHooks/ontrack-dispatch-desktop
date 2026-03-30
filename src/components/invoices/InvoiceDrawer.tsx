@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Edit2, Plus, Printer, Mail, CheckCircle, Send, AlertCircle, Download, Trash2 } from 'lucide-react'
+import { X, Edit2, Plus, Printer, Mail, CheckCircle, Send, AlertCircle, Download, Trash2, Copy, Check, Phone, ChevronDown } from 'lucide-react'
 import type { Invoice, InvoiceStatus, Driver, Load, Broker, Note } from '../../types/models'
 import { INVOICE_STATUS_STYLES } from './constants'
 
@@ -80,9 +80,18 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
   const [noteText, setNoteText] = useState('')
   const [addNote, setAddNote] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
+  const [showCallScript, setShowCallScript] = useState(false)
+  const [scriptCopied, setScriptCopied]     = useState(false)
   const [followUpMode, setFollowUpMode] = useState(false)
+  const [editFactoring, setEditFactoring]   = useState(false)
+  const [factForm, setFactForm]             = useState({
+    factoring_company: invoice.factoring_company ?? '',
+    advance_rate:      invoice.advance_rate != null ? String(Math.round(invoice.advance_rate * 100)) : '',
+    factored_date:     invoice.factored_date ?? '',
+  })
   const [emailTo, setEmailTo] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
+  const [msgCopied, setMsgCopied] = useState(false)
 
   const driver = drivers.find(d => d.id === invoice.driver_id)
   const load = loads.find(l => l.id === invoice.load_id)
@@ -148,6 +157,104 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
   const activeSubject = followUpMode ? followUpSubject : emailSubject
   const activeBody    = followUpMode ? followUpBody    : emailBody
   const mailtoHref = `mailto:${encodeURIComponent(emailTo)}?subject=${encodeURIComponent(activeSubject)}&body=${activeBody}`
+
+  // Plain-text collection message — copy to clipboard for use in SMS, DM, or direct call scripts
+  const collectionMsg = [
+    `Hi${driver?.name ? ' ' + driver.name.split(' ')[0] : ''},`,
+    '',
+    `This is a collection notice for dispatch invoice ${invoice.invoice_number}${invoice.week_ending ? ' (week ending ' + fmt(invoice.week_ending) + ')' : ''}.`,
+    '',
+    `Amount due: ${fmtMoney(invoice.dispatch_fee)}`,
+    `Days overdue: ${daysOverdue}`,
+    '',
+    daysOverdue >= 30
+      ? 'This account is now 30+ days past due. Continued dispatch service depends on resolving this balance. Please send payment today or contact me to discuss.'
+      : 'Please send payment immediately to avoid a hold on dispatch services.',
+    '',
+    'Payment methods: Zelle, ACH, or check. Contact me to confirm payment details.',
+    '',
+    'OnTrack Hauling Solutions',
+    'dispatch@ontrackhaulingsolutions.com',
+  ].join('\n')
+
+  function copyCollectionMsg() {
+    navigator.clipboard.writeText(collectionMsg).then(() => {
+      setMsgCopied(true)
+      setTimeout(() => setMsgCopied(false), 2500)
+    }).catch(() => {})
+  }
+
+  // Call script — what to say when you phone the driver about an overdue invoice
+  const driverFirst = driver?.name?.split(' ')[0] ?? '[driver]'
+  const callScript = daysOverdue >= 30
+    ? {
+        tier: '30+ days overdue — firm collection call',
+        opener: `Hi ${driverFirst}, this is [your name] with OnTrack. I need to talk to you about invoice ${invoice.invoice_number}. It's now ${daysOverdue} days past due — that's ${Math.round(daysOverdue / terms * 100)}% over your agreed payment terms.`,
+        points: [
+          `The amount outstanding is ${fmtMoney(invoice.dispatch_fee)}. This is money I've already earned and invoiced.`,
+          'I need to know when I can expect payment — a specific date, not "soon."',
+          'If there is a dispute with the invoice amount, tell me now so we can resolve it today.',
+          'Continued dispatch service depends on this balance being resolved.',
+          'Payment methods: Zelle, ACH, or check. Tell me which you will use and by when.',
+        ],
+        close: 'I need a commitment from you today. What date will you send payment?',
+      }
+    : daysOverdue >= 15
+    ? {
+        tier: '15-29 days overdue — firm follow-up',
+        opener: `Hi ${driverFirst}, it's [your name] from OnTrack. I'm calling about invoice ${invoice.invoice_number}. It's ${daysOverdue} days past due — payment was due on or around ${fmt(invoice.sent_date)} plus ${terms} days.`,
+        points: [
+          `Outstanding amount: ${fmtMoney(invoice.dispatch_fee)}.`,
+          'Have you sent payment already? If so, let me know the method so I can watch for it.',
+          'If not, what is the hold-up? I want to give you a chance to explain before I put a hold on dispatch services.',
+          'I can take Zelle, ACH, or check.',
+        ],
+        close: 'Can you get me payment this week? I need a specific day from you.',
+      }
+    : {
+        tier: 'First follow-up — friendly reminder',
+        opener: `Hey ${driverFirst}, it's [your name] from OnTrack. Quick call about invoice ${invoice.invoice_number} — just checking in on payment. Looks like we're about ${daysSinceSent} days out from when I sent it.`,
+        points: [
+          `Amount is ${fmtMoney(invoice.dispatch_fee)} — same as always.`,
+          'Did you get the invoice okay? Sometimes they land in spam.',
+          'No big deal if you haven\'t gotten to it — just want to make sure you have everything you need.',
+          'I accept Zelle, ACH, or check.',
+        ],
+        close: 'When do you think you can get that over to me? I\'ll follow up if I don\'t hear from you by end of week.',
+      }
+
+  async function saveFactoring(factored: boolean) {
+    if (!factored) {
+      await window.api.invoices.update(invoice.id, { factored: 0, factoring_company: null, advance_rate: null, factored_amount: null, factored_date: null })
+      setEditFactoring(false)
+      return
+    }
+    const rate = parseFloat(factForm.advance_rate) / 100
+    const amount = invoice.dispatch_fee != null && !isNaN(rate) ? invoice.dispatch_fee * rate : null
+    await window.api.invoices.update(invoice.id, {
+      factored: 1,
+      factoring_company: factForm.factoring_company.trim() || null,
+      advance_rate:      !isNaN(rate) ? rate : null,
+      factored_amount:   amount,
+      factored_date:     factForm.factored_date || null,
+    })
+    setEditFactoring(false)
+  }
+
+  function copyCallScript() {
+    const text = [
+      callScript.opener,
+      '',
+      'Key points:',
+      ...callScript.points.map(p => `- ${p}`),
+      '',
+      callScript.close,
+    ].join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      setScriptCopied(true)
+      setTimeout(() => setScriptCopied(false), 2500)
+    }).catch(() => {})
+  }
 
   return (
     <div className='fixed inset-0 z-50 flex'>
@@ -231,13 +338,73 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
                 <label className='text-2xs text-gray-600 block mb-1'>Subject</label>
                 <p className='text-xs text-gray-400 px-2 py-1 bg-surface-600 rounded-lg border border-surface-400'>{activeSubject}</p>
               </div>
-              <div className='flex items-center gap-2 mt-3'>
+              <div className='flex items-center gap-2 mt-3 flex-wrap'>
                 <a href={mailtoHref} className='flex items-center gap-1.5 px-3 h-7 text-xs font-semibold bg-blue-700 hover:bg-blue-600 text-white rounded-lg transition-colors'><Mail size={11} />Open in Email App</a>
-                <p className='text-2xs text-gray-600'>Opens {emailTo || 'recipient'} in your default mail client</p>
+                {isOverdueOrSent && daysOverdue > 0 && (
+                  <button
+                    onClick={copyCollectionMsg}
+                    className={`flex items-center gap-1.5 px-3 h-7 text-xs font-semibold rounded-lg transition-colors ${msgCopied ? 'bg-green-700 text-white' : 'bg-surface-500 hover:bg-surface-400 text-gray-300'}`}
+                  >
+                    {msgCopied ? <Check size={11} /> : <Copy size={11} />}
+                    {msgCopied ? 'Copied' : 'Copy Collection Message'}
+                  </button>
+                )}
               </div>
+              {isOverdueOrSent && daysOverdue > 0 && (
+                <p className='text-2xs text-gray-600 mt-1.5'>Collection message ready to paste into SMS, DM, or call script.</p>
+              )}
               <p className='text-2xs text-gray-700 mt-2'>To enable SMTP sending, go to Settings &gt; Email Configuration.</p>
             </div>
           )}
+          {/* Call Script — shows for Sent / Overdue invoices */}
+          {isOverdueOrSent && (
+            <div className='border-b border-surface-600'>
+              <button
+                onClick={() => setShowCallScript(v => !v)}
+                className='w-full flex items-center justify-between px-5 py-3 hover:bg-surface-700/40 transition-colors'
+              >
+                <div className='flex items-center gap-2'>
+                  <Phone size={12} className='text-gray-500 shrink-0' />
+                  <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>
+                    Phone Call Script
+                    {daysOverdue > 0 && <span className='ml-1.5 text-red-400'>({daysOverdue}d overdue)</span>}
+                  </p>
+                </div>
+                <ChevronDown size={12} className={`text-gray-600 transition-transform ${showCallScript ? 'rotate-180' : ''}`} />
+              </button>
+              {showCallScript && (
+                <div className='px-5 pb-4 space-y-3'>
+                  <p className='text-2xs font-medium text-orange-400'>{callScript.tier}</p>
+                  <div>
+                    <p className='text-2xs text-gray-500 uppercase tracking-wider mb-1'>Opener</p>
+                    <p className='text-xs text-gray-300 leading-relaxed'>{callScript.opener}</p>
+                  </div>
+                  <div>
+                    <p className='text-2xs text-gray-500 uppercase tracking-wider mb-1.5'>Key Points</p>
+                    <ul className='space-y-1'>
+                      {callScript.points.map((pt, i) => (
+                        <li key={i} className='flex items-start gap-2 text-xs text-gray-400 leading-relaxed'>
+                          <span className='text-gray-600 shrink-0 mt-0.5'>—</span>{pt}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className='text-2xs text-gray-500 uppercase tracking-wider mb-1'>Close</p>
+                    <p className='text-xs text-gray-300 leading-relaxed'>{callScript.close}</p>
+                  </div>
+                  <button
+                    onClick={copyCallScript}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-2xs font-medium rounded-lg transition-colors ${scriptCopied ? 'bg-green-700 text-white' : 'bg-surface-600 hover:bg-surface-500 text-gray-300'}`}
+                  >
+                    {scriptCopied ? <Check size={11}/> : <Copy size={11}/>}
+                    {scriptCopied ? 'Copied' : 'Copy full script'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Financials */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title='Financials' />
@@ -278,6 +445,70 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
               <Row label='Paid Date' value={fmt(invoice.paid_date)} accent={invoice.paid_date ? 'text-green-400' : undefined} />
             </div>
           </div>
+          {/* Factoring */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <div className='flex items-center justify-between mb-3'>
+              <Sec title='Factoring' />
+              {!editFactoring && (
+                <button onClick={() => setEditFactoring(true)} className='text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'>
+                  {invoice.factored ? 'Edit' : 'Mark factored'}
+                </button>
+              )}
+            </div>
+            {invoice.factored && !editFactoring ? (
+              <div className='grid grid-cols-2 gap-3'>
+                <Row label='Factoring Company' value={invoice.factoring_company ?? '—'} />
+                <Row label='Advance Rate' value={invoice.advance_rate != null ? `${Math.round(invoice.advance_rate * 100)}%` : '—'} />
+                <Row label='Amount Advanced' value={fmtMoney(invoice.factored_amount)} accent='text-green-400' />
+                <Row label='Factored Date' value={fmt(invoice.factored_date)} />
+                <div className='col-span-2'>
+                  <button onClick={() => saveFactoring(false)} className='text-2xs text-red-500 hover:text-red-400 transition-colors'>Remove factoring</button>
+                </div>
+              </div>
+            ) : editFactoring ? (
+              <div className='space-y-2'>
+                <input
+                  value={factForm.factoring_company}
+                  onChange={e => setFactForm(f => ({...f, factoring_company: e.target.value}))}
+                  placeholder='Factoring company name'
+                  className='w-full h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50 placeholder-gray-600'
+                />
+                <div className='grid grid-cols-2 gap-2'>
+                  <div>
+                    <label className='text-2xs text-gray-600 block mb-0.5'>Advance Rate (%)</label>
+                    <input
+                      type='number' min='0' max='100'
+                      value={factForm.advance_rate}
+                      onChange={e => setFactForm(f => ({...f, advance_rate: e.target.value}))}
+                      placeholder='e.g. 97'
+                      className='w-full h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50 placeholder-gray-600'
+                    />
+                  </div>
+                  <div>
+                    <label className='text-2xs text-gray-600 block mb-0.5'>Factored Date</label>
+                    <input
+                      type='date'
+                      value={factForm.factored_date}
+                      onChange={e => setFactForm(f => ({...f, factored_date: e.target.value}))}
+                      className='w-full h-7 px-2 bg-surface-600 border border-surface-400 rounded text-xs text-gray-300 focus:outline-none focus:border-orange-600/50'
+                    />
+                  </div>
+                </div>
+                {factForm.advance_rate && invoice.dispatch_fee != null && (
+                  <p className='text-2xs text-gray-500'>
+                    Amount advanced: {fmtMoney(invoice.dispatch_fee * (parseFloat(factForm.advance_rate) / 100))}
+                  </p>
+                )}
+                <div className='flex gap-2 pt-1'>
+                  <button onClick={() => saveFactoring(true)} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'>Save</button>
+                  <button onClick={() => setEditFactoring(false)} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <p className='text-2xs text-gray-700 italic'>Not factored. Use factoring to get paid early by selling this receivable to a factoring company.</p>
+            )}
+          </div>
+
           {/* Notes */}
           <div className='px-5 py-4'>
             <div className='flex items-center justify-between mb-3'>

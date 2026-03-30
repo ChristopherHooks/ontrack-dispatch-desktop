@@ -9,7 +9,9 @@ import {
   listDriverDocuments, getDriverDocument, createDriverDocument, updateDriverDocument, deleteDriverDocument,
   listLoads, getLoad, createLoad, updateLoad, deleteLoad,
   listBrokers, getBroker, createBroker, updateBroker, deleteBroker,
-  listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice,
+  listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice, autoFlagOverdueInvoices, bulkUpdateInvoices,
+  listLoadAttachments, createLoadAttachment, deleteLoadAttachment,
+  listLoadDeductions, createLoadDeduction, deleteLoadDeduction,
   listTasks, getTask, createTask, updateTask, deleteTask,
   markTaskComplete, markTaskIncomplete, getTaskCompletions, getCompletionsForDate,
   listNotes, createNote, updateNote, deleteNote,
@@ -22,6 +24,8 @@ import {
   listFbConversations, getFbConversation, createFbConversation, updateFbConversation, deleteFbConversation, fbConversationExists,
   listFbPosts, createFbPost, updateFbPost, deleteFbPost, fbPostExists,
   listFbQueuePosts, createFbQueuePost, updateFbQueuePost, deleteFbQueuePost, suggestNextCategory, getRecentFbPostCategories,
+  listBrokerCallLog, createBrokerCallLog, deleteBrokerCallLog,
+  listCarrierBrokerApprovals, upsertCarrierBrokerApproval, deleteCarrierBrokerApproval,
 } from './repositories'
 import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
@@ -30,7 +34,7 @@ import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus, backfillLeadData } from './fmcsaImport'
 import { getAuthorityDateByMc } from './fmcsaApi'
 import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
-import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData, reseedDocuments } from './seed'
+import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData, reseedDocuments, reseedTasks } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
 import { getDashboardStats } from './dashboard'
@@ -43,6 +47,7 @@ import {
 import { getBrokerIntelAll, getLaneIntelAll, getDriverLaneFits } from './brokerIntelligence'
 import { parseAndScore, importAndScoreXlsx } from './loadBoardParser'
 import { getLastBrowserImport } from './webServer'
+import { getReportsData } from './reports'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -56,6 +61,9 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
   // -- Operations Control Panel --
   ipcMain.handle('operations:data', () => getOperationsData(getDb()))
+
+  // -- Reports --
+  ipcMain.handle('reports:data', () => getReportsData(getDb()))
 
   // -- Profit Radar --
   ipcMain.handle('profitRadar:data',    ()  => getProfitRadarData(getDb()))
@@ -157,6 +165,38 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   })
   ipcMain.handle('leads:importStatus',   () => readImportStatus(getDb()))
   ipcMain.handle('leads:backfillLeadData', () => backfillLeadData(getDb()))
+
+  // -- AI Follow-Up Generator for warm leads --
+  ipcMain.handle('leads:generateFollowUp', async (_e, payload: {
+    name:               string
+    company:            string | null
+    status:             string
+    trailerType:        string | null
+    lastContactDate:    string | null
+    contactAttempts:    number
+    outreachOutcome:    string | null
+  }) => {
+    const apiKey = store.get('claude_api_key') as string | undefined
+    if (!apiKey?.trim()) return null
+    const context = [
+      `Lead: ${payload.name}${payload.company ? ' (' + payload.company + ')' : ''}`,
+      `Status: ${payload.status}`,
+      payload.trailerType   ? `Equipment: ${payload.trailerType}` : null,
+      payload.lastContactDate ? `Last contact: ${payload.lastContactDate}` : 'Never contacted',
+      payload.contactAttempts > 0 ? `Attempts: ${payload.contactAttempts}` : null,
+      payload.outreachOutcome ? `Last outcome: ${payload.outreachOutcome}` : null,
+    ].filter(Boolean).join('. ')
+    const result = await claudeComplete(
+      apiKey,
+      context,
+      'You are a freight dispatcher writing a short, natural follow-up message to a truck driver lead. ' +
+      'Write 2-3 sentences max. Sound like a real person, not a form letter. Mention dispatch services briefly. ' +
+      'No emojis. No bullet points. No subject line. Just the message body ready to send via SMS or email.',
+      120,
+    )
+    return result.ok ? result.content.trim() : null
+  })
+
   ipcMain.handle('leads:importCsv', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title:       'Import Leads from CSV',
@@ -227,12 +267,24 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('brokers:update', (_e, id: number, dto: unknown) => updateBroker(getDb(), id, dto as any))
   ipcMain.handle('brokers:delete', (_e, id: number) => deleteBroker(getDb(), id))
 
+  // -- Broker Call Log --
+  ipcMain.handle('brokerCallLog:list',   (_e, brokerId: number) => listBrokerCallLog(getDb(), brokerId))
+  ipcMain.handle('brokerCallLog:create', (_e, dto: unknown) => createBrokerCallLog(getDb(), dto as any))
+  ipcMain.handle('brokerCallLog:delete', (_e, id: number) => deleteBrokerCallLog(getDb(), id))
+
+  ipcMain.handle('carrierApprovals:list',   (_e, driverId: number) => listCarrierBrokerApprovals(getDb(), driverId))
+  ipcMain.handle('carrierApprovals:upsert', (_e, dto: unknown) => upsertCarrierBrokerApproval(getDb(), dto as any))
+  ipcMain.handle('carrierApprovals:delete', (_e, id: number) => deleteCarrierBrokerApproval(getDb(), id))
+
   // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))
   ipcMain.handle('invoices:get',    (_e, id: number) => getInvoice(getDb(), id))
   ipcMain.handle('invoices:create', (_e, dto: unknown) => createInvoice(getDb(), dto as any))
   ipcMain.handle('invoices:update', (_e, id: number, dto: unknown) => updateInvoice(getDb(), id, dto as any))
-  ipcMain.handle('invoices:delete', (_e, id: number) => deleteInvoice(getDb(), id))
+  ipcMain.handle('invoices:delete',   (_e, id: number) => deleteInvoice(getDb(), id))
+  ipcMain.handle('invoices:autoFlag',  () => autoFlagOverdueInvoices(getDb()))
+  ipcMain.handle('invoices:bulkUpdate', (_e, ids: number[], status: string, extra?: Record<string, string | null>) =>
+    bulkUpdateInvoices(getDb(), ids, status, extra ?? {}))
 
   // -- Tasks --
   ipcMain.handle('tasks:list',            (_e, cat?: string, due?: string) => listTasks(getDb(), cat, due))
@@ -476,6 +528,41 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   })
 
   // Opens a driver document attachment by absolute path
+  // -- Load Attachments --
+  ipcMain.handle('loadAttachments:list',   (_e, loadId: number) => listLoadAttachments(getDb(), loadId))
+  ipcMain.handle('loadAttachments:create', (_e, dto: unknown) => createLoadAttachment(getDb(), dto as any))
+  ipcMain.handle('loadAttachments:delete', (_e, id: number) => deleteLoadAttachment(getDb(), id))
+  ipcMain.handle('loadAttachments:open',   (_e, absolutePath: string) => {
+    if (typeof absolutePath !== 'string' || !existsSync(absolutePath)) return
+    shell.openPath(absolutePath)
+  })
+  ipcMain.handle('loadAttachments:pick', async (_e, loadId: number) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Attach File to Load',
+      buttonLabel: 'Attach',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documents', extensions: ['pdf','doc','docx','jpg','jpeg','png','tif','tiff','xls','xlsx','csv'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const src = result.filePaths[0]
+    const destDir = join(app.getPath('userData'), 'load-attachments', String(loadId))
+    mkdirSync(destDir, { recursive: true })
+    const ts = Date.now()
+    const origName = basename(src)
+    const safeName = `${ts}_${origName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const dest = join(destDir, safeName)
+    copyFileSync(src, dest)
+    return { storedPath: dest, displayName: origName }
+  })
+
+  // -- Load Deductions --
+  ipcMain.handle('loadDeductions:list',   (_e, loadId: number) => listLoadDeductions(getDb(), loadId))
+  ipcMain.handle('loadDeductions:create', (_e, dto: unknown) => createLoadDeduction(getDb(), dto as any))
+  ipcMain.handle('loadDeductions:delete', (_e, id: number) => deleteLoadDeduction(getDb(), id))
+
   ipcMain.handle('driverDocs:openAttachment', (_e, absolutePath: string) => {
     if (typeof absolutePath !== 'string') return
     if (!existsSync(absolutePath)) return
@@ -517,6 +604,7 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('dev:seedTasksOnly', () => { seedTasksAndDocsOnly(getDb()); return { ok: true } })
   ipcMain.handle('dev:clearSeedData', () => { clearNonTaskSeedData(getDb()); return { ok: true } })
   ipcMain.handle('dev:reseedDocs',    () => { reseedDocuments(getDb());      return { ok: true } })
+  ipcMain.handle('dev:reseedTasks',   () => { reseedTasks(getDb());          return { ok: true } })
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
