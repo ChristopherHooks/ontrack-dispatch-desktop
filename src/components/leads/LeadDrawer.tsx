@@ -9,6 +9,7 @@ import { LeadScoreBadge } from './LeadScoreBadge'
 import { computeLeadScore } from '../../lib/leadScore'
 import { STATUS_STYLES, STATUS_DOTS, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES, CONTACT_METHODS } from './constants'
 import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
+import { LeadNurturePanel } from './LeadNurturePanel'
 
 interface Props {
   lead:           Lead
@@ -902,6 +903,12 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                 placeholder='Quick outreach context…'
                 onSave={v => saveField('follow_up_notes', v || null)} />
             </div>
+          </div>
+
+          {/* Nurture Sequence */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>Nurture Sequence</p>
+            <LeadNurturePanel lead={lead} onUpdate={onUpdate} />
           </div>
 
           {/* Notes */}

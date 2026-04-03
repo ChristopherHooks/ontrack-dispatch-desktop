@@ -43,7 +43,7 @@ const EMPTY: OperationsData = {
   driversNeedingLoads: 0, loadsInTransit: 0,
   overdueLeads: 0, todaysGroupCount: 0, outstandingInvoices: 0,
   revenueThisMonth: 0, uninvoicedDelivered: 0, staleLoads: [], expiringDocs: [],
-  warmLeads: [], availableDrivers: [], todayTasks: [], completedToday: [],
+  warmLeads: [], availableDrivers: [], hotProspects: [], todayTasks: [], completedToday: [],
   totalDrivers: 0, totalBrokers: 0, totalLeads: 0, hasSentOrPaidInvoice: false,
   weeklyScorecard: { loadsCompleted: 0, grossRevenue: 0, dispatchRevenue: 0, avgRpm: null, bestLane: null, bestBroker: null, invoicesSent: 0 },
 }
@@ -745,6 +745,37 @@ export function Operations() {
               </ul>
             )}
           </div>
+
+          {/* Hot Driver Prospects */}
+          {ops.hotProspects.length > 0 && (
+            <div className='mb-4'>
+              <div className='flex items-center justify-between mb-2'>
+                <p className='text-2xs font-medium text-gray-500 uppercase tracking-wider'>Driver Prospects</p>
+                <button onClick={() => navigate('/driver-acquisition')} className='text-2xs text-orange-500 hover:text-orange-400 transition-colors'>Pipeline</button>
+              </div>
+              <ul className='space-y-1'>
+                {ops.hotProspects.slice(0, 4).map(p => {
+                  const overdue = p.follow_up_date && p.follow_up_date < todayIso
+                  return (
+                    <li
+                      key={p.id}
+                      className='flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-600 transition-colors cursor-pointer'
+                      onClick={() => navigate('/driver-acquisition')}
+                    >
+                      <span className={['text-2xs px-1 py-0.5 rounded shrink-0',
+                        p.priority === 'High'   ? 'bg-red-900/30 text-red-400' :
+                        p.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' :
+                                                   'bg-surface-600 text-gray-500',
+                      ].join(' ')}>{p.priority}</span>
+                      <span className='text-xs text-gray-300 flex-1 truncate'>{p.name}</span>
+                      <span className='text-2xs text-gray-600 shrink-0'>{p.stage}</span>
+                      {overdue && <span className='text-2xs text-red-400 shrink-0'>overdue</span>}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
 
           <div>
             <div className='flex items-center justify-between mb-2'>

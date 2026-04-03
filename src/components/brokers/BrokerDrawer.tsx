@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight, Pencil, Check, MessageSquare, BarChart2 } from 'lucide-react'
+import { X, Edit2, Trash2, Plus, Phone, Mail, ArrowRight, Pencil, Check, MessageSquare, BarChart2, MapPin } from 'lucide-react'
 import type { Broker, BrokerFlag, BrokerRating, Load, Note, Invoice } from '../../types/models'
 import { FLAG_STYLES, BROKER_FLAGS } from './constants'
 import { LOAD_STATUS_STYLES } from '../loads/constants'
@@ -51,6 +51,12 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
   // Local state for inline-editable authority fields so React re-renders on change
   const [localNewAuth,   setLocalNewAuth]  = useState(broker.new_authority)
   const [localMinDays,   setLocalMinDays]  = useState(broker.min_authority_days)
+  // Preferred lanes
+  const [localLanes,     setLocalLanes]    = useState<string[]>(() =>
+    broker.preferred_lanes ? broker.preferred_lanes.split(',').map(s => s.trim()).filter(Boolean) : []
+  )
+  const [laneInput,      setLaneInput]     = useState('')
+  const [addingLane,     setAddingLane]    = useState(false)
   type CallLogEntry = { id: number; broker_id: number; note: string; created_at: string }
   const [callLog,        setCallLog]       = useState<CallLogEntry[]>([])
   const [callNote,       setCallNote]      = useState('')
@@ -105,6 +111,22 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
   const delCallLog = async (id: number) => {
     await window.api.brokerCallLog.delete(id)
     setCallLog(p => p.filter(e => e.id !== id))
+  }
+
+  const saveLanes = async (lanes: string[]) => {
+    const value = lanes.join(', ') || null
+    await window.api.brokers.update(broker.id, { preferred_lanes: value })
+    setLocalLanes(lanes)
+  }
+  const addLane = async () => {
+    const trimmed = laneInput.trim().toUpperCase()
+    if (!trimmed || localLanes.includes(trimmed)) { setLaneInput(''); setAddingLane(false); return }
+    const next = [...localLanes, trimmed]
+    await saveLanes(next)
+    setLaneInput(''); setAddingLane(false)
+  }
+  const removeLane = async (lane: string) => {
+    await saveLanes(localLanes.filter(l => l !== lane))
   }
 
   const completedLoads = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status))
@@ -335,6 +357,51 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               <div><p className='text-2xs text-gray-600'>Total Revenue</p><p className='text-sm text-green-400 mt-0.5 font-semibold font-mono'>{totalRevenue > 0 ? `$${totalRevenue.toLocaleString()}` : '---'}</p></div>
               <div><p className='text-2xs text-gray-600'>Avg RPM</p><p className='text-sm text-gray-200 mt-0.5 font-mono font-semibold'>{avgRpm > 0 ? `$${avgRpm.toFixed(2)}/mi` : '---'}</p></div>
             </div>
+          </div>
+          {/* Preferred Lanes */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <div className='flex items-center justify-between mb-3'>
+              <div className='flex items-center gap-2'>
+                <MapPin size={11} className='text-gray-600' />
+                <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Preferred Lanes</p>
+              </div>
+              {!addingLane && (
+                <button onClick={() => setAddingLane(true)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
+                  <Plus size={10} />Add Lane
+                </button>
+              )}
+            </div>
+            {localLanes.length === 0 && !addingLane && (
+              <p className='text-2xs text-gray-700 italic'>No preferred lanes recorded. Add lanes this broker regularly covers (e.g. TX-FL).</p>
+            )}
+            {localLanes.length > 0 && (
+              <div className='flex flex-wrap gap-1.5 mb-2'>
+                {localLanes.map(lane => (
+                  <span key={lane} className='group/lane flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full border bg-orange-900/20 border-orange-700/30 text-orange-300'>
+                    {lane}
+                    <button onClick={() => removeLane(lane)} className='opacity-0 group-hover/lane:opacity-100 text-orange-500 hover:text-red-400 transition-all ml-0.5'>
+                      <X size={9} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {addingLane && (
+              <div className='flex items-center gap-2 mt-1'>
+                <input
+                  autoFocus
+                  value={laneInput}
+                  onChange={e => setLaneInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addLane(); if (e.key === 'Escape') { setAddingLane(false); setLaneInput('') } }}
+                  placeholder='e.g. TX-FL or Chicago-Atlanta'
+                  className='flex-1 h-7 px-2 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60'
+                />
+                <button onClick={addLane} className='flex items-center gap-1 px-2 h-7 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'>
+                  <Check size={10} />Add
+                </button>
+                <button onClick={() => { setAddingLane(false); setLaneInput('') }} className='text-2xs text-gray-600 hover:text-gray-300 transition-colors'>Cancel</button>
+              </div>
+            )}
           </div>
           {/* Load History */}
           <div className='px-5 py-4 border-b border-surface-600'>

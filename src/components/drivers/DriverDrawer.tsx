@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer, TrendingUp } from 'lucide-react'
 import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -48,7 +48,8 @@ function Sec({ title }: { title:string }) {
 export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete, onUpdate }: Props) {
   const [docs,setDocs]         = useState<DriverDocument[]>([])
   const [notes,setNotes]       = useState<Note[]>([])
-  const [load,setLoad]         = useState<Load|null>(null)
+  const [load,setLoad]           = useState<Load|null>(null)
+  const [allDriverLoads,setAllDriverLoads] = useState<Load[]>([])
   const [payHistory,setPayHistory] = useState<Invoice[]>([])
   const [noteText,setNoteText] = useState('')
   const [addNote,setAddNote]   = useState(false)
@@ -93,15 +94,17 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
         window.api.driverDocs.list(driver.id),
         window.api.notes.list('driver', driver.id),
         window.api.loads.list(),
-        window.api.settings.get(`carrierChecklist_${driver.id}`),
+        window.api.driverOnboarding.get(driver.id),
         window.api.invoices.list(),
         window.api.carrierApprovals.list(driver.id),
         window.api.brokers.list(),
-      ]).then(([d,n,loads,rawChecks,invs,apprvs,brkrs]) => {
+      ]).then(([d,n,loads,checks,invs,apprvs,brkrs]) => {
         setDocs(d); setNotes(n)
-        const active = (loads as Load[]).filter(l=>l.driver_id===driver.id&&['Booked','Picked Up','In Transit'].includes(l.status))
+        const driverLoads = (loads as Load[]).filter(l=>l.driver_id===driver.id)
+        const active = driverLoads.filter(l=>['Booked','Picked Up','In Transit'].includes(l.status))
         setLoad(active[0]??null)
-        try { if (rawChecks) setSetupChecks(JSON.parse(rawChecks as string)) } catch { /* ignore */ }
+        setAllDriverLoads(driverLoads)
+        setSetupChecks(checks as Record<string, boolean>)
         const history = (invs as Invoice[]).filter(i=>i.driver_id===driver.id&&i.status==='Paid')
           .sort((a,b)=>(b.paid_date??'').localeCompare(a.paid_date??'')).slice(0,20)
         setPayHistory(history)
@@ -114,12 +117,12 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
           window.api.driverDocs.list(driver.id),
           window.api.notes.list('driver', driver.id),
           window.api.loads.list(),
-          window.api.settings.get(`carrierChecklist_${driver.id}`),
-        ]).then(([d,n,loads,rawChecks]) => {
+          window.api.driverOnboarding.get(driver.id),
+        ]).then(([d,n,loads,checks]) => {
           setDocs(d); setNotes(n)
           const active = (loads as Load[]).filter(l=>l.driver_id===driver.id&&['Booked','Picked Up','In Transit'].includes(l.status))
           setLoad(active[0]??null)
-          try { if (rawChecks) setSetupChecks(JSON.parse(rawChecks as string)) } catch { /* ignore */ }
+          setSetupChecks(checks as Record<string, boolean>)
         }).catch(() => { /* non-critical */ })
       })
     } catch (err) {
@@ -129,9 +132,10 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   }, [driver.id])
 
   const toggleSetupCheck = async (id: string) => {
-    const next = { ...setupChecks, [id]: !setupChecks[id] }
-    setSetupChecks(next)
-    await window.api.settings.set(`carrierChecklist_${driver.id}`, JSON.stringify(next))
+    const newVal = !setupChecks[id]
+    setSetupChecks(prev => ({ ...prev, [id]: newVal }))
+    const updated = await window.api.driverOnboarding.set(driver.id, id, newVal)
+    setSetupChecks(updated)
   }
 
   const saveApproval = async () => {
@@ -610,6 +614,53 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               ))
             }
           </div>
+          {/* Performance Scorecard */}
+          {(() => {
+            const completed = allDriverLoads.filter(l => ['Delivered','Invoiced','Paid'].includes(l.status))
+            const rpmLoads  = completed.filter(l => (l.miles ?? 0) > 0 && (l.rate ?? 0) > 0)
+            const avgRpm    = rpmLoads.length > 0
+              ? rpmLoads.reduce((s, l) => s + l.rate! / l.miles!, 0) / rpmLoads.length
+              : null
+            const totalFees = payHistory.reduce((s, i) => s + (i.dispatch_fee ?? 0), 0)
+            const now = new Date()
+            const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+            const loadsThisMonth = completed.filter(l => (l.delivery_date ?? l.pickup_date ?? '') >= monthStart).length
+            if (completed.length === 0 && payHistory.length === 0) return null
+            return (
+              <div className='px-5 py-4 border-b border-surface-600'>
+                <div className='flex items-center gap-2 mb-3'>
+                  <TrendingUp size={12} className='text-orange-400' />
+                  <Sec title='Performance'/>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div>
+                    <p className='text-2xs text-gray-600'>Total Loads</p>
+                    <p className='text-sm text-gray-200 font-semibold mt-0.5'>{completed.length}</p>
+                  </div>
+                  <div>
+                    <p className='text-2xs text-gray-600'>This Month</p>
+                    <p className='text-sm text-gray-200 font-semibold mt-0.5'>{loadsThisMonth}</p>
+                  </div>
+                  {avgRpm != null && (
+                    <div>
+                      <p className='text-2xs text-gray-600'>Avg RPM</p>
+                      <p className={`text-sm font-semibold font-mono mt-0.5 ${avgRpm >= 2 ? 'text-green-400' : avgRpm >= 1.5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        ${avgRpm.toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                  {totalFees > 0 && (
+                    <div>
+                      <p className='text-2xs text-gray-600'>Total Earned (fees)</p>
+                      <p className='text-sm text-green-400 font-semibold font-mono mt-0.5'>
+                        ${totalFees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
           {/* Pay History */}
           {payHistory.length > 0 && (
             <div className='px-5 py-4 border-b border-surface-600'>

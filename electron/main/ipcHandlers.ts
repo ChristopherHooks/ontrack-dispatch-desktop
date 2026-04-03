@@ -26,6 +26,10 @@ import {
   listFbQueuePosts, createFbQueuePost, updateFbQueuePost, deleteFbQueuePost, suggestNextCategory, getRecentFbPostCategories,
   listBrokerCallLog, createBrokerCallLog, deleteBrokerCallLog,
   listCarrierBrokerApprovals, upsertCarrierBrokerApproval, deleteCarrierBrokerApproval,
+  listDriverProspects, getDriverProspect, createDriverProspect, updateDriverProspect, deleteDriverProspect,
+  listProspectOutreach, createProspectOutreach, deleteProspectOutreach,
+  getDriverOnboardingChecklist, setDriverOnboardingItem,
+  listLoadAccessorials, createLoadAccessorial, updateLoadAccessorial, deleteLoadAccessorial,
 } from './repositories'
 import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
@@ -275,6 +279,28 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('carrierApprovals:list',   (_e, driverId: number) => listCarrierBrokerApprovals(getDb(), driverId))
   ipcMain.handle('carrierApprovals:upsert', (_e, dto: unknown) => upsertCarrierBrokerApproval(getDb(), dto as any))
   ipcMain.handle('carrierApprovals:delete', (_e, id: number) => deleteCarrierBrokerApproval(getDb(), id))
+
+  // -- Driver Prospects (Acquisition Pipeline) --
+  ipcMain.handle('driverProspects:list',   (_e, stage?: string)              => listDriverProspects(getDb(), stage))
+  ipcMain.handle('driverProspects:get',    (_e, id: number)                  => getDriverProspect(getDb(), id))
+  ipcMain.handle('driverProspects:create', (_e, dto: unknown)                => createDriverProspect(getDb(), dto as any))
+  ipcMain.handle('driverProspects:update', (_e, id: number, dto: unknown)    => updateDriverProspect(getDb(), id, dto as any))
+  ipcMain.handle('driverProspects:delete', (_e, id: number)                  => deleteDriverProspect(getDb(), id))
+
+  // -- Prospect Outreach Log --
+  ipcMain.handle('prospectOutreach:list',   (_e, prospect_id: number)    => listProspectOutreach(getDb(), prospect_id))
+  ipcMain.handle('prospectOutreach:create', (_e, dto: unknown)           => createProspectOutreach(getDb(), dto as any))
+  ipcMain.handle('prospectOutreach:delete', (_e, id: number)             => deleteProspectOutreach(getDb(), id))
+
+  // -- Driver Onboarding Checklist --
+  ipcMain.handle('driverOnboarding:get', (_e, driver_id: number)                           => getDriverOnboardingChecklist(getDb(), driver_id))
+  ipcMain.handle('driverOnboarding:set', (_e, driver_id: number, key: string, val: boolean) => setDriverOnboardingItem(getDb(), driver_id, key, val))
+
+  // -- Load Accessorials --
+  ipcMain.handle('loadAccessorials:list',   (_e, load_id: number)          => listLoadAccessorials(getDb(), load_id))
+  ipcMain.handle('loadAccessorials:create', (_e, dto: unknown)             => createLoadAccessorial(getDb(), dto as any))
+  ipcMain.handle('loadAccessorials:update', (_e, id: number, dto: unknown) => updateLoadAccessorial(getDb(), id, dto as any))
+  ipcMain.handle('loadAccessorials:delete', (_e, id: number)               => deleteLoadAccessorial(getDb(), id))
 
   // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))

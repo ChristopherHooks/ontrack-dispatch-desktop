@@ -11,6 +11,7 @@ export type JobName =
   | 'fb-search-1600'
   | 'fb-groups-update'
   | 'doc-expiry-check'
+  | 'prospect-followup-check'
 
 interface JobConfig {
   name:        JobName
@@ -173,6 +174,46 @@ async function runDocExpiryCheck(): Promise<void> {
   console.log('[Scheduler] doc-expiry-check: found', rows.length, 'expiring documents')
 }
 
+/**
+ * 8 AM daily — check for driver prospects with a follow-up date of today.
+ * Fires a single summary notification so you know who to contact.
+ */
+async function runProspectFollowupCheck(): Promise<void> {
+  if (!_getDb) {
+    console.warn('[Scheduler] prospect-followup-check: not yet initialised — skipping')
+    return
+  }
+  if (!Notification.isSupported()) return
+  const db = _getDb()
+
+  interface ProspectRow { name: string; stage: string; phone: string | null }
+
+  const rows = db.prepare(
+    "SELECT name, stage, phone FROM driver_prospects" +
+    " WHERE follow_up_date = date('now') AND stage NOT IN ('Handed Off')" +
+    " ORDER BY name ASC"
+  ).all() as ProspectRow[]
+
+  if (rows.length === 0) return
+
+  if (rows.length === 1) {
+    const r = rows[0]
+    new Notification({
+      title: 'Prospect Follow-Up Today',
+      body:  `${r.name} (${r.stage})${r.phone ? ' — ' + r.phone : ''}`,
+    }).show()
+  } else {
+    const preview = rows.slice(0, 3).map(r => r.name).join(', ')
+      + (rows.length > 3 ? ` +${rows.length - 3} more` : '')
+    new Notification({
+      title: `${rows.length} Prospect Follow-Ups Today`,
+      body:  preview,
+    }).show()
+  }
+
+  console.log('[Scheduler] prospect-followup-check: found', rows.length, 'prospects due today')
+}
+
 // ---------------------------------------------------------------------------
 // Lead follow-up reminder checker (runs every tick, not via JOBS array)
 // ---------------------------------------------------------------------------
@@ -245,6 +286,9 @@ const JOBS: JobConfig[] = [
 
   // 8 AM daily — check for driver documents expiring within 30 days
   { name: 'doc-expiry-check', hour: 8, minute: 0, handler: runDocExpiryCheck },
+
+  // 8 AM daily — check for driver prospects with a follow-up due today
+  { name: 'prospect-followup-check', hour: 8, minute: 5, handler: runProspectFollowupCheck },
 ]
 
 // ---------------------------------------------------------------------------

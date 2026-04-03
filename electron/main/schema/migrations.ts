@@ -996,7 +996,119 @@ const migration034: Migration = {
 // Public API
 // ---------------------------------------------------------------------------
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034]
+// ---------------------------------------------------------------------------
+// Migration 035 -- driver_prospects table for Driver Acquisition Pipeline
+//
+// Tracks CDL drivers from first contact through signing, separate from the
+// carrier Leads CRM. Stages: Spotted → Messaged → Replied → Interested →
+// Docs Requested → Agreement Sent → Signed → Handed Off.
+// ---------------------------------------------------------------------------
+
+const migration035: Migration = {
+  version: 35,
+  description: 'Create driver_prospects table for Driver Acquisition Pipeline',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS driver_prospects (' +
+      '  id                    INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  name                  TEXT NOT NULL,' +
+      '  phone                 TEXT,' +
+      '  email                 TEXT,' +
+      '  city                  TEXT,' +
+      '  state                 TEXT,' +
+      '  cdl_class             TEXT,' +
+      '  equipment_interest    TEXT,' +
+      '  years_experience      INTEGER,' +
+      '  source                TEXT,' +
+      '  stage                 TEXT NOT NULL DEFAULT \'Spotted\',' +
+      '  priority              TEXT NOT NULL DEFAULT \'Medium\',' +
+      '  follow_up_date        TEXT,' +
+      '  notes                 TEXT,' +
+      '  last_contact_date     TEXT,' +
+      '  contact_attempt_count INTEGER NOT NULL DEFAULT 0,' +
+      '  contact_method        TEXT,' +
+      '  converted_driver_id   INTEGER REFERENCES drivers(id) ON DELETE SET NULL,' +
+      '  created_at            TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  updated_at            TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ');' +
+      'CREATE INDEX IF NOT EXISTS idx_dp_stage      ON driver_prospects(stage);' +
+      'CREATE INDEX IF NOT EXISTS idx_dp_follow_up  ON driver_prospects(follow_up_date);'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (35)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 036 — Prospect outreach log
+// Timestamped contact log for each driver prospect.
+// ---------------------------------------------------------------------------
+
+const migration036: Migration = {
+  version: 36,
+  description: 'Create prospect_outreach_log table',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS prospect_outreach_log (' +
+      '  id          INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  prospect_id INTEGER NOT NULL REFERENCES driver_prospects(id) ON DELETE CASCADE,' +
+      '  method      TEXT    NOT NULL,' +
+      '  outcome     TEXT,' +
+      '  notes       TEXT,' +
+      '  created_at  TEXT    NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE INDEX IF NOT EXISTS idx_outreach_prospect ON prospect_outreach_log(prospect_id)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (36)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 037 — Driver onboarding checklist in SQLite
+// Moves per-driver setup checklist off electron-store JSON blobs into a
+// proper table so progress is queryable, auditable, and survives app resets.
+// ---------------------------------------------------------------------------
+
+const migration037: Migration = {
+  version: 37,
+  description: 'Create driver_onboarding_checklist table',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS driver_onboarding_checklist (' +
+      '  driver_id    INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,' +
+      '  check_key    TEXT    NOT NULL,' +
+      '  completed    INTEGER NOT NULL DEFAULT 0,' +
+      '  completed_at TEXT,' +
+      '  PRIMARY KEY (driver_id, check_key)' +
+      ')'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (37)")
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Migration 038 — Load accessorials (detention, lumper, FSC extras, layover, TONU)
+// ---------------------------------------------------------------------------
+
+const migration038: Migration = {
+  version: 38,
+  description: 'Create load_accessorials table',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS load_accessorials (' +
+      '  id         INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id    INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  type       TEXT    NOT NULL,' +   // Detention | Lumper | FSC | Layover | TONU | Other
+      '  amount     REAL    NOT NULL DEFAULT 0,' +
+      '  notes      TEXT,' +
+      '  created_at TEXT    NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE INDEX IF NOT EXISTS idx_accessorials_load ON load_accessorials(load_id)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (38)")
+  },
+}
+
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

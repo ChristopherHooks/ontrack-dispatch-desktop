@@ -31,12 +31,8 @@ export function DriverOnboardingPipeline({ drivers, onSelectDriver }: Props) {
     if (activeDrivers.length === 0) { setLoading(false); return }
     Promise.all(
       activeDrivers.map(d =>
-        window.api.settings.get(`carrierChecklist_${d.id}`)
-          .then(raw => {
-            let checks: Record<string, boolean> = {}
-            try { if (raw) checks = JSON.parse(raw as string) } catch {}
-            return { id: d.id, checks }
-          })
+        window.api.driverOnboarding.get(d.id)
+          .then(checks => ({ id: d.id, checks }))
       )
     ).then(results => {
       const map = new Map<number, Record<string, boolean>>()

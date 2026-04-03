@@ -4,7 +4,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import {
   Users, Truck, Package, Building2,
   FileText, Megaphone, CheckSquare, FolderOpen,
-  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, ArrowRightLeft, Activity, Radar, TrendingUp, Calculator
+  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, ArrowRightLeft, Activity, Radar, TrendingUp, Calculator, UserPlus, CalendarDays, FileSpreadsheet
 } from 'lucide-react'
 import { RateCalculator } from '../ui/RateCalculator'
 
@@ -19,8 +19,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/loadmatch',   label: 'Load Match',   icon: <ArrowRightLeft size={18} /> },
   { to: '/findloads',   label: 'Find Loads',   icon: <Radar size={18} /> },
   { to: '/activeloads', label: 'Active Loads', icon: <Activity size={18} /> },
-  { to: '/dispatcher',  label: 'Dispatcher',   icon: <Kanban size={18} /> },
-  { to: '/leads',      label: 'Leads',      icon: <Users size={18} /> },
+  { to: '/dispatcher',        label: 'Dispatcher',   icon: <Kanban size={18} /> },
+  { to: '/dispatch-calendar', label: 'Calendar',     icon: <CalendarDays size={18} /> },
+  { to: '/leads',              label: 'Leads',       icon: <Users size={18} /> },
+  { to: '/driver-acquisition', label: 'Recruiting',  icon: <UserPlus size={18} /> },
   { to: '/drivers',    label: 'Drivers',    icon: <Truck size={18} /> },
   { to: '/loads',      label: 'Loads',      icon: <Package size={18} /> },
   { to: '/brokers',    label: 'Brokers',    icon: <Building2 size={18} /> },
@@ -28,8 +30,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/marketing',  label: 'Marketing',  icon: <Megaphone size={18} /> },
   { to: '/tasks',      label: 'Tasks',      icon: <CheckSquare size={18} /> },
   { to: '/documents',  label: 'Documents',  icon: <FolderOpen size={18} /> },
-  { to: '/analytics',  label: 'Analytics',  icon: <BarChart3 size={18} /> },
-  { to: '/reports',    label: 'Reports',    icon: <TrendingUp size={18} /> },
+  { to: '/analytics',   label: 'Analytics',   icon: <BarChart3 size={18} /> },
+  { to: '/reports',     label: 'Reports',     icon: <TrendingUp size={18} /> },
+  { to: '/settlements', label: 'Settlements', icon: <FileSpreadsheet size={18} /> },
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [

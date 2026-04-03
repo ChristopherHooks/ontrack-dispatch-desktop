@@ -51,8 +51,10 @@ import { LoadMatch }       from './pages/LoadMatch'
 import { ActiveLoads }     from './pages/ActiveLoads'
 import { Dashboard }          from './pages/Dashboard'
 import { DocumentPopout }    from './pages/DocumentPopout'
-import { DispatcherBoard } from './pages/DispatcherBoard'
-import { Leads }      from './pages/Leads'
+import { DispatcherBoard }   from './pages/DispatcherBoard'
+import { DispatchCalendar }  from './pages/DispatchCalendar'
+import { Leads }              from './pages/Leads'
+import { DriverAcquisition } from './pages/DriverAcquisition'
 import { Drivers }    from './pages/Drivers'
 import { Loads }      from './pages/Loads'
 import { Brokers }    from './pages/Brokers'
@@ -64,6 +66,7 @@ import { Analytics }  from './pages/Analytics'
 import { Reports }    from './pages/Reports'
 import { Help }       from './pages/Help'
 import { Settings }   from './pages/Settings'
+import { DriverSettlements } from './pages/DriverSettlements'
 
 export function App() {
   const loadFromStore = useSettingsStore((s) => s.loadFromStore)
@@ -87,8 +90,10 @@ export function App() {
           <Route path='findloads'    element={<FindLoads />} />
           <Route path='activeloads'  element={<ActiveLoads />} />
           <Route path='dashboard'    element={<Navigate to='/operations' replace />} />
-          <Route path='dispatcher'   element={<DispatcherBoard />} />
-          <Route path='leads'      element={<Leads />} />
+          <Route path='dispatcher'          element={<DispatcherBoard />} />
+          <Route path='dispatch-calendar'   element={<DispatchCalendar />} />
+          <Route path='leads'              element={<Leads />} />
+          <Route path='driver-acquisition' element={<DriverAcquisition />} />
           <Route path='drivers'    element={<Drivers />} />
           <Route path='loads'      element={<Loads />} />
           <Route path='brokers'    element={<Brokers />} />
@@ -97,8 +102,9 @@ export function App() {
           <Route path='tasks'      element={<Tasks />} />
           <Route path='documents'  element={<Documents />} />
           <Route path='analytics'  element={<Analytics />} />
-          <Route path='reports'    element={<Reports />} />
-          <Route path='help'       element={<Help />} />
+          <Route path='reports'      element={<Reports />} />
+          <Route path='settlements'  element={<DriverSettlements />} />
+          <Route path='help'         element={<Help />} />
           <Route path='settings'   element={<Settings />} />
         </Route>
       </Routes>

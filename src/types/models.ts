@@ -34,7 +34,7 @@ export type TaskStatus   = "Pending" | "Done"
 export type TaskPriority = "High" | "Medium" | "Low"
 export type TaskCategory = "Marketing" | "Dispatch" | "Leads" | "Admin" | "Other"
 
-export type NoteEntityType = "lead" | "lead_call" | "driver" | "load" | "broker" | "invoice"
+export type NoteEntityType = "lead" | "lead_call" | "driver" | "load" | "broker" | "invoice" | "driver_prospect"
 export type AuditAction    = "create" | "update" | "delete"
 
 export interface User {
@@ -155,6 +155,18 @@ export interface Load {
 }
 export type CreateLoadDto = Omit<Load, "id" | "created_at" | "updated_at">
 export type UpdateLoadDto = Partial<CreateLoadDto>
+
+export type AccessorialType = 'Detention' | 'Lumper' | 'FSC' | 'Layover' | 'TONU' | 'Other'
+
+export interface LoadAccessorial {
+  id:         number
+  load_id:    number
+  type:       AccessorialType
+  amount:     number
+  notes:      string | null
+  created_at: string
+}
+export type CreateLoadAccessorialDto = Omit<LoadAccessorial, 'id' | 'created_at'>
 
 export interface Broker {
   id: number
@@ -292,6 +304,56 @@ export interface AnalyticsStats {
   laneProfitability: Array<{ origin_state: string; dest_state: string; loads: number; avgRpm: number; totalRevenue: number }>
   revenueByMonth:    Array<{ month: string; revenue: number; loads: number }>
 }
+
+// -- Driver Acquisition Pipeline --
+export type ProspectStage =
+  | 'Spotted'
+  | 'Messaged'
+  | 'Replied'
+  | 'Interested'
+  | 'Docs Requested'
+  | 'Agreement Sent'
+  | 'Signed'
+  | 'Handed Off'
+
+export type ProspectPriority = 'High' | 'Medium' | 'Low'
+export type ProspectSource   = 'Facebook Group' | 'Facebook Message' | 'Cold Call' | 'Referral' | 'Other'
+
+export interface DriverProspect {
+  id:                    number
+  name:                  string
+  phone:                 string | null
+  email:                 string | null
+  city:                  string | null
+  state:                 string | null
+  cdl_class:             string | null   // 'A' | 'B' | 'C' | 'None'
+  equipment_interest:    string | null   // Dry Van, Flatbed, Reefer, etc.
+  years_experience:      number | null
+  source:                string | null
+  stage:                 ProspectStage
+  priority:              ProspectPriority
+  follow_up_date:        string | null   // YYYY-MM-DD
+  notes:                 string | null
+  last_contact_date:     string | null   // YYYY-MM-DD
+  contact_attempt_count: number
+  contact_method:        string | null   // Call | SMS | Facebook Message | Other
+  converted_driver_id:   number | null   // FK -> drivers.id once Handed Off
+  created_at:            string
+  updated_at:            string
+}
+
+export type CreateDriverProspectDto = Omit<DriverProspect, 'id' | 'created_at' | 'updated_at'>
+export type UpdateDriverProspectDto = Partial<CreateDriverProspectDto>
+
+export interface ProspectOutreachEntry {
+  id:          number
+  prospect_id: number
+  method:      string        // 'Call' | 'SMS' | 'Facebook Message' | 'Other'
+  outcome:     string | null // 'No Answer' | 'Left Voicemail' | 'Spoke' | 'Replied' | 'Other'
+  notes:       string | null
+  created_at:  string
+}
+export type CreateProspectOutreachDto = Omit<ProspectOutreachEntry, 'id' | 'created_at'>
 
 // -- Claude AI Response --
 export interface ClaudeOk    { ok: true;  content: string }
@@ -596,6 +658,7 @@ export interface OperationsData {
   uninvoicedDelivered:   number
   warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
   availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
+  hotProspects:     Array<{ id: number; name: string; stage: ProspectStage; priority: string; phone: string | null; follow_up_date: string | null }>
   todayTasks:    Task[]
   completedToday: number[]
   // 7-Day Sprint tracking

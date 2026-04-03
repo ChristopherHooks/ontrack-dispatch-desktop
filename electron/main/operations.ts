@@ -27,6 +27,7 @@ export interface OperationsData {
   // Revenue Opportunities
   warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
   availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
+  hotProspects:     Array<{ id: number; name: string; stage: string; priority: string; phone: string | null; follow_up_date: string | null }>
 
   // Daily Checklist (mirrors dashboard)
   todayTasks:    Task[]
@@ -161,6 +162,19 @@ export function getOperationsData(db: Database.Database): OperationsData {
     " ORDER BY d.name ASC LIMIT 10"
   ).all() as Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>
 
+  // Hot driver prospects: active stages, high/medium priority or overdue follow-up
+  const hotProspects = db.prepare(
+    "SELECT id, name, stage, priority, phone, follow_up_date FROM driver_prospects" +
+    " WHERE stage NOT IN ('Handed Off')" +
+    " AND (priority IN ('High','Medium')" +
+    "   OR (follow_up_date IS NOT NULL AND follow_up_date <= date('now', '+3 days')))" +
+    " ORDER BY" +
+    "   CASE WHEN follow_up_date <= date('now') THEN 0 ELSE 1 END ASC," +
+    "   CASE priority WHEN 'High' THEN 0 WHEN 'Medium' THEN 1 ELSE 2 END ASC," +
+    "   follow_up_date ASC" +
+    " LIMIT 8"
+  ).all() as Array<{ id: number; name: string; stage: string; priority: string; phone: string | null; follow_up_date: string | null }>
+
   // 7-Day Sprint counts
   const totalDrivers = (db.prepare("SELECT COUNT(*) AS c FROM drivers").get() as { c: number }).c
   const totalBrokers = (db.prepare("SELECT COUNT(*) AS c FROM brokers").get() as { c: number }).c
@@ -253,6 +267,7 @@ export function getOperationsData(db: Database.Database): OperationsData {
     expiringDocs,
     warmLeads,
     availableDrivers,
+    hotProspects,
     todayTasks,
     completedToday,
     totalDrivers,

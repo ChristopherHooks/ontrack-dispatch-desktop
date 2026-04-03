@@ -3,6 +3,7 @@ import { X, ArrowRight, Truck, Calendar, DollarSign, FileText, Tag, Hash, MapPin
 import type { Load, CreateLoadDto, LoadStatus, Driver, Broker, Invoice } from '../../types/models'
 import { LOAD_STATUSES } from './constants'
 import { Term } from '../ui/Term'
+import { LoadAccessorialsPanel } from './LoadAccessorialsPanel'
 
 // ---------------------------------------------------------------------------
 // Rate benchmarks — static reference, general U.S. spot market averages.
@@ -123,6 +124,18 @@ export function LoadModal({ load, prefill, onSave, onClose }: Props) {
   }, [invoices, form.broker_id])
   const brokerOverLimit = selectedBroker?.credit_limit != null && brokerExposure > selectedBroker.credit_limit
 
+  // Authority age warning: fires when broker requires a minimum MC age and driver doesn't meet it
+  const driverAuthorityAge = useMemo(() => {
+    if (!selectedDriver?.authority_date) return null
+    const granted = new Date(selectedDriver.authority_date)
+    const today   = new Date()
+    return Math.floor((today.getTime() - granted.getTime()) / 86_400_000)
+  }, [selectedDriver])
+  const authorityTooNew =
+    selectedBroker?.min_authority_days != null &&
+    driverAuthorityAge !== null &&
+    driverAuthorityAge < selectedBroker.min_authority_days
+
   async function doSave() {
     setSaving(true); setError('')
     try {
@@ -173,6 +186,14 @@ export function LoadModal({ load, prefill, onSave, onClose }: Props) {
                     <Clock size={11} className='text-yellow-400 mt-0.5 shrink-0' />
                     <p className='text-2xs text-yellow-300'>
                       <strong>{selectedDriver.name}</strong> already has an active load. Confirm they will be available on the pickup date before booking.
+                    </p>
+                  </div>
+                )}
+                {authorityTooNew && selectedBroker && (
+                  <div className='flex items-start gap-1.5 mt-1.5 px-2.5 py-1.5 rounded-lg bg-yellow-900/20 border border-yellow-700/30'>
+                    <AlertTriangle size={11} className='text-yellow-400 mt-0.5 shrink-0' />
+                    <p className='text-2xs text-yellow-300'>
+                      <strong>Authority too new</strong> — {selectedBroker.name} requires {selectedBroker.min_authority_days}+ days of MC authority. {selectedDriver?.name ?? 'This driver'} has {driverAuthorityAge} day{driverAuthorityAge !== 1 ? 's' : ''}. Confirm with the broker before booking.
                     </p>
                   </div>
                 )}
@@ -306,6 +327,13 @@ export function LoadModal({ load, prefill, onSave, onClose }: Props) {
               })()}
             </div>
               {/* Profitability Pre-check — shown when rate, miles, and dispatch % are filled */}
+              {/* Accessorials — only available on saved loads */}
+              {load && (
+                <div className='mt-3 bg-surface-700 rounded-xl border border-surface-500 px-4 py-3'>
+                  <p className='text-2xs font-semibold text-gray-500 uppercase tracking-wide mb-3'>Accessorials</p>
+                  <LoadAccessorialsPanel loadId={load.id} />
+                </div>
+              )}
               {form.rate != null && form.miles != null && form.miles > 0 && (() => {
                 const grossRate   = form.rate
                 const fsc         = form.fuel_surcharge ?? 0

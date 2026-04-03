@@ -128,6 +128,36 @@ contextBridge.exposeInMainWorld('api', {
     delete: (id: number)       => ipcRenderer.invoke('carrierApprovals:delete', id),
   },
 
+  // -- Driver Acquisition Pipeline --
+  driverProspects: {
+    list:   (stage?: string)             => ipcRenderer.invoke('driverProspects:list', stage),
+    get:    (id: number)                 => ipcRenderer.invoke('driverProspects:get', id),
+    create: (dto: unknown)               => ipcRenderer.invoke('driverProspects:create', dto),
+    update: (id: number, dto: unknown)   => ipcRenderer.invoke('driverProspects:update', id, dto),
+    delete: (id: number)                 => ipcRenderer.invoke('driverProspects:delete', id),
+  },
+
+  // -- Prospect Outreach Log --
+  prospectOutreach: {
+    list:   (prospect_id: number)  => ipcRenderer.invoke('prospectOutreach:list', prospect_id),
+    create: (dto: unknown)         => ipcRenderer.invoke('prospectOutreach:create', dto),
+    delete: (id: number)           => ipcRenderer.invoke('prospectOutreach:delete', id),
+  },
+
+  // -- Driver Onboarding Checklist --
+  driverOnboarding: {
+    get: (driver_id: number)                           => ipcRenderer.invoke('driverOnboarding:get', driver_id),
+    set: (driver_id: number, key: string, val: boolean) => ipcRenderer.invoke('driverOnboarding:set', driver_id, key, val),
+  },
+
+  // -- Load Accessorials --
+  loadAccessorials: {
+    list:   (load_id: number)                   => ipcRenderer.invoke('loadAccessorials:list', load_id),
+    create: (dto: unknown)                       => ipcRenderer.invoke('loadAccessorials:create', dto),
+    update: (id: number, dto: unknown)           => ipcRenderer.invoke('loadAccessorials:update', id, dto),
+    delete: (id: number)                         => ipcRenderer.invoke('loadAccessorials:delete', id),
+  },
+
   // -- Invoices --
   invoices: {
     list:     (status?: string) => ipcRenderer.invoke('invoices:list', status),

@@ -17,6 +17,9 @@ import type {
   TimelineEvent, ActiveLoadRow, CheckCallRow,
   BrokerIntelRow, LaneIntelRow, DriverLaneFitRow,
   DriverComplianceRow,
+  DriverProspect, CreateDriverProspectDto, UpdateDriverProspectDto,
+  ProspectOutreachEntry, CreateProspectOutreachDto,
+  LoadAccessorial, CreateLoadAccessorialDto,
 } from './models'
 
 interface CarrierBrokerApprovalRow {
@@ -239,6 +242,36 @@ declare global {
           importHtml:   () => Promise<{ added: number; found: number; canceled?: boolean }>
         }
       }
+      // -- Driver Acquisition Pipeline --
+      driverProspects: {
+        list:   (stage?: string)                                    => Promise<DriverProspect[]>
+        get:    (id: number)                                        => Promise<DriverProspect | undefined>
+        create: (dto: CreateDriverProspectDto)                      => Promise<DriverProspect>
+        update: (id: number, dto: UpdateDriverProspectDto)          => Promise<DriverProspect | undefined>
+        delete: (id: number)                                        => Promise<boolean>
+      }
+
+      // -- Prospect Outreach Log --
+      prospectOutreach: {
+        list:   (prospect_id: number)                               => Promise<ProspectOutreachEntry[]>
+        create: (dto: CreateProspectOutreachDto)                    => Promise<ProspectOutreachEntry>
+        delete: (id: number)                                        => Promise<void>
+      }
+
+      // -- Driver Onboarding Checklist --
+      driverOnboarding: {
+        get: (driver_id: number)                                    => Promise<Record<string, boolean>>
+        set: (driver_id: number, key: string, val: boolean)         => Promise<Record<string, boolean>>
+      }
+
+      // -- Load Accessorials --
+      loadAccessorials: {
+        list:   (load_id: number)                                   => Promise<LoadAccessorial[]>
+        create: (dto: CreateLoadAccessorialDto)                     => Promise<LoadAccessorial>
+        update: (id: number, dto: Partial<Pick<LoadAccessorial, 'type' | 'amount' | 'notes'>>) => Promise<LoadAccessorial | undefined>
+        delete: (id: number)                                        => Promise<void>
+      }
+
       shell: {
         openExternal: (url: string) => Promise<void>
         openFile:     (relativePath: string) => Promise<void>

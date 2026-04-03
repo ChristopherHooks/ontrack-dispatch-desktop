@@ -6,6 +6,7 @@ import { InvoicesToolbar, type InvoiceFilters } from '../components/invoices/Inv
 import { InvoicesTable } from '../components/invoices/InvoicesTable'
 import { InvoiceModal } from '../components/invoices/InvoiceModal'
 import { InvoiceDrawer } from '../components/invoices/InvoiceDrawer'
+import { InvoiceAgingPanel } from '../components/invoices/InvoiceAgingPanel'
 
 export function Invoices() {
   const [searchParams] = useSearchParams()
@@ -24,6 +25,7 @@ export function Invoices() {
   const [modal, setModal]       = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [activeTab, setActiveTab] = useState<'invoices' | 'aging'>('invoices')
 
   const reload = async () => {
     setLoading(true)
@@ -149,6 +151,22 @@ export function Invoices() {
         totalOutstanding={totalOutstanding}
         onGenerate={openGenerate}
       />
+      {/* Tab bar */}
+      <div className='flex border-b border-surface-600 shrink-0 px-1'>
+        {(['invoices', 'aging'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className={`px-4 py-2 text-xs font-medium capitalize transition-colors ${
+              activeTab === t
+                ? 'text-orange-400 border-b-2 border-orange-500'
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {t === 'aging' ? 'Aging Report' : 'All Invoices'}
+          </button>
+        ))}
+      </div>
       {uninvoicedLoads.length > 0 && (
         <div className='mx-0 mb-3 rounded-xl border border-orange-700/40 bg-orange-950/25 px-4 py-3'>
           <div className='flex items-center gap-2 mb-2'>
@@ -202,12 +220,26 @@ export function Invoices() {
           </button>
         </div>
       )}
-      <InvoicesTable
-        invoices={filtered} drivers={drivers} loading={loading}
-        sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
-        onSelect={setSelected}
-        selectedIds={selectedIds} onToggle={handleToggle} onToggleAll={handleToggleAll}
-      />
+      {activeTab === 'invoices' && (
+        <>
+          <InvoicesTable
+            invoices={filtered} drivers={drivers} loading={loading}
+            sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
+            onSelect={setSelected}
+            selectedIds={selectedIds} onToggle={handleToggle} onToggleAll={handleToggleAll}
+          />
+        </>
+      )}
+      {activeTab === 'aging' && (
+        <div className='flex-1 overflow-y-auto p-5'>
+          <InvoiceAgingPanel
+            invoices={invoices}
+            drivers={drivers}
+            brokers={brokers}
+            onSelect={inv => { setSelected(inv); setActiveTab('invoices') }}
+          />
+        </div>
+      )}
       {selected && (
         <InvoiceDrawer
           invoice={selected}
