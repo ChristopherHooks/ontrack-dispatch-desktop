@@ -1,0 +1,342 @@
+/**
+ * FMCSA QCMobile API client — runs in main process only.
+ * Docs:     https://mobile.fmcsa.dot.gov/QCDevsite/docs/qcApi
+ * API key:  register free at https://mobile.fmcsa.dot.gov/QCDevsite/home
+ *
+ * NOTE: The QCMobile API is a US government service with no published rate
+ * limits. It has a known history of intermittent downtime. All calls are
+ * wrapped in try/catch in the caller so failures are non-fatal per search term.
+ */
+import * as https from 'https'
+import * as http  from 'http'
+
+const BASE_URL           = 'https://mobile.fmcsa.dot.gov/qc/services'
+const SAFER_BASE         = 'https://safer.fmcsa.dot.gov'
+const REQUEST_TIMEOUT_MS = 15_000
+
+// ── API response shapes ────────────────────────────────────────────────────
+
+export interface ApiCarrier {
+  dotNumber:             number
+  legalName:             string
+  dbaName:               string | null
+  phyCity:               string | null
+  phyState:              string | null
+  telephone:             string | null
+  commonAuthorityStatus: string   // 'A' = Active, 'I' = Inactive, 'N' = None
+  allowedToOperate:      string   // 'Y' | 'N'
+}
+
+/** Full carrier record returned by /carriers/{dotNumber}
+ *  NOTE: The FMCSA API uses two different field names for the MCS-150 date
+ *  depending on which version of the endpoint is hit:
+ *    - mcs150Date      (older responses, "MM/DD/YYYY")
+ *    - mcs150FormDate  (newer responses, "MM/DD/YYYY" or ISO string)
+ *  Both are captured here; callers should check whichever is non-null.
+ */
+export interface ApiCarrierDetail {
+  dotNumber:       number
+  legalName:       string
+  dbaName:         string | null
+  telephone:       string | null
+  mcs150Date:      string | null  // "MM/DD/YYYY" or ISO — MCS-150 form date
+  mcs150FormDate:  string | null  // alternative field name for same value
+  totalPowerUnits: number | null
+  phyCity:         string | null
+  phyState:        string | null
+}
+
+/** One entry from /carriers/{dotNumber}/docket-numbers */
+export interface ApiDocketEntry {
+  docketNumber: number   // numeric MC/MX number
+  prefix:       string   // "MC" | "MX" | "FF" etc.
+}
+
+/** Data extracted from the SAFER public snapshot page */
+export interface ApiSaferData {
+  phone:      string | null   // raw digits/formatting as shown on SAFER
+  mcs150Date: string | null   // "MM/DD/YYYY" — MCS-150 form date
+  fleetSize:  number | null   // Power Units count; null if not listed
+  state:      string | null   // 2-letter state abbreviation from physical address
+  legalName:  string | null   // carrier legal name as shown on SAFER
+}
+
+// ── HTTP helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Plain-text HTTP/HTTPS GET — returns the response body as a string.
+ * Follows up to 3 redirects (needed for some SAFER responses).
+ * Used for SAFER HTML page scraping; does NOT parse JSON.
+ */
+function httpGetText(url: string, hops = 0): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https://') ? https : http
+    const req = mod.get(url, {
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    }, (res) => {
+      // Follow redirects
+      if ((res.statusCode === 301 || res.statusCode === 302) &&
+           res.headers.location && hops < 3) {
+        res.resume()
+        httpGetText(res.headers.location, hops + 1).then(resolve).catch(reject)
+        return
+      }
+      const chunks: Buffer[] = []
+      res.on('data', (c: Buffer) => chunks.push(c))
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    })
+    req.on('error', reject)
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy()
+      reject(new Error('SAFER request timed out after ' + REQUEST_TIMEOUT_MS + 'ms'))
+    })
+  })
+}
+
+function httpGet(url: string): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { Accept: 'application/json' } }, (res) => {
+      const chunks: Buffer[] = []
+      res.on('data', (c: Buffer) => chunks.push(c))
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8')
+        let data: Record<string, unknown>
+        try { data = JSON.parse(body) as Record<string, unknown> }
+        catch {
+          reject(new Error('Non-JSON response (HTTP ' + res.statusCode + '): ' + body.slice(0, 120)))
+          return
+        }
+        // Detect API-level errors (e.g. invalid webKey)
+        if (typeof data.code === 'number' && data.message) {
+          reject(new Error('FMCSA API error ' + data.code + ': ' + String(data.message)))
+          return
+        }
+        resolve(data)
+      })
+    })
+    req.on('error', reject)
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy()
+      reject(new Error('FMCSA request timed out after ' + REQUEST_TIMEOUT_MS + 'ms'))
+    })
+  })
+}
+
+// ── Public API functions ──────────────────────────────────────────────────
+
+/**
+ * Search carriers by name keyword (e.g. 'Texas', 'Georgia Trucking').
+ * Paginates automatically up to maxPages pages (50 results each).
+ * Stops early if a page returns fewer than 50 results (end of results).
+ * Max 50 per page is a hard API cap; maxPages controls total depth.
+ */
+export async function searchCarriersByName(
+  webKey:    string,
+  name:      string,
+  maxPages = 5,        // 5 pages = up to 250 results per search term
+): Promise<ApiCarrier[]> {
+  const PAGE_SIZE = 50
+  const all: ApiCarrier[] = []
+
+  for (let page = 0; page < maxPages; page++) {
+    const start = page * PAGE_SIZE
+    const url = BASE_URL + '/carriers/name/' + encodeURIComponent(name) +
+                '?webKey=' + encodeURIComponent(webKey) +
+                '&start=' + start + '&size=' + PAGE_SIZE
+
+    console.log('[FMCSA] Searching carriers for term:', name, '| page', page + 1, '(start=' + start + ')')
+    const data = await httpGet(url) as { content?: { carrier: ApiCarrier }[] }
+
+    if (!Array.isArray(data?.content)) {
+      console.warn('[FMCSA] Unexpected response shape for term ' + name + ' page ' + (page + 1) + ':', JSON.stringify(data).slice(0, 200))
+      break
+    }
+
+    const page_results = data.content.map(r => r.carrier).filter(Boolean)
+    all.push(...page_results)
+
+    // Fewer than a full page means we've hit the end — no point fetching more
+    if (page_results.length < PAGE_SIZE) break
+
+    // Brief pause between pages — be polite to the government server
+    if (page + 1 < maxPages) await new Promise(r => setTimeout(r, 200))
+  }
+
+  console.log('[FMCSA] Total results for term "' + name + '":', all.length)
+  return all
+}
+
+/**
+ * Scrape the SAFER public carrier snapshot page for a carrier by DOT number.
+ *
+ * The QC API does not reliably return phone or MCS-150 date. SAFER is the
+ * authoritative government source for both — same data you see when you visit
+ * https://safer.fmcsa.dot.gov/CompanySnapshot.aspx manually.
+ *
+ * No API key required. Extraction uses the same regex approach as the legacy
+ * Python scraper (FMCSA_MC_Scraper.py). Non-fatal: returns nulls on any error.
+ */
+export async function getCarrierSafer(dotNumber: number): Promise<ApiSaferData> {
+  const url = SAFER_BASE +
+    '/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot' +
+    '&query_param=USDOT&query_string=' + dotNumber
+  try {
+    const html = await httpGetText(url)
+
+    // Strip HTML tags → plain text (equivalent to BeautifulSoup.get_text)
+    const text = html
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+
+    // Phone — matches "(XXX) XXX-XXXX" and "XXX-XXX-XXXX" variants
+    let phone: string | null = null
+    const phoneMatch = /Phone:\s*\n?\s*(\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4})/.exec(text)
+    if (phoneMatch) phone = phoneMatch[1].trim()
+
+    // MCS-150 Form Date — "MM/DD/YYYY"
+    let mcs150Date: string | null = null
+    const mcsMatch = /MCS-150 Form Date:\s*\n?\s*([\d/]+)/.exec(text)
+    if (mcsMatch) mcs150Date = mcsMatch[1].trim()
+
+    // Power Units — integer fleet size
+    // The label and value land in adjacent table cells; after tag-stripping
+    // there can be 1–3 newlines between the colon and the digit(s).
+    let fleetSize: number | null = null
+    const puMatch = /Power Units[^0-9]{0,40}?(\d+)/.exec(text)
+    if (puMatch) {
+      const n = parseInt(puMatch[1], 10)
+      if (!isNaN(n) && n >= 0) fleetSize = n
+    }
+
+    // State — 2-letter abbreviation extracted from physical address line
+    // SAFER renders addresses as "CITY,  TX  75001" after tag-stripping
+    let state: string | null = null
+    const stateMatch = /,\s+([A-Z]{2})\s+\d{5}/.exec(text)
+    if (stateMatch) state = stateMatch[1]
+
+    // Legal name — appears as "Legal Name:\n  CARRIER NAME LLC" after tag-stripping
+    let legalName: string | null = null
+    const nameMatch = /Legal Name[:\s]+\n\s*([A-Z0-9][^\n]{1,80})/.exec(text)
+    if (nameMatch) {
+      const candidate = nameMatch[1].trim()
+      // Reject if it looks like a field value rather than a real name
+      if (candidate.length >= 3 && !/^\d+$/.test(candidate)) legalName = candidate
+    }
+
+    console.log('[FMCSA] SAFER DOT ' + dotNumber + ':', { phone, mcs150Date, fleetSize, state, legalName })
+    return { phone, mcs150Date, fleetSize, state, legalName }
+  } catch (err) {
+    console.warn('[FMCSA] getCarrierSafer failed for DOT ' + dotNumber + ':',
+      err instanceof Error ? err.message : String(err))
+    return { phone: null, mcs150Date: null, fleetSize: null, state: null, legalName: null }
+  }
+}
+
+/**
+ * Fetch full carrier detail by DOT number from the QC API.
+ * NOTE: The QC API does not reliably return telephone or mcs150Date for most
+ * carriers — use getCarrierSafer() instead for those fields.
+ * Kept here for potential future use.
+ */
+export async function getCarrierDetail(
+  webKey:    string,
+  dotNumber: number
+): Promise<ApiCarrierDetail | null> {
+  const url = BASE_URL + '/carriers/' + dotNumber +
+              '?webKey=' + encodeURIComponent(webKey)
+  try {
+    const data = await httpGet(url) as { content?: { carrier: ApiCarrierDetail } }
+    return data?.content?.carrier ?? null
+  } catch (err) {
+    console.warn('[FMCSA] getCarrierDetail failed for DOT ' + dotNumber + ':',
+      err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
+/**
+ * Look up the Common Authority grant date for a carrier by MC number.
+ *
+ * Scrapes the SAFER public CompanySnapshot page using the MC_MX query
+ * parameter — the same page that opens when you click a MC# link in the app.
+ * No API key required.
+ *
+ * Returns authorityDate as "YYYY-MM-DD" (converted from SAFER's MM/DD/YYYY)
+ * and dotNumber as a string if it can be parsed from the page.
+ * Both values are null on any failure or if SAFER does not list them.
+ */
+export async function getAuthorityDateByMc(
+  mcNumber: string,
+): Promise<{ authorityDate: string | null; dotNumber: string | null }> {
+  // Strip any "MC-" or "MC " prefix so the query string is numeric
+  const mc = mcNumber.replace(/^MC[-\s]?/i, '').trim()
+
+  const url = SAFER_BASE +
+    '/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot' +
+    '&query_param=MC_MX&query_string=' + encodeURIComponent(mc)
+
+  try {
+    const html = await httpGetText(url)
+
+    const text = html
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+
+    // DOT number — appears as "USDOT Number\n  1234567" on the snapshot page
+    let dotNumber: string | null = null
+    const dotMatch = /USDOT\s*Number[:\s]*\n?\s*(\d{6,8})/.exec(text)
+    if (dotMatch) dotNumber = dotMatch[1].trim()
+
+    // Common Authority grant date — SAFER renders the operating authority table
+    // as rows: "Common Authority  ACTIVE  10/15/2025  None".
+    // After tag-stripping there are newlines between values, so look for the
+    // first MM/DD/YYYY date that appears within ~400 chars of "Common Authority".
+    let authorityDate: string | null = null
+    const authSection = /Common\s+Authority([\s\S]{0,400})/.exec(text)
+    if (authSection) {
+      const dateMatch = /(\d{1,2}\/\d{1,2}\/\d{4})/.exec(authSection[1])
+      if (dateMatch) {
+        const parts = dateMatch[1].split('/')
+        const m = parts[0].padStart(2, '0')
+        const d = parts[1].padStart(2, '0')
+        const y = parts[2]
+        authorityDate = `${y}-${m}-${d}`
+      }
+    }
+
+    console.log('[FMCSA] MC authority lookup for MC-' + mc + ':', { authorityDate, dotNumber })
+    return { authorityDate, dotNumber }
+  } catch (err) {
+    console.warn('[FMCSA] getAuthorityDateByMc failed for MC-' + mc + ':',
+      err instanceof Error ? err.message : String(err))
+    return { authorityDate: null, dotNumber: null }
+  }
+}
+
+/**
+ * Fetch docket numbers (MC / MX numbers) for a carrier by DOT number.
+ * Returns an empty array if the carrier has no dockets.
+ * Throws on network/API errors so callers can distinguish "no dockets" from
+ * "lookup failed" — this function is intended to be called inside
+ * Promise.allSettled, which handles rejections gracefully.
+ */
+export async function getCarrierDockets(
+  webKey:    string,
+  dotNumber: number
+): Promise<ApiDocketEntry[]> {
+  const url = BASE_URL + '/carriers/' + dotNumber + '/docket-numbers' +
+              '?webKey=' + encodeURIComponent(webKey)
+  const data = await httpGet(url) as { content?: ApiDocketEntry[] }
+  return Array.isArray(data?.content) ? data.content : []
+}

@@ -1,0 +1,12 @@
+import type { DriverStatus, DriverDocType } from '../../types/models'
+
+export const DRIVER_STATUS_STYLES: Record<DriverStatus, string> = {
+  Active:    'bg-green-600 border-green-500 text-white',
+  'On Load': 'bg-blue-600 border-blue-500 text-white',
+  Inactive:  'bg-surface-500 border-surface-400 text-gray-300',
+}
+
+export const DRIVER_STATUSES: DriverStatus[] = ['Active', 'On Load', 'Inactive']
+export const TRUCK_TYPES = ['Semi - Sleeper', 'Semi - Day Cab', 'Straight Truck', 'Box Truck', 'Sprinter Van']
+export const TRAILER_TYPES_DRV = ['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Lowboy', 'Tanker', 'Auto Carrier', 'Hotshot', 'Power Only', 'Other']
+export const DOC_TYPES: DriverDocType[] = ['CDL', 'Insurance', 'BOL', 'POD', 'COI', 'Lease', 'W9', 'Other']

@@ -2,7 +2,7 @@
   "name": "ontrack-dispatch-dashboard",
   "version": "1.0.0",
   "description": "OnTrack Hauling Solutions — Dispatch Management Dashboard",
-  "main": "out/main/index.mjs",
+  "main": "out/main/index.js",
   "author": "Chris Hooks <dispatch@ontrackhaulingsolutions.com>",
   "private": true,
   "scripts": {
@@ -13,12 +13,14 @@
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
     "better-sqlite3": "^12.6.2",
     "electron-store": "^8.2.0",
     "lucide-react": "^0.363.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
+    "xlsx": "^0.18.5",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
@@ -35,7 +37,7 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.3",
-    "vite": "^8.0.0"
+    "vite": "^7.3.1"
   },
   "build": {
     "appId": "com.ontrackhauling.dashboard",
@@ -43,17 +45,26 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "out/**/*",
+      "resources/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
     "win": {
-      "target": "nsis",
-      "icon": "resources/icon.ico"
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "resources/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "files": [
-      "out/**/*",
-      "resources/**/*"
-    ]
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

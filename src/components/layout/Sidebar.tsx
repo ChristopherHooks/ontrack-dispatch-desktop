@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useSettingsStore } from '../../store/settingsStore'
 import {
-  LayoutDashboard, Users, Truck, Package, Building2,
+  Users, Truck, Package, Building2,
   FileText, Megaphone, CheckSquare, FolderOpen,
-  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight
+  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, ArrowRightLeft, Activity, Radar, TrendingUp, Calculator, UserPlus, CalendarDays, FileSpreadsheet
 } from 'lucide-react'
+import { RateCalculator } from '../ui/RateCalculator'
 
 interface NavItem {
   to:    string
@@ -13,8 +15,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={18} /> },
-  { to: '/leads',      label: 'Leads',      icon: <Users size={18} /> },
+  { to: '/operations',  label: 'Operations',   icon: <Zap size={18} /> },
+  { to: '/loadmatch',   label: 'Load Match',   icon: <ArrowRightLeft size={18} /> },
+  { to: '/findloads',   label: 'Find Loads',   icon: <Radar size={18} /> },
+  { to: '/activeloads', label: 'Active Loads', icon: <Activity size={18} /> },
+  { to: '/dispatcher',        label: 'Dispatcher',   icon: <Kanban size={18} /> },
+  { to: '/dispatch-calendar', label: 'Calendar',     icon: <CalendarDays size={18} /> },
+  { to: '/leads',              label: 'Leads',       icon: <Users size={18} /> },
+  { to: '/driver-acquisition', label: 'Recruiting',  icon: <UserPlus size={18} /> },
   { to: '/drivers',    label: 'Drivers',    icon: <Truck size={18} /> },
   { to: '/loads',      label: 'Loads',      icon: <Package size={18} /> },
   { to: '/brokers',    label: 'Brokers',    icon: <Building2 size={18} /> },
@@ -22,7 +30,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/marketing',  label: 'Marketing',  icon: <Megaphone size={18} /> },
   { to: '/tasks',      label: 'Tasks',      icon: <CheckSquare size={18} /> },
   { to: '/documents',  label: 'Documents',  icon: <FolderOpen size={18} /> },
-  { to: '/analytics',  label: 'Analytics',  icon: <BarChart3 size={18} /> },
+  { to: '/analytics',   label: 'Analytics',   icon: <BarChart3 size={18} /> },
+  { to: '/reports',     label: 'Reports',     icon: <TrendingUp size={18} /> },
+  { to: '/settlements', label: 'Settlements', icon: <FileSpreadsheet size={18} /> },
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [
@@ -31,7 +41,8 @@ const BOTTOM_ITEMS: NavItem[] = [
 ]
 
 export function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar } = useSettingsStore()
+  const { sidebarCollapsed, toggleSidebar, defaultDispatchPct, fuelPricePerGallon } = useSettingsStore()
+  const [showCalc, setShowCalc] = useState(false)
   const w = sidebarCollapsed ? 60 : 220
 
   return (
@@ -61,10 +72,18 @@ export function Sidebar() {
 
       {/* Bottom nav */}
       <div className='py-3 px-2 border-t border-surface-400 space-y-0.5'>
+        <button
+          onClick={() => setShowCalc(true)}
+          title='Rate Calculator'
+          className='w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all text-gray-400 hover:bg-surface-600 hover:text-orange-400'>
+          <span className='shrink-0'><Calculator size={18} /></span>
+          {!sidebarCollapsed && <span className='truncate'>Rate Calc</span>}
+        </button>
         {BOTTOM_ITEMS.map((item) => (
           <SidebarLink key={item.to} item={item} collapsed={sidebarCollapsed} />
         ))}
       </div>
+      {showCalc && <RateCalculator onClose={() => setShowCalc(false)} defaultDispatchPct={defaultDispatchPct} fuelPricePerGallon={fuelPricePerGallon} />}
 
       {/* Collapse toggle */}
       <button

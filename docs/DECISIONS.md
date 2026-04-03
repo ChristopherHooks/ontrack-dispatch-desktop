@@ -112,3 +112,72 @@ collapse any duplicate rows that existed before this fix was applied.
 
 **Reason:** better-sqlite3 is a native Node.js module — it cannot run in the
 renderer process (which is a browser context). All DB calls go through IPC.
+
+---
+
+## DEC-009: Marketing anti-repetition via DB scoring (not date-seeded rotation)
+
+**Decision:** The daily suggested post is selected by scoring all 78 templates at render
+time using a weighted algorithm, not by a simple date-seed index.
+
+**Reason:** A date-seed rotation would repeat the same template every 78 days regardless
+of actual use. The scoring approach weights by: days since last use (14-day rolling window
+penalizes recently used templates heavily) and total use count (long-term fairness). The
+highest-scoring template is shown first; offset cycling lets the user skip to the next best.
+
+**Implementation:** `selectSuggestedTemplate()` in `src/lib/marketingUtils.ts`. Recent IDs
+and usage counts are loaded from `marketing_post_log` via IPC on page mount.
+
+---
+
+## DEC-010: FMCSA pagination via start offset (not size parameter)
+
+**Decision:** The FMCSA QCMobile API is paginated using the `start` offset parameter
+(`/carriers/name/{term}?start=0`, `start=50`, `start=100`) rather than a `size` parameter.
+
+**Reason:** The API does not support a `size` parameter — it always returns up to 50 results
+per call. Pagination must be done by incrementing the `start` offset. The import pipeline
+fetches up to 3 pages (150 results) per search term and stops early when a page returns
+fewer than 50 results, indicating the last page.
+
+**Constraint:** Do not add a `size` query parameter — it is silently ignored by the API.
+
+---
+
+## DEC-011: Fleet size extracted from SAFER public snapshot page
+
+**Decision:** Carrier fleet size (Power Units count) is scraped from the FMCSA SAFER
+public carrier snapshot page rather than from the QCMobile API.
+
+**Reason:** The QCMobile JSON API does not reliably include Power Units for most carriers.
+The SAFER HTML snapshot page (the same page a browser shows at safer.fmcsa.dot.gov) always
+includes the Power Units field in a consistent table structure. A regex extracts the value
+after "Power Units".
+
+**Implementation:** `getCarrierSafer()` in `electron/main/fmcsaApi.ts`.
+
+---
+
+## DEC-012: CSV lead import uses free-text header detection (not fixed column positions)
+
+**Decision:** The CSV importer scans the first 5 lines of the file for a header row rather
+than assuming a fixed column layout.
+
+**Reason:** Dispatchers export lead spreadsheets from various tools (Google Sheets, Excel,
+custom CRMs) with different column orders and header names. A fixed-position importer would
+fail on most real files. The header detection approach maps column names to field aliases
+using a HEADER_MAP lookup, is case-insensitive, and ignores columns it does not recognize.
+
+**Implementation:** `csvLeadImport.ts` in `electron/main/`.
+
+---
+
+## DEC-013: Industry glossary is static client-side data (not a DB table)
+
+**Decision:** The trucking industry terms and acronyms index is stored as a static TypeScript
+array in `src/data/industryTerms.ts`, not in the SQLite database.
+
+**Reason:** The glossary is reference content that does not change per user, does not need
+to be queried server-side, and does not benefit from DB persistence. Static data is simpler,
+type-safe, and loads instantly with no IPC round-trip. Filtering and sorting are done
+client-side in the renderer.

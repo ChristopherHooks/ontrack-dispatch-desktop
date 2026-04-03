@@ -1,24 +1,29 @@
 # Architecture — OnTrack Dispatch Dashboard
 
+Last updated: 2026-03-15
+
 ## Process Model
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Electron Main Process (Node.js)                     │
-│  electron/main/index.ts   — app lifecycle, BrowserWindow │
-│  electron/main/db.ts      — SQLite init, schema, backup  │
-│  electron/main/ipcHandlers.ts — IPC channel handlers     │
-└──────────────────────┬──────────────────────────────┘
-                       │ IPC (contextBridge)
-┌──────────────────────▼──────────────────────────────┐
-│  Preload Script (isolated context)                   │
-│  electron/preload/index.ts — exposes window.api      │
-└──────────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Electron Main Process (Node.js)                             │
+│  electron/main/index.ts      — app lifecycle, BrowserWindow  │
+│  electron/main/db.ts         — SQLite init, migrations, WAL  │
+│  electron/main/ipcHandlers.ts — ~50 IPC channel handlers     │
+│  electron/main/repositories/ — all DB CRUD (one file/entity) │
+│  electron/main/schema/       — versioned migrations          │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ IPC (contextBridge, contextIsolation: true)
+┌──────────────────────▼──────────────────────────────────────┐
+│  Preload Script (isolated context)                           │
+│  electron/preload/index.ts — exposes window.api              │
+└──────────────────────┬──────────────────────────────────────┘
                        │ window.api.*
-┌──────────────────────▼──────────────────────────────┐
-│  Renderer Process (React + Vite)                     │
-│  src/main.tsx → src/App.tsx → pages + components     │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────▼──────────────────────────────────────┐
+│  Renderer Process (React 18 + Vite)                          │
+│  src/main.tsx → src/App.tsx → pages + components             │
+│  Zustand stores: settingsStore, authStore, uiStore           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Key Architectural Decisions
@@ -36,10 +41,13 @@
   for a desktop app with occasional background backup operations.
 
 - **electron-store for settings**: Lightweight key-value store backed by JSON file in %APPDATA%.
-  Used for: theme, sidebarCollapsed, dataPath, companyName, ownerName, etc.
+  Used for: theme, sidebarCollapsed, dataPath, companyName, ownerName, fmcsaWebKey, etc.
 
-- **Zustand for renderer state**: settingsStore (theme, sidebar, business prefs) and
-  authStore (current user + role-based permission checks).
+- **Zustand for renderer state**: settingsStore (theme, sidebar, business prefs),
+  authStore (current user + role-based permission checks), uiStore (transient state: global search open).
+
+- **Repository pattern**: All DB queries in electron/main/repositories/. ipcHandlers.ts calls
+  repo functions. The renderer never imports better-sqlite3 or any repo file directly.
 
 ## Directory Structure
 
@@ -47,93 +55,146 @@
 app/
 ├── electron/
 │   ├── main/
-│   │   ├── index.ts          Main process entry, BrowserWindow creation
-│   │   ├── db.ts             SQLite init, schema migrations, auto-backup
-│   │   └── ipcHandlers.ts    All IPC channel registrations
+│   │   ├── index.ts              Main process entry, BrowserWindow, lifecycle
+│   │   ├── db.ts                 SQLite init, runMigrations(), WAL, backup wiring
+│   │   ├── ipcHandlers.ts        All IPC handler registrations (~50 channels)
+│   │   ├── analytics.ts          Analytics aggregation queries
+│   │   ├── backup.ts             Auto daily + manual backup; staged restore
+│   │   ├── dashboard.ts          Dashboard KPI query (getDashboardStats)
+│   │   ├── dispatcherBoard.ts    Dispatcher board SQL
+│   │   ├── fmcsaApi.ts           FMCSA QCMobile HTTP client + SAFER scraper
+│   │   ├── fmcsaImport.ts        FMCSA lead import pipeline + backfill
+│   │   ├── csvLeadImport.ts      CSV/TSV lead import with header detection
+│   │   ├── loadScanner.ts        Load recommendation engine
+│   │   ├── scheduler.ts          Background job ticker (minute-tick setInterval)
+│   │   ├── search.ts             Global search query (all entities)
+│   │   ├── seed.ts               Dev seed data (guarded by app_settings flag)
+│   │   ├── repositories/         One file per entity, all DB CRUD
+│   │   │   ├── leadsRepo.ts
+│   │   │   ├── driversRepo.ts
+│   │   │   ├── driverDocumentsRepo.ts
+│   │   │   ├── loadsRepo.ts
+│   │   │   ├── brokersRepo.ts
+│   │   │   ├── invoicesRepo.ts
+│   │   │   ├── tasksRepo.ts
+│   │   │   ├── notesRepo.ts
+│   │   │   ├── usersRepo.ts
+│   │   │   ├── auditRepo.ts
+│   │   │   ├── documentsRepo.ts
+│   │   │   ├── marketingRepo.ts  (marketing_groups + marketing_post_log)
+│   │   │   └── index.ts          Re-exports all repos
+│   │   └── schema/
+│   │       └── migrations.ts     Versioned DB migrations (19 applied)
 │   └── preload/
-│       └── index.ts          contextBridge → window.api
+│       └── index.ts              contextBridge → window.api (all namespaces)
 ├── src/
-│   ├── main.tsx              React entry point
-│   ├── App.tsx               HashRouter + all 12 routes
-│   ├── index.css             Tailwind directives + dark/light CSS vars
+│   ├── main.tsx                  React entry point
+│   ├── App.tsx                   HashRouter + all 12 routes
+│   ├── index.css                 Tailwind directives + dark/light CSS vars
+│   ├── pages/                    One page component per route
+│   │   ├── Dashboard.tsx         KPI cards + today's task checklist
+│   │   ├── Leads.tsx             Carrier CRM + FMCSA/CSV import
+│   │   ├── Drivers.tsx           Driver profiles + documents
+│   │   ├── Loads.tsx             Load lifecycle + dispatch board
+│   │   ├── Brokers.tsx           Broker directory + flags
+│   │   ├── Invoices.tsx          Invoice lifecycle + export
+│   │   ├── Tasks.tsx             Daily checklist + all tasks + history
+│   │   ├── Marketing.tsx         Daily post workflow + group rotation
+│   │   ├── Documents.tsx         SOP library + folder scanner
+│   │   ├── Analytics.tsx         Revenue, RPM, lane, broker charts
+│   │   ├── Help.tsx              Articles + Glossary + keyboard shortcuts
+│   │   └── Settings.tsx          Theme, business info, backup, integrations
 │   ├── components/
-│   │   └── layout/
-│   │       ├── AppShell.tsx  Sidebar + TopBar + <Outlet>
-│   │       ├── Sidebar.tsx   Collapsible nav, 12 items, toggle button
-│   │       └── TopBar.tsx    Theme switcher + user badge
-│   ├── pages/
-│   │   ├── Dashboard.tsx     KPI cards + today's tasks (BUILT)
-│   │   ├── Settings.tsx      Theme + business prefs (BUILT)
-│   │   └── [10 placeholders] Leads, Drivers, Loads, Brokers, Invoices,
-│   │                         Marketing, Tasks, Documents, Analytics, Help
+│   │   ├── layout/               AppShell, Sidebar, TopBar
+│   │   ├── ui/                   GlobalSearch overlay, EmptyState
+│   │   ├── brokers/              BrokerDrawer, BrokersTable, BrokerModal
+│   │   ├── drivers/              DriverDrawer, DriversTable, DriverModal
+│   │   ├── leads/                LeadDrawer, LeadsTable, LeadModal, LeadsToolbar, PasteImportModal
+│   │   ├── loads/                LoadDrawer, LoadsTable, LoadModal
+│   │   ├── invoices/             InvoiceDrawer, InvoicesTable, InvoiceModal
+│   │   └── tasks/                TaskDrawer, TaskModal, TasksToolbar, constants
+│   ├── lib/
+│   │   ├── postTemplates.ts      78 marketing post templates (11 categories)
+│   │   ├── marketingUtils.ts     Anti-repetition scoring, variation generator, image prompts
+│   │   └── saferUrl.ts           FMCSA SAFER URL builder for MC# / DOT# links
 │   ├── store/
-│   │   ├── settingsStore.ts  Zustand: theme, sidebar, prefs
-│   │   └── authStore.ts      Zustand: user session, role, can()
-│   └── types/
-│       ├── auth.ts           UserRole type + ROLE_PERMISSIONS matrix
-│       └── global.d.ts       window.api TypeScript declarations
+│   │   ├── settingsStore.ts      Zustand: theme, sidebar, business prefs
+│   │   ├── authStore.ts          Zustand: user session, role, can()
+│   │   └── uiStore.ts            Zustand: transient UI (global search open/closed)
+│   ├── types/
+│   │   ├── models.ts             All domain interfaces (Lead, Driver, Load, etc.)
+│   │   ├── auth.ts               UserRole + ROLE_PERMISSIONS matrix
+│   │   └── global.d.ts           window.api TypeScript ambient declarations
+│   └── data/
+│       ├── helpArticles.ts       Static help content (articles, shortcuts)
+│       └── industryTerms.ts      Trucking industry terms and acronyms index (60+ terms)
 ├── CLAUDE.md
 ├── README.md
 ├── package.json
 ├── electron.vite.config.ts
 ├── tsconfig.json
-├── tailwind.config.js        CJS (module.exports) — not ESM
-└── postcss.config.js         CJS (module.exports) — not ESM
+├── tailwind.config.js            CJS (module.exports) — not ESM
+└── postcss.config.js             CJS (module.exports) — not ESM
 ```
 
 ## IPC Channels
 
-| Channel | Direction | Description |
-|---------|-----------|-------------|
-| settings:get(key) | renderer→main | Get one setting value |
-| settings:set(key, value) | renderer→main | Set one setting value |
-| settings:getAll() | renderer→main | Get all settings as object |
-| dashboard:stats() | renderer→main | KPI counts + today's tasks |
-| db:query(sql, params) | renderer→main | Read-only dev helper |
+All channels are invoked via `ipcRenderer.invoke()` from the preload and accessed in the renderer
+as `window.api.<namespace>.<method>()`.
+
+| Channel | Description |
+|---------|-------------|
+| settings:get | Get one electron-store setting by key |
+| settings:set | Set one electron-store setting |
+| settings:getAll | Get all settings as object |
+| dashboard:stats | KPI counts + today's task list |
+| leads:list | List all leads (with optional filters) |
+| leads:get | Get one lead by id |
+| leads:create | Insert new lead |
+| leads:update | Update lead fields |
+| leads:delete | Delete lead by id |
+| leads:importFmcsa | Run FMCSA import pipeline |
+| leads:importCsv | Open file dialog + parse CSV |
+| leads:importPaste | Parse TSV text pasted from spreadsheet |
+| leads:backfillLeadData | Re-enrich existing FMCSA leads from SAFER |
+| drivers:list / get / create / update / delete | Driver CRUD |
+| driverDocuments:list / get / create / update / delete | Driver document CRUD |
+| loads:list / get / create / update / delete | Load CRUD |
+| brokers:list / get / create / update / delete | Broker CRUD |
+| invoices:list / get / create / update / delete | Invoice CRUD |
+| tasks:list / get / create / update / delete | Task CRUD |
+| tasks:markComplete / markIncomplete | Per-date completion tracking |
+| tasks:getCompletions / getCompletionsForDate | Completion history queries |
+| notes:list / create / delete | Notes on any entity |
+| users:list / get / getByEmail / create / update | User management |
+| audit:list | Audit log query |
+| documents:list / get / create / update / delete / search | Document library CRUD |
+| marketing:groups:list / create / update / markPosted / delete | Group manager |
+| marketing:post:list / create / update / delete / recentIds / usageCounts | Post log |
+| backup:createBackup | Manual backup |
+| backup:listBackups | List backup files |
+| backup:stageRestore | Stage a restore for next launch |
+| search:global | Cross-entity search (leads, drivers, loads, brokers, invoices) |
+| scanner:recommendLoads | Load opportunity recommendations |
+| dispatcher:board / availableLoads / assignLoad | Dispatcher board queries |
+| dev:seed / reseed / seedMissing / seedTasksOnly / clearSeedData / reseedDocs | Dev tools |
+| db:query | Read-only SQL query (dev builds only, gated by !app.isPackaged) |
 
 ## Database Schema
 
-```sql
--- All tables use INTEGER PRIMARY KEY AUTOINCREMENT
--- All timestamps stored as ISO 8601 TEXT
--- Foreign keys: ON
--- WAL journal mode, synchronous=NORMAL, cache_size=-32000
+15+ tables across 19 migrations. Full schema in docs/DATA_ARCHITECTURE.md.
 
-leads     (id, company_name, contact_name, phone, email, status,
-           source, notes, follow_up_date, created_at, updated_at)
-
-drivers   (id, name, phone, email, cdl_number, cdl_expiry, status,
-           truck_number, trailer_type, home_base, notes, created_at)
-
-loads     (id, driver_id, broker_id, origin, destination, pickup_date,
-           delivery_date, rate, dispatch_fee, status, notes, created_at)
-
-brokers   (id, company_name, contact_name, phone, email, mc_number,
-           preferred, notes, created_at)
-
-invoices  (id, load_id, driver_id, amount, status, sent_date,
-           paid_date, notes, created_at)
-
-tasks     (id, title, category, priority, status, due_date,
-           time_of_day, recurring, notes, created_at)
-
-documents (id, name, type, file_path, related_to, related_id,
-           notes, created_at)
-
-users     (id, name, email, role, active, created_at)
 ```
-
-## Seed Data
-
-On first launch, 6 daily tasks are seeded with explicit IDs 1–6:
-- A dedup DELETE runs every launch before the INSERT OR IGNORE
-- This prevents duplicate rows if the app launches before seeding is detected
+WAL journal mode, synchronous=NORMAL, cache_size=-32000
+All tables: INTEGER PRIMARY KEY AUTOINCREMENT
+All timestamps: ISO 8601 TEXT
+```
 
 ## Build Output
 
 electron-vite + rolldown outputs to `out/`:
 ```
-out/main/index.mjs      Main process bundle (9 KB)
+out/main/index.mjs      Main process bundle (~9 KB)
 out/preload/index.mjs   Preload bundle
 out/renderer/           Vite-built React app (HTML + JS + CSS)
 ```
