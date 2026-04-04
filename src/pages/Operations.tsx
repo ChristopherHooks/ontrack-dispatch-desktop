@@ -201,6 +201,23 @@ export function Operations() {
         <h1 className='text-2xl font-bold text-gray-100'>{today}</h1>
       </div>
 
+      {/* Drivers-ready banner — shown when drivers need loads */}
+      {!loading && ops.driversNeedingLoads > 0 && (
+        <div className='flex items-center justify-between gap-3 px-4 py-3 bg-orange-600/10 border border-orange-600/30 rounded-xl'>
+          <div className='flex items-center gap-2.5'>
+            <Truck size={15} className='text-orange-400 shrink-0' />
+            <span className='text-sm text-orange-200'>
+              You have <span className='font-semibold text-orange-400'>{ops.driversNeedingLoads} driver{ops.driversNeedingLoads !== 1 ? 's' : ''}</span> ready — find them loads now.
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/findloads')}
+            className='shrink-0 text-xs font-medium text-orange-400 hover:text-orange-300 border border-orange-600/40 hover:border-orange-500/60 px-3 py-1.5 rounded-lg transition-colors'>
+            Find Loads
+          </button>
+        </div>
+      )}
+
       {/* 7-Day Launch Sprint — visible until first invoice is sent */}
       <LaunchSprintPanel
         ops={ops}

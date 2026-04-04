@@ -5,6 +5,20 @@ import { DOC_CATEGORIES } from '../data/helpArticles'
 import { EmptyState } from '../components/ui/EmptyState'
 import { renderMd } from '../lib/renderMd'
 
+const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  All:        'All documents across every category.',
+  Dispatch:   'Load assignments, check-call procedures, and dispatch SOPs.',
+  Drivers:    'Onboarding checklists, orientation materials, and driver policies.',
+  Sales:      'Rate sheets, carrier packets, and sales call scripts.',
+  Marketing:  'Post templates, hot lane pitches, and outreach copy.',
+  Brokers:    'Broker contact notes, preferred carriers lists, and lane history.',
+  Finance:    'Invoice templates, settlement worksheets, and accounting SOPs.',
+  Template:   'Reusable document templates for common operations.',
+  Reference:  'Rate benchmarks, terminology guides, and regulatory references.',
+  Policy:     'Company policies, compliance rules, and operating procedures.',
+  Other:      'Miscellaneous documents that do not fit another category.',
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   Dispatch:        'bg-blue-600 text-white border-blue-500',
   Drivers:         'bg-green-600 text-white border-green-500',
@@ -91,7 +105,15 @@ export function Documents() {
   function cancelEdit() { setEditing(false); setCreating(false); setDraft({}) }
 
   return (
-    <div className='h-full flex gap-4 animate-fade-in'>
+    <div className='h-full flex flex-col gap-4 animate-fade-in'>
+
+      {/* Page header */}
+      <div>
+        <h1 className='text-xl font-bold text-gray-100'>Documents</h1>
+        <p className='text-sm text-gray-500 mt-0.5'>Store SOPs, templates, and reference guides for your team.</p>
+      </div>
+
+      <div className='flex-1 min-h-0 flex gap-4'>
 
       {/* Left Panel */}
       <div className='w-64 shrink-0 flex flex-col gap-3'>
@@ -112,6 +134,11 @@ export function Documents() {
               {cat}
             </button>
           ))}
+          {CATEGORY_DESCRIPTIONS[category] && (
+            <p className='text-2xs text-gray-600 italic px-2 pt-2 border-t border-surface-500/50 mt-1'>
+              {CATEGORY_DESCRIPTIONS[category]}
+            </p>
+          )}
         </div>
         {/* New Doc button */}
         <button onClick={startCreate}
@@ -233,6 +260,7 @@ export function Documents() {
       {linkedDoc && (
         <LinkedDocModal doc={linkedDoc} onClose={() => setLinkedDoc(null)} />
       )}
+      </div>
     </div>
   )
 }

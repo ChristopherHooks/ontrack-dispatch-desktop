@@ -14,25 +14,45 @@ interface NavItem {
   icon:  React.ReactNode
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { to: '/operations',  label: 'Operations',   icon: <Zap size={18} /> },
-  { to: '/loadmatch',   label: 'Load Match',   icon: <ArrowRightLeft size={18} /> },
-  { to: '/findloads',   label: 'Find Loads',   icon: <Radar size={18} /> },
-  { to: '/activeloads', label: 'Active Loads', icon: <Activity size={18} /> },
-  { to: '/dispatcher',        label: 'Dispatcher',   icon: <Kanban size={18} /> },
-  { to: '/dispatch-calendar', label: 'Calendar',     icon: <CalendarDays size={18} /> },
-  { to: '/leads',              label: 'Leads',       icon: <Users size={18} /> },
-  { to: '/driver-acquisition', label: 'Recruiting',  icon: <UserPlus size={18} /> },
-  { to: '/drivers',    label: 'Drivers',    icon: <Truck size={18} /> },
-  { to: '/loads',      label: 'Loads',      icon: <Package size={18} /> },
-  { to: '/brokers',    label: 'Brokers',    icon: <Building2 size={18} /> },
-  { to: '/invoices',   label: 'Invoices',   icon: <FileText size={18} /> },
-  { to: '/marketing',  label: 'Marketing',  icon: <Megaphone size={18} /> },
-  { to: '/tasks',      label: 'Tasks',      icon: <CheckSquare size={18} /> },
-  { to: '/documents',  label: 'Documents',  icon: <FolderOpen size={18} /> },
-  { to: '/analytics',   label: 'Analytics',   icon: <BarChart3 size={18} /> },
-  { to: '/reports',     label: 'Reports',     icon: <TrendingUp size={18} /> },
-  { to: '/settlements', label: 'Settlements', icon: <FileSpreadsheet size={18} /> },
+interface NavSection {
+  label: string
+  items: NavItem[]
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Pipeline',
+    items: [
+      { to: '/marketing',        label: 'Marketing',  icon: <Megaphone size={18} /> },
+      { to: '/leads',            label: 'Leads',      icon: <Users size={18} /> },
+      { to: '/driver-acquisition', label: 'Recruiting', icon: <UserPlus size={18} /> },
+      { to: '/drivers',          label: 'Drivers',    icon: <Truck size={18} /> },
+      { to: '/brokers',          label: 'Brokers',    icon: <Building2 size={18} /> },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { to: '/operations',        label: 'Operations',    icon: <Zap size={18} /> },
+      { to: '/loadmatch',         label: 'Load Match',    icon: <ArrowRightLeft size={18} /> },
+      { to: '/findloads',         label: 'Find Loads',    icon: <Radar size={18} /> },
+      { to: '/activeloads',       label: 'Active Loads',  icon: <Activity size={18} /> },
+      { to: '/dispatcher',        label: 'Dispatch Board', icon: <Kanban size={18} /> },
+      { to: '/dispatch-calendar', label: 'Calendar',      icon: <CalendarDays size={18} /> },
+      { to: '/loads',             label: 'Loads',         icon: <Package size={18} /> },
+    ],
+  },
+  {
+    label: 'Finance & Admin',
+    items: [
+      { to: '/invoices',   label: 'Invoices',    icon: <FileText size={18} /> },
+      { to: '/tasks',      label: 'Tasks',       icon: <CheckSquare size={18} /> },
+      { to: '/documents',  label: 'Documents',   icon: <FolderOpen size={18} /> },
+      { to: '/analytics',  label: 'Analytics',   icon: <BarChart3 size={18} /> },
+      { to: '/reports',    label: 'Reports',     icon: <TrendingUp size={18} /> },
+      { to: '/settlements', label: 'Settlements', icon: <FileSpreadsheet size={18} /> },
+    ],
+  },
 ]
 
 const BOTTOM_ITEMS: NavItem[] = [
@@ -64,24 +84,40 @@ export function Sidebar() {
       </div>
 
       {/* Main nav */}
-      <nav className='flex-1 overflow-y-auto py-3 px-2 space-y-0.5'>
-        {NAV_ITEMS.map((item) => (
-          <SidebarLink key={item.to} item={item} collapsed={sidebarCollapsed} />
+      <nav className='flex-1 overflow-y-auto py-2 px-2'>
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label}>
+            {!sidebarCollapsed && (
+              <div className='px-2.5 pt-4 pb-1'>
+                <span className='text-[10px] font-semibold uppercase tracking-widest text-gray-600'>
+                  {section.label}
+                </span>
+              </div>
+            )}
+            {sidebarCollapsed && <div className='pt-2' />}
+            <div className='space-y-0.5'>
+              {section.items.map((item) => (
+                <SidebarLink key={item.to} item={item} collapsed={sidebarCollapsed} />
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
       {/* Bottom nav */}
-      <div className='py-3 px-2 border-t border-surface-400 space-y-0.5'>
+      <div className='py-3 px-2 border-t border-surface-400'>
         <button
           onClick={() => setShowCalc(true)}
-          title='Rate Calculator'
+          title='Open Rate Calculator'
           className='w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all text-gray-400 hover:bg-surface-600 hover:text-orange-400'>
           <span className='shrink-0'><Calculator size={18} /></span>
           {!sidebarCollapsed && <span className='truncate'>Rate Calc</span>}
         </button>
-        {BOTTOM_ITEMS.map((item) => (
-          <SidebarLink key={item.to} item={item} collapsed={sidebarCollapsed} />
-        ))}
+        <div className='border-t border-surface-400/60 mt-1 pt-1 space-y-0.5'>
+          {BOTTOM_ITEMS.map((item) => (
+            <SidebarLink key={item.to} item={item} collapsed={sidebarCollapsed} />
+          ))}
+        </div>
       </div>
       {showCalc && <RateCalculator onClose={() => setShowCalc(false)} defaultDispatchPct={defaultDispatchPct} fuelPricePerGallon={fuelPricePerGallon} />}
 
