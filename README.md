@@ -13,8 +13,8 @@ Built for **OnTrack Hauling Solutions** by Chris Hooks.
 | **Dispatcher** | Live driver board grouped by status with RPM, route, and broker flag coloring |
 | **Leads** | Carrier CRM: kanban, call logs, lead scoring, FMCSA import, CSV/paste import, SAFER links |
 | **Drivers** | Driver profiles, CDL/insurance expiry alerts, document management |
-| **Loads** | Full 7-stage dispatch lifecycle: Searching → Booked → In Transit → Delivered → Paid |
-| **Brokers** | Broker database with flag management, payment terms, performance history |
+| **Loads** | Dispatch and broker-mode loads: 8-stage lifecycle including Carrier Selected; RPM calc, broker panel with DAT postings, carrier offers, and carrier vetting |
+| **Brokers** | Freight broker directory (flag management, payment terms, performance history) and shipper directory — separated by contact_type column |
 | **Invoices** | Generate, send, and track dispatch invoices with CSV/print export |
 | **Tasks** | Daily dispatch checklist with recurring tasks and per-date completion history |
 | **Marketing** | Daily post workflow: suggested post, anti-repetition, variation generator, group rotation, image prompts |
@@ -110,19 +110,18 @@ Move the `OnTrackDashboard/` folder into a Google Drive directory.
 
 ## Database Schema
 
-9 migrations applied automatically on startup:
+44 migrations applied automatically on startup. Key milestones:
 
 | Migration | Description |
 |-----------|-------------|
 | 001 | Initial schema: leads, drivers, brokers, loads, invoices, tasks, documents, users |
 | 002 | driver_documents, task_completions, notes, app_settings, backups, audit_log; new columns |
-| 003 | content + updated_at columns for documents table |
-| 004 | current_location column for drivers |
-| 005 | updated_at on notes and driver_documents |
-| 006 | dot_number column on leads; backfill FMCSA DOT values from mc_number |
-| 007 | fleet_size column on leads (Power Units from FMCSA SAFER) |
-| 008 | marketing_groups table (group rotation tracker) |
-| 009 | marketing_post_log table; truck_type_tags, region_tags, active columns on marketing_groups |
+| 003–007 | Incremental column additions: documents, drivers, notes, leads (dot_number, fleet_size) |
+| 008–009 | marketing_groups and marketing_post_log tables |
+| 010–019 | Additional columns and tables (operations, analytics, industry terms, audit improvements) |
+| 020–029 | Load mode, broker contact_type, dispatcher board, profit radar, operations filters |
+| 030–039 | Outreach engine tables, outreach_refresh_log, performance tracking |
+| 040–044 | Broker mode: dat_postings, carrier_offers, broker_carrier_vetting; load_mode and contact_type additive columns |
 
 ---
 
@@ -195,8 +194,10 @@ app/
       search.ts           # Global search query
       seed.ts             # Dev seed data (guarded, ids start at 101)
       repositories/       # Data access layer (one file per entity)
+      operations.ts       # Operations page queries (dispatch-only filtered)
+      profitRadar.ts      # Profit radar queries (dispatch-only filtered)
       schema/
-        migrations.ts     # All 9 DB migrations
+        migrations.ts     # All 44 DB migrations
     preload/
       index.ts            # contextBridge IPC API (window.api)
   src/

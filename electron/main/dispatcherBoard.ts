@@ -37,7 +37,7 @@ export function getBoardRows(db: Database.Database): BoardRow[] {
     ' FROM drivers d' +
     ' LEFT JOIN loads l ON l.id = (' +
     '   SELECT id FROM loads WHERE driver_id = d.id' +
-    "   AND status IN ('Booked', 'Picked Up', 'In Transit')" +
+    "   AND status IN ('Booked', 'Picked Up', 'In Transit') AND load_mode = 'dispatch'" +
     '   ORDER BY CASE status' +
     "     WHEN 'In Transit' THEN 1" +
     "     WHEN 'Picked Up'  THEN 2" +
@@ -72,7 +72,7 @@ export function getAvailableLoads(db: Database.Database): AvailableLoad[] {
     '  b.flag AS broker_flag' +
     ' FROM loads l' +
     ' LEFT JOIN brokers b ON b.id = l.broker_id' +
-    " WHERE l.status = 'Searching' AND l.driver_id IS NULL" +
+    " WHERE l.status = 'Searching' AND l.driver_id IS NULL AND l.load_mode = 'dispatch'" +
     ' ORDER BY l.pickup_date ASC, l.created_at ASC'
   return db.prepare(sql).all() as AvailableLoad[]
 }
@@ -97,6 +97,7 @@ export function assignLoadToDriver(
     if (!load) return { ok: false, error: 'Load not found.' }
     if (load.driver_id !== null) return { ok: false, error: 'Load is already assigned to a driver.' }
     if (load.status !== 'Searching') return { ok: false, error: `Load status is '${load.status}' — only Searching loads can be assigned.` }
+    if (load.load_mode !== 'dispatch') return { ok: false, error: 'Only dispatch-mode loads can be assigned from the board.' }
 
     const driver = db.prepare('SELECT * FROM drivers WHERE id = ?').get(driverId) as any
     if (!driver) return { ok: false, error: 'Driver not found.' }

@@ -15,9 +15,10 @@ import {
   loadDailyTasks, saveDailyTasks, type DailyTask,
 } from '../lib/marketingUtils'
 import {
-  generateTodaysOutreach, getWeeklyRefreshState, markAiRefreshDone,
+  generateTodaysOutreach,
   type OutreachVars, type GeneratedPost, type OutreachResult,
 } from '../lib/outreachEngine'
+import OutreachPerformancePanel from '../components/marketing/OutreachPerformancePanel'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -402,7 +403,21 @@ export function Marketing() {
   const [outreachDriverType, setOutreachDriverType] = useState('hotshot')
   const [outreachLaneRegion, setOutreachLaneRegion] = useState('')
   const [outreachRpmRange,   setOutreachRpmRange]   = useState('$2.00-$2.40')
-  const refreshState = getWeeklyRefreshState()
+
+  // DB-backed refresh state (replaces localStorage)
+  const [lastRefresh,      setLastRefresh]      = useState<{ refreshed_at: string; template_count_added: number } | null>(null)
+  const [refreshLoading,   setRefreshLoading]   = useState(false)
+
+  // Performance state
+  const [outreachPerf,     setOutreachPerf]     = useState<Array<{ template_id: string; uses: number; total_replies: number; total_leads: number; score: number }>>([])
+  const [outreachSummary,  setOutreachSummary]  = useState<{ total_posts: number; total_replies: number; total_leads: number; top_template_id: string | null; stale_template_ids: string[] } | null>(null)
+
+  // Derived: does the banner need to show?
+  const outreachNeedsRefresh = (() => {
+    if (!lastRefresh) return true
+    const days = Math.floor((Date.now() - new Date(lastRefresh.refreshed_at).getTime()) / 86400000)
+    return days >= 7
+  })()
 
   // Refs for stable callbacks
   const recentIdsRef = useRef(recentIds)
@@ -447,13 +462,27 @@ export function Marketing() {
     setPostLog(logs)
   }, [])
 
+  const loadOutreachMeta = useCallback(async () => {
+    try {
+      const [last, perf, summary] = await Promise.all([
+        (window.api as any).outreach.getLastRefresh(),
+        (window.api as any).outreach.performance(),
+        (window.api as any).outreach.summary(),
+      ])
+      setLastRefresh(last)
+      setOutreachPerf(perf ?? [])
+      setOutreachSummary(summary)
+    } catch { /* non-fatal */ }
+  }, [])
+
   useEffect(() => {
     loadAntiRep()
     loadGroups()
     loadPostLog()
     loadTodaysRecs()
     loadCatAnalysis()
-  }, [loadAntiRep, loadGroups, loadPostLog, loadTodaysRecs, loadCatAnalysis])
+    loadOutreachMeta()
+  }, [loadAntiRep, loadGroups, loadPostLog, loadTodaysRecs, loadCatAnalysis, loadOutreachMeta])
 
   // ── Derived: suggested post ────────────────────────────────────────────────
 
@@ -952,6 +981,14 @@ export function Marketing() {
                 </table>
               </div>
             )}
+
+            {/* Performance summary — shown when there is data */}
+            {outreachSummary && outreachSummary.total_posts > 0 && (
+              <OutreachPerformancePanel
+                summary={outreachSummary}
+                perf={outreachPerf}
+              />
+            )}
           </div>
         )}
 
@@ -1272,22 +1309,29 @@ export function Marketing() {
         {activeTab === 'outreach' && (
           <div className='p-5 space-y-5'>
 
-            {/* Weekly AI refresh reminder */}
-            {refreshState.needsRefresh && (
+            {/* Weekly AI refresh reminder — DB-backed */}
+            {outreachNeedsRefresh && (
               <div className='flex items-start gap-3 bg-amber-900/20 border border-amber-700/40 rounded-xl p-4'>
                 <AlertTriangle size={14} className='text-amber-400 mt-0.5 shrink-0' />
                 <div className='flex-1 min-w-0'>
                   <p className='text-xs font-semibold text-amber-300 mb-0.5'>Weekly refresh due</p>
                   <p className='text-2xs text-amber-500 leading-relaxed'>
-                    {refreshState.daysSince === null
-                      ? 'You have not logged an AI template refresh yet. Use AI once this week to generate 5-10 new templates, fresh hooks, and new angles. Then copy them into the engine.'
-                      : `Last refresh was ${refreshState.daysSince} days ago. Spend 10 minutes with AI this week: ask for new hooks, new pain point angles, and 5 templates for your current target driver type.`}
+                    {!lastRefresh
+                      ? 'You have not logged a template refresh yet. Use AI once this week to generate 5-10 new templates, fresh hooks, and new angles. Then add them into outreachEngine.ts.'
+                      : `Last refresh was ${Math.floor((Date.now() - new Date(lastRefresh.refreshed_at).getTime()) / 86400000)} days ago. Spend 10 minutes with AI: new hooks, new pain point angles, 5 fresh templates for your current target driver type.`}
                   </p>
                 </div>
                 <button
-                  onClick={() => { markAiRefreshDone(); setOutreachResult(null) }}
-                  className='text-2xs text-amber-600 hover:text-amber-400 transition-colors whitespace-nowrap'
-                >Mark done</button>
+                  disabled={refreshLoading}
+                  onClick={async () => {
+                    setRefreshLoading(true)
+                    try {
+                      await (window.api as any).outreach.logRefresh(null, 0)
+                      await loadOutreachMeta()
+                    } finally { setRefreshLoading(false) }
+                  }}
+                  className='text-2xs text-amber-600 hover:text-amber-400 transition-colors whitespace-nowrap disabled:opacity-50'
+                >{refreshLoading ? 'Saving...' : 'Mark done'}</button>
               </div>
             )}
 
@@ -1475,10 +1519,11 @@ export function Marketing() {
                     </div>
                   ))}
                 </div>
-                {refreshState.lastDate && (
+                {lastRefresh && (
                   <p className='text-2xs text-gray-700'>
-                    Last refresh: {refreshState.lastDate}
-                    {refreshState.daysSince !== null ? ` (${refreshState.daysSince}d ago)` : ''}
+                    Last refresh: {lastRefresh.refreshed_at.split('T')[0]}
+                    {' '}({Math.floor((Date.now() - new Date(lastRefresh.refreshed_at).getTime()) / 86400000)}d ago)
+                    {lastRefresh.template_count_added > 0 && ` · ${lastRefresh.template_count_added} templates added`}
                   </p>
                 )}
               </div>

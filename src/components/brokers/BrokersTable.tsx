@@ -17,7 +17,7 @@ interface Props {
 }
 
 const COLS: { key: keyof Broker; label: string; w: string }[] = [
-  { key: 'name',          label: 'Broker',       w: 'w-44' },
+  { key: 'name',          label: 'Name',         w: 'w-44' },
   { key: 'mc_number',     label: 'MC #',          w: 'w-24' },
   { key: 'phone',         label: 'Phone',         w: 'w-32' },
   { key: 'email',         label: 'Email',         w: 'w-44' },
@@ -245,7 +245,14 @@ export function BrokersTable({ brokers, loading, sortKey, sortDir, onSort, onSel
               : brokers.map(b => (
                 <tr key={b.id} onClick={() => onSelect(b)}
                   className='group border-b border-surface-600 hover:bg-surface-700/50 cursor-pointer transition-colors'>
-                  <td className='px-3 py-2.5 font-medium text-gray-200'>{b.name}</td>
+                  <td className='px-3 py-2.5'>
+                    <div className='flex items-center gap-1.5'>
+                      <span className='font-medium text-gray-200'>{b.name}</span>
+                      {b.contact_type === 'shipper' && (
+                        <span className='text-2xs px-1.5 py-0 rounded border border-violet-700/40 text-violet-400 font-medium leading-4'>shipper</span>
+                      )}
+                    </div>
+                  </td>
                   <td className='px-3 py-2.5 font-mono text-2xs'>
                     {b.mc_number
                       ? <button onClick={e => openSaferMc(b.mc_number, e)}

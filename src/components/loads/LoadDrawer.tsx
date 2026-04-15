@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Edit2, Trash2, Plus, ArrowRight, Printer, FileText, Copy, Paperclip, Phone, MessageSquare, Check, ChevronDown, Receipt } from 'lucide-react'
-import type { Load, LoadStatus, Driver, Broker, Note, TimelineEvent } from '../../types/models'
+import type { Load, LoadStatus, Driver, Broker, Note, TimelineEvent, DatPosting, CarrierOffer, BrokerCarrierVetting } from '../../types/models'
 import { LOAD_STATUS_STYLES, LOAD_STATUS_NEXT } from './constants'
 
 interface Props {
@@ -238,13 +238,20 @@ function printSettlement(load: Load, driver: Driver | undefined, broker: Broker 
   document.body.removeChild(root)
   document.head.removeChild(style)
 }
-function Row({ label, value, accent=false }: { label:string; value:string; accent?:boolean }) {
-  return <div><p className='text-2xs text-gray-600'>{label}</p><p className={`text-sm mt-0.5 ${accent?'text-green-400 font-mono font-semibold':value==='—'?'text-gray-700':'text-gray-300'}`}>{value}</p></div>
+function Row({ label, value, accent=false, mono=false }: { label:string; value:string; accent?:boolean; mono?:boolean }) {
+  return <div><p className='text-2xs text-gray-600'>{label}</p><p className={`text-sm mt-0.5 ${accent?'text-green-400 font-mono font-semibold':value==='—'?'text-gray-700':'text-gray-300'}${mono?' font-mono':''}`}>{value}</p></div>
 }
 function Sec({ title }: { title:string }) {
   return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
 }
 type LoadAttachment = { id: number; load_id: number; title: string; file_path: string; file_name: string; created_at: string }
+type Deduction     = { id: number; load_id: number; label: string; amount: number; created_at: string }
+type DatForm     = { posted_rate: string; expires_at: string; posting_ref: string; status: 'active'|'expired'|'filled'; notes: string }
+type OfferForm   = { carrier_name: string; mc_number: string; phone: string; offered_rate: string; status: 'Pending'|'Accepted'|'Rejected'|'Countered'; counter_rate: string; final_rate: string; notes: string }
+type VettingForm = { carrier_mc: string; carrier_name: string; insurance_verified: 0|1; authority_active: 0|1; safety_rating: string; carrier_packet_received: 0|1; vetting_date: string; notes: string }
+const DAT_BLANK: DatForm         = { posted_rate:'', expires_at:'', posting_ref:'', status:'active', notes:'' }
+const OFFER_BLANK: OfferForm     = { carrier_name:'', mc_number:'', phone:'', offered_rate:'', status:'Pending', counter_rate:'', final_rate:'', notes:'' }
+const VETTING_BLANK: VettingForm = { carrier_mc:'', carrier_name:'', insurance_verified:0, authority_active:0, safety_rating:'', carrier_packet_received:0, vetting_date:'', notes:'' }
 
 export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusChange, onDelete, onDuplicate }: Props) {
   const navigate = useNavigate()
@@ -259,13 +266,24 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
   const [checkCalls,setCheckCalls]   = useState<TimelineEvent[]>([])
   const [callLabel,setCallLabel]     = useState('')
   const [addCall,setAddCall]         = useState(false)
-  type Deduction = { id: number; load_id: number; label: string; amount: number; created_at: string }
   const [deductions,setDeductions]   = useState<Deduction[]>([])
   const [dedLabel,setDedLabel]       = useState('')
   const [dedAmount,setDedAmount]     = useState('')
   const [addDed,setAddDed]           = useState(false)
   const [showMsgTemplates,setShowMsgTemplates] = useState(false)
   const [copiedMsg,setCopiedMsg]              = useState<string|null>(null)
+  // --- Broker Mode ---
+  const [datPostings,   setDatPostings]   = useState<DatPosting[]>([])
+  const [datForm,       setDatForm]       = useState<DatForm>(DAT_BLANK)
+  const [editDatId,     setEditDatId]     = useState<number|null>(null)
+  const [showDatForm,   setShowDatForm]   = useState(false)
+  const [carrierOffers, setCarrierOffers] = useState<CarrierOffer[]>([])
+  const [offerForm,     setOfferForm]     = useState<OfferForm>(OFFER_BLANK)
+  const [editOfferId,   setEditOfferId]   = useState<number|null>(null)
+  const [showOfferForm, setShowOfferForm] = useState(false)
+  const [vetting,       setVetting]       = useState<BrokerCarrierVetting|null>(null)
+  const [vettingForm,   setVettingForm]   = useState<VettingForm>(VETTING_BLANK)
+  const [editVetting,   setEditVetting]   = useState(false)
 
   useEffect(() => {
     window.api.notes.list('load', load.id).then(setNotes).catch(() => {})
@@ -275,6 +293,11 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
     try {
       window.api.loadAttachments.list(load.id).then(setAttachments).catch(() => {})
       window.api.loadDeductions.list(load.id).then(setDeductions).catch(() => {})
+      if (load.load_mode === 'broker') {
+        window.api.datPostings.list(load.id).then(setDatPostings).catch(() => {})
+        window.api.carrierOffers.list(load.id).then(setCarrierOffers).catch(() => {})
+        window.api.brokerVetting.get(load.id).then(v => setVetting(v ?? null)).catch(() => {})
+      }
     } catch {
       // Catches synchronous access errors (e.g. window.api.X undefined during dev hot-reload)
     }
@@ -305,6 +328,86 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
   }
   const delNote = async (id:number) => { await window.api.notes.delete(id); setNotes(p=>p.filter(n=>n.id!==id)) }
 
+  // --- DAT Postings ---
+  const openAddDat  = () => { setEditDatId(null); setDatForm(DAT_BLANK); setShowDatForm(true) }
+  const openEditDat = (p: DatPosting) => {
+    setEditDatId(p.id)
+    setDatForm({ posted_rate: p.posted_rate != null ? String(p.posted_rate) : '', expires_at: p.expires_at ?? '', posting_ref: p.posting_ref ?? '', status: p.status, notes: p.notes ?? '' })
+    setShowDatForm(true)
+  }
+  const saveDat = async () => {
+    const dto = { posted_rate: datForm.posted_rate ? parseFloat(datForm.posted_rate) : null, expires_at: datForm.expires_at || null, posting_ref: datForm.posting_ref || null, status: datForm.status, notes: datForm.notes || null }
+    if (editDatId != null) {
+      const updated = await window.api.datPostings.update(editDatId, dto)
+      if (updated) setDatPostings(p => p.map(x => x.id === editDatId ? updated : x))
+    } else {
+      const created = await window.api.datPostings.create({ ...dto, load_id: load.id })
+      setDatPostings(p => [...p, created])
+    }
+    setShowDatForm(false); setEditDatId(null); setDatForm(DAT_BLANK)
+  }
+  const delDat = async (id: number) => { await window.api.datPostings.delete(id); setDatPostings(p => p.filter(x => x.id !== id)) }
+
+  // --- Carrier Offers ---
+  const openAddOffer  = () => { setEditOfferId(null); setOfferForm(OFFER_BLANK); setShowOfferForm(true) }
+  const openEditOffer = (o: CarrierOffer) => {
+    setEditOfferId(o.id)
+    setOfferForm({ carrier_name: o.carrier_name, mc_number: o.mc_number ?? '', phone: o.phone ?? '', offered_rate: o.offered_rate != null ? String(o.offered_rate) : '', status: o.status, counter_rate: o.counter_rate != null ? String(o.counter_rate) : '', final_rate: o.final_rate != null ? String(o.final_rate) : '', notes: o.notes ?? '' })
+    setShowOfferForm(true)
+  }
+  const saveOffer = async () => {
+    if (!offerForm.carrier_name.trim()) return
+    const dto = { carrier_name: offerForm.carrier_name.trim(), mc_number: offerForm.mc_number || null, phone: offerForm.phone || null, offered_rate: offerForm.offered_rate ? parseFloat(offerForm.offered_rate) : null, status: offerForm.status, counter_rate: offerForm.counter_rate ? parseFloat(offerForm.counter_rate) : null, final_rate: offerForm.final_rate ? parseFloat(offerForm.final_rate) : null, notes: offerForm.notes || null }
+    const isAccepting = offerForm.status === 'Accepted'
+    if (editOfferId != null) {
+      if (isAccepting) {
+        // Atomically: update offer fields, reject competitors, sync load to Carrier Selected
+        const result = await window.api.carrierOffers.accept(editOfferId, dto)
+        setCarrierOffers(result.allOffers)
+        onStatusChange(load, 'Carrier Selected')
+      } else {
+        const updated = await window.api.carrierOffers.update(editOfferId, dto)
+        if (updated) setCarrierOffers(p => p.map(x => x.id === editOfferId ? updated : x))
+      }
+    } else {
+      const created = await window.api.carrierOffers.create({ ...dto, load_id: load.id })
+      if (isAccepting) {
+        // Newly created offer is immediately accepted — run accept to sync competitors + load
+        const result = await window.api.carrierOffers.accept(created.id)
+        setCarrierOffers(result.allOffers)
+        onStatusChange(load, 'Carrier Selected')
+      } else {
+        setCarrierOffers(p => [...p, created])
+      }
+    }
+    setShowOfferForm(false); setEditOfferId(null); setOfferForm(OFFER_BLANK)
+  }
+  const delOffer = async (id: number) => { await window.api.carrierOffers.delete(id); setCarrierOffers(p => p.filter(x => x.id !== id)) }
+  const acceptOfferDirect = async (o: CarrierOffer) => {
+    const result = await window.api.carrierOffers.accept(o.id)
+    setCarrierOffers(result.allOffers)
+    onStatusChange(load, 'Carrier Selected')
+  }
+
+  // --- Carrier Vetting ---
+  const openEditVetting = () => {
+    if (vetting) {
+      // Editing an existing record — load saved values, never auto-overwrite
+      setVettingForm({ carrier_mc: vetting.carrier_mc ?? '', carrier_name: vetting.carrier_name ?? '', insurance_verified: vetting.insurance_verified, authority_active: vetting.authority_active, safety_rating: vetting.safety_rating ?? '', carrier_packet_received: vetting.carrier_packet_received, vetting_date: vetting.vetting_date ?? '', notes: vetting.notes ?? '' })
+    } else if (acceptedOffer) {
+      // No vetting yet — prefill name + MC from the accepted offer as a convenience
+      setVettingForm({ ...VETTING_BLANK, carrier_name: acceptedOffer.carrier_name, carrier_mc: acceptedOffer.mc_number ?? '' })
+    } else {
+      setVettingForm(VETTING_BLANK)
+    }
+    setEditVetting(true)
+  }
+  const saveVetting = async () => {
+    const saved = await window.api.brokerVetting.upsert({ load_id: load.id, carrier_mc: vettingForm.carrier_mc || null, carrier_name: vettingForm.carrier_name || null, insurance_verified: vettingForm.insurance_verified, authority_active: vettingForm.authority_active, safety_rating: (vettingForm.safety_rating || null) as BrokerCarrierVetting['safety_rating'], carrier_packet_received: vettingForm.carrier_packet_received, vetting_date: vettingForm.vetting_date || null, notes: vettingForm.notes || null })
+    setVetting(saved); setEditVetting(false)
+  }
+  const delVetting = async () => { await window.api.brokerVetting.delete(load.id); setVetting(null) }
+
   const pickAttachment = async () => {
     const r = await window.api.loadAttachments.pick(load.id)
     if (r) { setPendingFile(r); if (!attTitle) setAttTitle(r.displayName) }
@@ -316,8 +419,9 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
   }
   const delAttachment = async (id:number) => { await window.api.loadAttachments.delete(id); setAttachments(p=>p.filter(a=>a.id!==id)) }
 
-  const driver   = drivers.find(d=>d.id===load.driver_id)
-  const broker   = brokers.find(b=>b.id===load.broker_id)
+  const driver        = drivers.find(d=>d.id===load.driver_id)
+  const broker        = brokers.find(b=>b.id===load.broker_id)
+  const acceptedOffer = carrierOffers.find(o=>o.status==='Accepted') ?? null
   const rpm      = load.rate!=null&&load.miles!=null&&load.miles>0 ? load.rate/load.miles : null
   const dispFee  = load.rate!=null&&load.dispatch_pct!=null ? load.rate*(load.dispatch_pct/100) : null
   const nextSt   = LOAD_STATUS_NEXT[load.status]
@@ -505,7 +609,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 }
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Broker</p>
+                <p className='text-2xs text-gray-600'>{broker?.contact_type === 'shipper' ? 'Shipper' : 'Broker'}</p>
                 <p className='text-sm text-gray-300 mt-0.5'>{broker?.name??'—'}</p>
                 {broker && (() => {
                   const slowDiff  = broker.avg_days_pay != null ? broker.avg_days_pay - broker.payment_terms : null
@@ -535,6 +639,287 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               {load.load_id&&<Row label='Broker Ref #' value={load.load_id} mono/>}
             </div>
           </div>
+
+          {/* ── Broker Mode Panels ── */}
+          {load.load_mode === 'broker' && (<>
+
+          {/* Broker next-step cues */}
+          {(() => {
+            type Cue = { text: string; color: string; action?: () => void; actionLabel?: string }
+            const cues: Cue[] = []
+            if (datPostings.length === 0)
+              cues.push({ text: 'No DAT posting yet', color: 'text-gray-500' })
+            if (acceptedOffer && !vetting)
+              cues.push({ text: 'Covered — needs vetting', color: 'text-yellow-500', action: openEditVetting, actionLabel: 'Start' })
+            if (vetting && load.status === 'Carrier Selected')
+              cues.push({ text: 'Vetted — ready for pickup', color: 'text-sky-400' })
+            if (cues.length === 0) return null
+            return (
+              <div className='px-5 py-2 border-b border-surface-600 bg-surface-700/30 flex items-center gap-3 flex-wrap'>
+                {cues.map((c, i) => (
+                  <span key={i} className={`flex items-center gap-1.5 text-2xs ${c.color}`}>
+                    <span className='w-1 h-1 rounded-full bg-current shrink-0' />
+                    {c.text}
+                    {c.action && (
+                      <button onClick={c.action}
+                        className='text-2xs font-semibold text-orange-400 hover:text-orange-300 transition-colors underline underline-offset-2'>
+                        {c.actionLabel}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* DAT Postings */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <div className='flex items-center justify-between mb-3'>
+              <Sec title='DAT Postings'/>
+              <button onClick={showDatForm && editDatId==null ? ()=>{setShowDatForm(false);setDatForm(DAT_BLANK)} : openAddDat}
+                className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'>
+                <Plus size={10}/>{showDatForm && editDatId==null ? 'Cancel' : 'Add'}
+              </button>
+            </div>
+            {showDatForm && (
+              <div className='mb-3 p-3 rounded-lg bg-surface-700 space-y-2'>
+                <p className='text-2xs text-gray-500 font-medium'>{editDatId != null ? 'Edit Posting' : 'New Posting'}</p>
+                <div className='grid grid-cols-2 gap-2'>
+                  <input value={datForm.posted_rate} onChange={e=>setDatForm(p=>({...p,posted_rate:e.target.value}))} type='number' min='0' step='0.01' placeholder='Posted rate ($)'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <input value={datForm.expires_at} onChange={e=>setDatForm(p=>({...p,expires_at:e.target.value}))} type='date'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 focus:outline-none'/>
+                  <input value={datForm.posting_ref} onChange={e=>setDatForm(p=>({...p,posting_ref:e.target.value}))} placeholder='Posting ref #'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <select value={datForm.status} onChange={e=>setDatForm(p=>({...p,status:e.target.value as DatForm['status']}))}
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 focus:outline-none'>
+                    <option value='active'>Active</option>
+                    <option value='expired'>Expired</option>
+                    <option value='filled'>Filled</option>
+                  </select>
+                </div>
+                <input value={datForm.notes} onChange={e=>setDatForm(p=>({...p,notes:e.target.value}))} placeholder='Notes'
+                  className='w-full h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                <div className='flex gap-2'>
+                  <button onClick={saveDat} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'>Save</button>
+                  <button onClick={()=>{setShowDatForm(false);setEditDatId(null);setDatForm(DAT_BLANK)}} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                </div>
+              </div>
+            )}
+            {datPostings.length === 0
+              ? <p className='text-2xs text-gray-700 italic'>No DAT postings yet.</p>
+              : datPostings.map(p => (
+                <div key={p.id} className='group/dat flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
+                  <div className='flex-1 min-w-0'>
+                    <div className='flex items-center gap-2 flex-wrap'>
+                      {p.posted_rate != null && <span className='text-xs text-green-400 font-mono'>${p.posted_rate.toLocaleString()}</span>}
+                      {p.posting_ref && <span className='text-2xs text-gray-500'>#{p.posting_ref}</span>}
+                      <span className={`text-2xs px-1.5 py-0 rounded border ${p.status==='active'?'border-green-700/40 text-green-500':p.status==='filled'?'border-orange-700/40 text-orange-400':'border-surface-400 text-gray-600'}`}>{p.status}</span>
+                    </div>
+                    {p.expires_at && <p className='text-2xs text-gray-700 mt-0.5'>expires {fmt(p.expires_at)}</p>}
+                    {p.notes && <p className='text-2xs text-gray-600 mt-0.5 truncate'>{p.notes}</p>}
+                  </div>
+                  <div className='flex gap-1 opacity-0 group-hover/dat:opacity-100 transition-all'>
+                    <button onClick={()=>openEditDat(p)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400'><Edit2 size={10}/></button>
+                    <button onClick={()=>delDat(p.id)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400'><X size={10}/></button>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+
+          {/* Carrier Offers */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <div className='flex items-center justify-between mb-3'>
+              <Sec title='Carrier Offers'/>
+              <button onClick={showOfferForm && editOfferId==null ? ()=>{setShowOfferForm(false);setOfferForm(OFFER_BLANK)} : openAddOffer}
+                className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'>
+                <Plus size={10}/>{showOfferForm && editOfferId==null ? 'Cancel' : 'Add'}
+              </button>
+            </div>
+            {/* Accepted carrier summary — quick-glance card */}
+            {acceptedOffer && !showOfferForm && (
+              <div className='mb-3 px-3 py-2.5 rounded-lg bg-green-900/20 border border-green-800/30'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div className='min-w-0'>
+                    <p className='text-2xs text-green-600 uppercase tracking-wide font-semibold mb-0.5'>Accepted Carrier</p>
+                    <p className='text-sm text-green-300 font-semibold truncate'>{acceptedOffer.carrier_name}</p>
+                    <div className='flex items-center gap-2 mt-0.5 flex-wrap'>
+                      {acceptedOffer.mc_number && <span className='text-2xs text-gray-500 font-mono'>{acceptedOffer.mc_number}</span>}
+                      {acceptedOffer.phone && <span className='text-2xs text-gray-500'>{acceptedOffer.phone}</span>}
+                    </div>
+                  </div>
+                  <div className='text-right shrink-0'>
+                    <p className='text-2xs text-gray-600'>Rate</p>
+                    <p className='text-sm font-mono font-semibold text-green-400'>
+                      {acceptedOffer.final_rate != null ? `$${acceptedOffer.final_rate.toLocaleString()}` :
+                       acceptedOffer.offered_rate != null ? `$${acceptedOffer.offered_rate.toLocaleString()}` : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showOfferForm && (
+              <div className='mb-3 p-3 rounded-lg bg-surface-700 space-y-2'>
+                <p className='text-2xs text-gray-500 font-medium'>{editOfferId != null ? 'Edit Offer' : 'New Offer'}</p>
+                <div className='grid grid-cols-2 gap-2'>
+                  <input value={offerForm.carrier_name} onChange={e=>setOfferForm(p=>({...p,carrier_name:e.target.value}))} placeholder='Carrier name *'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <input value={offerForm.mc_number} onChange={e=>setOfferForm(p=>({...p,mc_number:e.target.value}))} placeholder='MC number'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <input value={offerForm.phone} onChange={e=>setOfferForm(p=>({...p,phone:e.target.value}))} placeholder='Phone'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <input value={offerForm.offered_rate} onChange={e=>setOfferForm(p=>({...p,offered_rate:e.target.value}))} type='number' min='0' step='0.01' placeholder='Offered rate ($)'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <select value={offerForm.status} onChange={e=>setOfferForm(p=>({...p,status:e.target.value as OfferForm['status']}))}
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 focus:outline-none'>
+                    <option value='Pending'>Pending</option>
+                    <option value='Accepted'>Accepted</option>
+                    <option value='Rejected'>Rejected</option>
+                    <option value='Countered'>Countered</option>
+                  </select>
+                  <input value={offerForm.counter_rate} onChange={e=>setOfferForm(p=>({...p,counter_rate:e.target.value}))} type='number' min='0' step='0.01' placeholder='Counter rate ($)'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <input value={offerForm.final_rate} onChange={e=>setOfferForm(p=>({...p,final_rate:e.target.value}))} type='number' min='0' step='0.01' placeholder='Final rate ($)'
+                    className='col-span-2 h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                </div>
+                <input value={offerForm.notes} onChange={e=>setOfferForm(p=>({...p,notes:e.target.value}))} placeholder='Notes'
+                  className='w-full h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                <div className='flex gap-2'>
+                  <button onClick={saveOffer} disabled={!offerForm.carrier_name.trim()} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg disabled:opacity-40'>Save</button>
+                  <button onClick={()=>{setShowOfferForm(false);setEditOfferId(null);setOfferForm(OFFER_BLANK)}} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                </div>
+              </div>
+            )}
+            {carrierOffers.length === 0
+              ? <p className='text-2xs text-gray-700 italic'>No carrier offers yet.</p>
+              : [...carrierOffers].sort((a,b)=>(a.status==='Accepted'?-1:b.status==='Accepted'?1:0)).map(o => (
+                <div key={o.id} className={`group/offer flex items-start gap-2 py-2 border-b border-surface-600 last:border-0 ${o.status==='Accepted'?'bg-green-900/15 rounded-lg px-2 -mx-2 border-green-800/30':''}` }>
+                  <div className='flex-1 min-w-0'>
+                    <div className='flex items-center gap-2 flex-wrap'>
+                      <span className={`text-xs font-medium ${o.status==='Accepted'?'text-green-300':'text-gray-200'}`}>{o.carrier_name}</span>
+                      {o.mc_number && <span className='text-2xs text-gray-600'>{o.mc_number}</span>}
+                      <span className={`text-2xs px-1.5 py-0 rounded border ${o.status==='Accepted'?'border-green-600/60 text-green-400 font-semibold':o.status==='Rejected'?'border-red-700/40 text-red-400':o.status==='Countered'?'border-yellow-700/40 text-yellow-400':'border-surface-400 text-gray-600'}`}>{o.status}</span>
+                    </div>
+                    <div className='flex items-center gap-3 mt-0.5 flex-wrap'>
+                      {o.offered_rate != null && <span className='text-2xs text-gray-500'>offered <span className='font-mono text-gray-300'>${o.offered_rate.toLocaleString()}</span></span>}
+                      {o.counter_rate != null && <span className='text-2xs text-gray-500'>counter <span className='font-mono text-yellow-400'>${o.counter_rate.toLocaleString()}</span></span>}
+                      {o.final_rate != null && <span className='text-2xs text-gray-500'>final <span className='font-mono text-green-400'>${o.final_rate.toLocaleString()}</span></span>}
+                    </div>
+                    {o.phone && <p className='text-2xs text-gray-700 mt-0.5'>{o.phone}</p>}
+                    {o.notes && <p className='text-2xs text-gray-600 mt-0.5 truncate'>{o.notes}</p>}
+                  </div>
+                  <div className='flex gap-1 opacity-0 group-hover/offer:opacity-100 transition-all'>
+                    {o.status === 'Pending' && (
+                      <button onClick={e=>{e.stopPropagation();acceptOfferDirect(o)}} title='Accept this offer'
+                        className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-green-400'>
+                        <Check size={10}/>
+                      </button>
+                    )}
+                    <button onClick={()=>openEditOffer(o)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400'><Edit2 size={10}/></button>
+                    <button onClick={()=>delOffer(o.id)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400'><X size={10}/></button>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+
+          {/* Carrier Vetting */}
+          <div className='px-5 py-4 border-b border-surface-600'>
+            <div className='flex items-center justify-between mb-3'>
+              <Sec title='Carrier Vetting'/>
+              <div className='flex items-center gap-2 mb-3'>
+                {!editVetting && (
+                  <button onClick={openEditVetting} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
+                    <Edit2 size={10}/>{vetting ? 'Edit' : 'New'}
+                  </button>
+                )}
+                {vetting && !editVetting && (
+                  <button onClick={delVetting} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-red-400 transition-colors ml-1'>
+                    <Trash2 size={10}/>
+                  </button>
+                )}
+              </div>
+            </div>
+            {editVetting && (
+              <div className='mb-3 p-3 rounded-lg bg-surface-700 space-y-2'>
+                <div className='grid grid-cols-2 gap-2'>
+                  <input value={vettingForm.carrier_name} onChange={e=>setVettingForm(p=>({...p,carrier_name:e.target.value}))} placeholder='Carrier name'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <input value={vettingForm.carrier_mc} onChange={e=>setVettingForm(p=>({...p,carrier_mc:e.target.value}))} placeholder='MC number'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                  <select value={vettingForm.safety_rating} onChange={e=>setVettingForm(p=>({...p,safety_rating:e.target.value}))}
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 focus:outline-none'>
+                    <option value=''>Safety rating</option>
+                    <option value='Satisfactory'>Satisfactory</option>
+                    <option value='Conditional'>Conditional</option>
+                    <option value='Unsatisfactory'>Unsatisfactory</option>
+                    <option value='Not Rated'>Not Rated</option>
+                  </select>
+                  <input value={vettingForm.vetting_date} onChange={e=>setVettingForm(p=>({...p,vetting_date:e.target.value}))} type='date'
+                    className='h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 focus:outline-none'/>
+                </div>
+                <div className='flex items-center gap-4 py-1'>
+                  {([['insurance_verified','Insurance verified'],['authority_active','Authority active'],['carrier_packet_received','Packet received']] as const).map(([field, label]) => (
+                    <label key={field} className='flex items-center gap-1.5 cursor-pointer'>
+                      <input type='checkbox' checked={vettingForm[field]===1}
+                        onChange={e=>setVettingForm(p=>({...p,[field]:e.target.checked?1:0}))}
+                        className='w-3 h-3 accent-orange-500'/>
+                      <span className='text-2xs text-gray-400'>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <input value={vettingForm.notes} onChange={e=>setVettingForm(p=>({...p,notes:e.target.value}))} placeholder='Notes'
+                  className='w-full h-7 px-2.5 text-xs bg-surface-600 border border-surface-400 rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none'/>
+                <div className='flex gap-2'>
+                  <button onClick={saveVetting} className='px-3 py-1 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg'>Save</button>
+                  <button onClick={()=>setEditVetting(false)} className='px-3 py-1 text-2xs text-gray-500 hover:text-gray-300 rounded-lg'>Cancel</button>
+                </div>
+              </div>
+            )}
+            {!editVetting && vetting && (
+              <div className='space-y-2'>
+                {(vetting.carrier_name || vetting.carrier_mc) && (
+                  <div className='flex items-center gap-2 flex-wrap'>
+                    <span className='text-xs text-gray-200 font-medium'>{vetting.carrier_name ?? '—'}</span>
+                    {vetting.carrier_mc && <span className='text-2xs text-gray-600'>{vetting.carrier_mc}</span>}
+                  </div>
+                )}
+                {acceptedOffer && (
+                  (() => {
+                    const nameMismatch = vetting.carrier_name && acceptedOffer.carrier_name &&
+                      vetting.carrier_name.trim().toLowerCase() !== acceptedOffer.carrier_name.trim().toLowerCase()
+                    const mcMismatch = vetting.carrier_mc && acceptedOffer.mc_number &&
+                      vetting.carrier_mc.trim() !== acceptedOffer.mc_number.trim()
+                    return (nameMismatch || mcMismatch) ? (
+                      <p className='text-2xs text-yellow-500/80 border border-yellow-700/30 rounded px-2 py-1 bg-yellow-900/10'>
+                        Vetting carrier differs from accepted offer ({acceptedOffer.carrier_name}{acceptedOffer.mc_number ? ` · ${acceptedOffer.mc_number}` : ''})
+                      </p>
+                    ) : null
+                  })()
+                )}
+                <div className='flex items-center gap-3 flex-wrap'>
+                  {([['insurance_verified','Insurance'],['authority_active','Authority'],['carrier_packet_received','Packet']] as const).map(([field, label]) => (
+                    <span key={field} className={`text-2xs flex items-center gap-1 ${vetting[field]===1?'text-green-400':'text-gray-600'}`}>
+                      {vetting[field]===1?<Check size={10}/>:<X size={10}/>}{label}
+                    </span>
+                  ))}
+                </div>
+                {vetting.safety_rating && (
+                  <span className={`text-2xs px-1.5 py-0 rounded border inline-block ${vetting.safety_rating==='Satisfactory'?'border-green-700/40 text-green-500':vetting.safety_rating==='Conditional'?'border-yellow-700/40 text-yellow-400':'border-red-700/40 text-red-400'}`}>
+                    {vetting.safety_rating}
+                  </span>
+                )}
+                {vetting.vetting_date && <p className='text-2xs text-gray-600'>Vetted {fmt(vetting.vetting_date)}</p>}
+                {vetting.notes && <p className='text-2xs text-gray-600'>{vetting.notes}</p>}
+              </div>
+            )}
+            {!editVetting && !vetting && (
+              <p className='text-2xs text-gray-700 italic'>No vetting record yet.</p>
+            )}
+          </div>
+
+          </>)}
           {/* Deductions */}
           {['Delivered','Invoiced','Paid'].includes(load.status) && (
           <div className='px-5 py-4 border-b border-surface-600'>

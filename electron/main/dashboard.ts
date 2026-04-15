@@ -35,7 +35,7 @@ export function getDashboardStats(db: Database.Database): DashboardStats {
     " AND NOT EXISTS (" +
     "   SELECT 1 FROM loads l" +
     "   WHERE l.driver_id = d.id" +
-    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit')" +
+    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit') AND l.load_mode = 'dispatch'" +
     ")"
   ).get() as { c: number }
 

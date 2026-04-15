@@ -144,8 +144,11 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
         {/* Header */}
         <div className='flex items-start justify-between px-5 pt-5 pb-4 border-b border-surface-500 shrink-0'>
           <div className='flex-1 min-w-0'>
-            <div className='flex items-center gap-2 mb-1'>
+            <div className='flex items-center gap-2 mb-1 flex-wrap'>
               <h2 className='text-lg font-semibold text-gray-100 truncate'>{broker.name}</h2>
+              {broker.contact_type === 'shipper' && (
+                <span className='text-2xs px-2 py-0.5 rounded-full border border-violet-700/40 text-violet-400 font-medium'>shipper</span>
+              )}
               {broker.flag !== 'None' && (
                 <span className={`text-2xs px-2 py-0.5 rounded-full border ${FLAG_STYLES[broker.flag]}`}>{broker.flag}</span>
               )}

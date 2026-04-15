@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+dist2/
 .DS_Store
 *.db
 *.db-journal
@@ -10,3 +11,7 @@ dist/
 .env
 .env.local
 .claude/settings.local.json
+dist/
+dist2/
+release/
+*.exe

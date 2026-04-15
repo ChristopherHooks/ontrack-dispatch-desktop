@@ -74,7 +74,7 @@ export function getOperationsData(db: Database.Database): OperationsData {
     " AND NOT EXISTS (" +
     "   SELECT 1 FROM loads l" +
     "   WHERE l.driver_id = d.id" +
-    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit')" +
+    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit') AND l.load_mode = 'dispatch'" +
     ")"
   ).get() as { c: number }).c
 
@@ -157,7 +157,7 @@ export function getOperationsData(db: Database.Database): OperationsData {
     " AND NOT EXISTS (" +
     "   SELECT 1 FROM loads l" +
     "   WHERE l.driver_id = d.id" +
-    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit')" +
+    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit') AND l.load_mode = 'dispatch'" +
     ")" +
     " ORDER BY d.name ASC LIMIT 10"
   ).all() as Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>

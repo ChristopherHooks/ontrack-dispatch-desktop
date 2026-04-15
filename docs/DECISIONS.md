@@ -181,3 +181,87 @@ array in `src/data/industryTerms.ts`, not in the SQLite database.
 to be queried server-side, and does not benefit from DB persistence. Static data is simpler,
 type-safe, and loads instantly with no IPC round-trip. Filtering and sorting are done
 client-side in the renderer.
+
+---
+
+## DEC-014: Two-meaning "broker" disambiguation via load_mode and contact_type
+
+**Decision:** The word "broker" has two distinct meanings in the app. These are kept separate
+by two additive columns:
+
+1. `brokers.contact_type` ('broker' | 'shipper', default 'broker') — classifies an entry in
+   the brokers table as either a freight broker (OnTrack dispatches against them) or a direct
+   shipper (customer for broker-mode loads).
+2. `loads.load_mode` ('dispatch' | 'broker', default 'dispatch') — classifies an individual
+   load as dispatch mode (OnTrack dispatches one of its drivers) or broker mode (OnTrack acts
+   as the freight broker, finding and contracting a carrier on behalf of a shipper).
+
+**Reason:** Using a single "broker" concept conflated two fundamentally different business
+relationships. The `brokers` table was already used for counterparties in dispatch mode;
+introducing broker mode for loads required a clean way to store shippers in the same table
+without breaking existing broker records. The load_mode approach similarly preserves all
+existing dispatch loads without migration data transforms.
+
+**Constraint:** Never filter brokers or loads on the word "broker" alone. Always use
+`contact_type` or `load_mode` explicitly.
+
+---
+
+## DEC-015: Additive column migration strategy for broker mode
+
+**Decision:** Broker mode was introduced via four additive migrations (v40–v44) using
+`addColumnIfMissing()` for the column additions and `CREATE TABLE IF NOT EXISTS` for
+the new tables. No existing rows were modified.
+
+**Reason:** load_mode = 'dispatch' and contact_type = 'broker' defaults mean every existing
+row in loads and brokers already carries the correct value for its existing behavior.
+A migration that backfills data or alters column types would risk data loss or corrupt
+behavior on production databases. Additive-only migrations are always safe to re-apply.
+
+**Constraint:** Never ALTER an existing column type or DROP a column in a migration. Always
+add new columns with defaults or create new tables. Use addColumnIfMissing() for columns.
+
+---
+
+## DEC-016: acceptCarrierOffer() as an atomic SQLite transaction
+
+**Decision:** Accepting a carrier offer is implemented as a single `db.transaction()()` call
+in `carrierOffersRepo.ts` that performs three writes atomically:
+1. Update the target offer to status='Accepted' (with optional DTO field updates).
+2. Update all other offers for the same load to status='Rejected' (skipping already-Rejected).
+3. Update the parent load to status='Carrier Selected'.
+
+**Reason:** These three writes are semantically a single business action. If any one step
+fails, the others must not persist — an accepted offer without rejected competitors would
+leave the load in an inconsistent state (multiple "accepted" offers visible). SQLite
+transactions guarantee all-or-nothing execution.
+
+**Side effect:** After `accept()` returns, the React component also calls
+`onStatusChange(load, 'Carrier Selected')` to sync parent React state. This causes a
+redundant DB write (the load was already updated by the transaction). This is intentional
+and idempotent — the parent state sync is necessary for the UI to reflect the new status
+without a full page reload.
+
+**Constraint:** Do not split the three writes across separate IPC calls. The accept
+operation must always go through `carrierOffers:accept` (not `loads:update` + `carrierOffers:update`).
+
+---
+
+## DEC-017: Dispatch/broker workflow separation via load_mode filter in query files
+
+**Decision:** All dispatch-only queries — dispatcher board, load scanner, dashboard
+drivers-needing-loads KPI, operations driver queries, and profit radar idle driver query —
+were updated to append `AND l.load_mode = 'dispatch'` (or equivalent) to their WHERE clauses.
+This was done in the query files (`dispatcherBoard.ts`, `loadScanner.ts`, `dashboard.ts`,
+`operations.ts`, `profitRadar.ts`) rather than at the IPC handler or repo level.
+
+**Reason:** Broker-mode loads have a different workflow (carrier sourcing via offers, not
+driver assignment from a board). Showing broker loads in the dispatcher board or load scanner
+would produce misleading data — e.g., a broker load might show as "unassigned" and appear in
+the available load recommendations even though it is actively being covered by a carrier offer.
+Filtering at the query level keeps the separation clean without adding complexity to the
+renderer or IPC layer.
+
+**Constraint:** Any new dispatch-centric query (e.g., revenue-per-driver, on-time metrics)
+must also filter to `load_mode = 'dispatch'` unless the intent is to aggregate both modes.
+Broker-mode loads should be analyzed separately when implementing broker analytics.

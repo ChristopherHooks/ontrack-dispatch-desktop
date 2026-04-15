@@ -1108,7 +1108,113 @@ const migration038: Migration = {
   },
 }
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038]
+const migration039: Migration = {
+  version: 39,
+  description: 'Create outreach_refresh_log table for DB-backed weekly refresh tracking',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS outreach_refresh_log (' +
+      '  id                   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  refreshed_at         TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  notes                TEXT,' +
+      '  template_count_added INTEGER NOT NULL DEFAULT 0' +
+      ')'
+    )
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (39)")
+  },
+}
+
+const migration040: Migration = {
+  version: 40,
+  description: 'Add load_mode column to loads (dispatch | broker, default dispatch)',
+  up: (db) => {
+    addColumnIfMissing(db, 'loads', 'load_mode', "TEXT NOT NULL DEFAULT 'dispatch'")
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (40)")
+  },
+}
+
+const migration041: Migration = {
+  version: 41,
+  description: 'Add contact_type column to brokers (broker | shipper, default broker)',
+  up: (db) => {
+    addColumnIfMissing(db, 'brokers', 'contact_type', "TEXT NOT NULL DEFAULT 'broker'")
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (41)")
+  },
+}
+
+const migration042: Migration = {
+  version: 42,
+  description: 'Create dat_postings table for broker-mode load postings',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS dat_postings (' +
+      '  id          INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id     INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  posted_rate REAL,' +
+      '  posted_at   TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  expires_at  TEXT,' +
+      '  posting_ref TEXT,' +
+      '  status      TEXT NOT NULL DEFAULT \'active\',' +
+      '  notes       TEXT,' +
+      '  created_at  TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE INDEX IF NOT EXISTS idx_dat_load ON dat_postings(load_id)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (42)")
+  },
+}
+
+const migration043: Migration = {
+  version: 43,
+  description: 'Create carrier_offers table for broker-mode inbound carrier calls',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS carrier_offers (' +
+      '  id            INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id       INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  carrier_name  TEXT NOT NULL,' +
+      '  mc_number     TEXT,' +
+      '  phone         TEXT,' +
+      '  offered_rate  REAL,' +
+      '  offered_at    TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  status        TEXT NOT NULL DEFAULT \'Pending\',' +
+      '  counter_rate  REAL,' +
+      '  final_rate    REAL,' +
+      '  notes         TEXT,' +
+      '  created_at    TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  updated_at    TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE INDEX IF NOT EXISTS idx_offers_load ON carrier_offers(load_id)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (43)")
+  },
+}
+
+const migration044: Migration = {
+  version: 44,
+  description: 'Create broker_carrier_vetting table for accepted-carrier compliance records',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS broker_carrier_vetting (' +
+      '  id                      INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  load_id                 INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  carrier_mc              TEXT,' +
+      '  carrier_name            TEXT,' +
+      '  insurance_verified      INTEGER NOT NULL DEFAULT 0,' +
+      '  authority_active        INTEGER NOT NULL DEFAULT 0,' +
+      '  safety_rating           TEXT,' +
+      '  carrier_packet_received INTEGER NOT NULL DEFAULT 0,' +
+      '  vetting_date            TEXT,' +
+      '  notes                   TEXT,' +
+      '  created_at              TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_vetting_load ON broker_carrier_vetting(load_id)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (44)")
+  },
+}
+
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038, migration039, migration040, migration041, migration042, migration043, migration044]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions
@@ -1122,6 +1228,18 @@ export function runMigrations(db: Database.Database): void {
     (db.prepare('SELECT version FROM schema_version').all() as Array<{ version: number }>)
       .map(r => r.version)
   )
+  // Pre-flight: assert no duplicate version numbers in MIGRATIONS array
+  const versions = MIGRATIONS.map(m => m.version)
+  const versionSet = new Set(versions)
+  if (versionSet.size !== versions.length) {
+    throw new Error('[DB] MIGRATIONS array contains duplicate version numbers')
+  }
+  // Pre-flight: assert no gaps and correct sequential order
+  for (let i = 0; i < versions.length; i++) {
+    if (versions[i] !== i + 1) {
+      throw new Error(`[DB] MIGRATIONS array has gap or wrong order at index ${i}: expected version ${i + 1}, got ${versions[i]}`)
+    }
+  }
   for (const m of MIGRATIONS) {
     if (!applied.has(m.version)) {
       console.log('[DB] Applying migration', m.version, ':', m.description)

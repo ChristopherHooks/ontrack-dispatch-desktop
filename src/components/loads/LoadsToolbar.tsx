@@ -1,8 +1,8 @@
 import { Search, X, Plus, ChevronDown, LayoutGrid, List, CalendarDays, TrendingUp } from 'lucide-react'
 import type { LoadStatus } from '../../types/models'
-import { LOAD_STATUSES } from './constants'
+import { ALL_LOAD_STATUSES } from './constants'
 
-export interface LoadFilters { status: LoadStatus | '' }
+export interface LoadFilters { status: LoadStatus | ''; load_mode: string }
 export type LoadView = 'list' | 'board' | 'calendar'
 interface Props {
   search: string; onSearch: (v: string) => void
@@ -27,9 +27,17 @@ export function LoadsToolbar({ search, onSearch, filters, onFilters, view, onVie
         )}
       </div>
       <div className='relative'>
+        <select value={filters.load_mode} onChange={e => onFilters({ ...filters, load_mode: e.target.value })} className={sel}>
+          <option value=''>All Modes</option>
+          <option value='dispatch'>Dispatch</option>
+          <option value='broker'>Broker</option>
+        </select>
+        <ChevronDown size={11} className='absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none' />
+      </div>
+      <div className='relative'>
         <select value={filters.status} onChange={e => onFilters({ ...filters, status: e.target.value as LoadStatus | '' })} className={sel}>
           <option value=''>All Statuses</option>
-          {LOAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {ALL_LOAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <ChevronDown size={11} className='absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none' />
       </div>

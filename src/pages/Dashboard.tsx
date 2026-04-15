@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone, ChevronDown, ChevronRight, X, Target } from 'lucide-react'
+import { Truck, Package, Users, FileText, CheckSquare, Clock, Star, Phone, ChevronDown, ChevronRight, X, Target, Zap } from 'lucide-react'
 import type { Driver, Load, Lead } from '../types/models'
 import { computeLeadScore } from '../lib/leadScore'
 import { openSaferMc, openSaferDot } from '../lib/saferUrl'
@@ -47,6 +47,10 @@ export function Dashboard() {
   type ExpiryAlert = { driver_name: string; doc_type: string; expiry_date: string; days_until: number }
   const [expiryAlerts,    setExpiryAlerts]    = useState<ExpiryAlert[]>([])
   const [expiryDismissed, setExpiryDismissed] = useState(false)
+  // Outreach weekly refresh reminder
+  const [outreachRefreshDue,       setOutreachRefreshDue]       = useState(false)
+  const [outreachRefreshDaysSince, setOutreachRefreshDaysSince] = useState<number | null>(null)
+  const [outreachRefreshDismissed, setOutreachRefreshDismissed] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -82,6 +86,19 @@ export function Dashboard() {
         if (alerts.length > 0) setExpiryAlerts(alerts.sort((a, b) => a.days_until - b.days_until))
       })
       .catch(() => {})
+    // Check outreach weekly refresh state
+    ;(window.api as any).outreach.getLastRefresh().then((last: { refreshed_at: string } | null) => {
+      if (!last) {
+        setOutreachRefreshDue(true)
+        setOutreachRefreshDaysSince(null)
+      } else {
+        const days = Math.floor((Date.now() - new Date(last.refreshed_at).getTime()) / 86400000)
+        if (days >= 7) {
+          setOutreachRefreshDue(true)
+          setOutreachRefreshDaysSince(days)
+        }
+      }
+    }).catch(() => {})
     // Load weekly target from settings
     window.api.settings.get('weeklyRevenueTarget').then(v => {
       if (v != null && !isNaN(Number(v))) {
@@ -183,6 +200,32 @@ export function Dashboard() {
             View Drivers
           </button>
           <button onClick={() => setExpiryDismissed(true)} className='p-1 text-amber-700 hover:text-amber-400 transition-colors shrink-0'>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* Outreach Engine weekly refresh reminder */}
+      {outreachRefreshDue && !outreachRefreshDismissed && (
+        <div className='flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-950/40 border border-blue-700/40'>
+          <Zap size={15} className='text-blue-400 mt-0.5 shrink-0' />
+          <div className='flex-1 min-w-0'>
+            <p className='text-sm font-semibold text-blue-300'>
+              Outreach Engine — weekly template refresh due
+            </p>
+            <p className='text-xs text-blue-700 mt-0.5'>
+              {outreachRefreshDaysSince != null
+                ? `Last refreshed ${outreachRefreshDaysSince} day${outreachRefreshDaysSince !== 1 ? 's' : ''} ago. Swap in new templates to keep posts from going stale.`
+                : 'No template refresh logged yet. Head to Marketing to run your first weekly AI plan.'}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/marketing')}
+            className='text-2xs px-2.5 py-1 rounded-lg bg-blue-700/40 hover:bg-blue-700/60 text-blue-300 border border-blue-700/40 shrink-0 transition-colors'
+          >
+            Go to Outreach
+          </button>
+          <button onClick={() => setOutreachRefreshDismissed(true)} className='p-1 text-blue-800 hover:text-blue-400 transition-colors shrink-0'>
             <X size={13} />
           </button>
         </div>

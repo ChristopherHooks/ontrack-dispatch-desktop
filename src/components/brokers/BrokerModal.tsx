@@ -11,6 +11,7 @@ const BLANK: CreateBrokerDto = {
   flag: 'None', notes: null,
   new_authority: 0, min_authority_days: null,
   credit_limit: null,
+  contact_type: 'broker',
 }
 
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
@@ -69,6 +70,12 @@ export function BrokerModal({ broker, onSave, onClose }: Props) {
                   <input className={inp} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder='e.g. Coyote Logistics' required />
                 </Field>
               </div>
+              <Field label='Contact Type' icon={<Tag size={10} />}>
+                <select className={inp} value={form.contact_type} onChange={e => setForm(p => ({ ...p, contact_type: e.target.value as 'broker' | 'shipper' }))}>
+                  <option value='broker'>Broker</option>
+                  <option value='shipper'>Shipper</option>
+                </select>
+              </Field>
               <Field label='MC Number' icon={<Tag size={10} />}>
                 <input className={inp} value={form.mc_number ?? ''} onChange={e => str('mc_number', e.target.value)} placeholder='MC-123456' />
               </Field>

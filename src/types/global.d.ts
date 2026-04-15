@@ -20,6 +20,9 @@ import type {
   DriverProspect, CreateDriverProspectDto, UpdateDriverProspectDto,
   ProspectOutreachEntry, CreateProspectOutreachDto,
   LoadAccessorial, CreateLoadAccessorialDto,
+  DatPosting, CreateDatPostingDto, UpdateDatPostingDto,
+  CarrierOffer, CreateCarrierOfferDto, UpdateCarrierOfferDto,
+  BrokerCarrierVetting, CreateBrokerCarrierVettingDto,
 } from './models'
 
 interface CarrierBrokerApprovalRow {
@@ -242,6 +245,36 @@ declare global {
           importHtml:   () => Promise<{ added: number; found: number; canceled?: boolean }>
         }
       }
+
+      // -- Outreach Engine --
+      outreach: {
+        getLastRefresh: () => Promise<{
+          id:                   number
+          refreshed_at:         string
+          notes:                string | null
+          template_count_added: number
+        } | null>
+        logRefresh:  (notes: string | null, templateCountAdded: number) => Promise<{
+          id:                   number
+          refreshed_at:         string
+          notes:                string | null
+          template_count_added: number
+        }>
+        performance: () => Promise<Array<{
+          template_id:   string
+          uses:          number
+          total_replies: number
+          total_leads:   number
+          score:         number
+        }>>
+        summary: () => Promise<{
+          total_posts:        number
+          total_replies:      number
+          total_leads:        number
+          top_template_id:    string | null
+          stale_template_ids: string[]
+        }>
+      }
       // -- Driver Acquisition Pipeline --
       driverProspects: {
         list:   (stage?: string)                                    => Promise<DriverProspect[]>
@@ -270,6 +303,32 @@ declare global {
         create: (dto: CreateLoadAccessorialDto)                     => Promise<LoadAccessorial>
         update: (id: number, dto: Partial<Pick<LoadAccessorial, 'type' | 'amount' | 'notes'>>) => Promise<LoadAccessorial | undefined>
         delete: (id: number)                                        => Promise<void>
+      }
+
+      // -- Broker Mode: DAT Postings --
+      datPostings: {
+        list:   (loadId: number) => Promise<DatPosting[]>
+        get:    (id: number)     => Promise<DatPosting | undefined>
+        create: (dto: CreateDatPostingDto) => Promise<DatPosting>
+        update: (id: number, dto: UpdateDatPostingDto) => Promise<DatPosting | undefined>
+        delete: (id: number)     => Promise<boolean>
+      }
+
+      // -- Broker Mode: Carrier Offers --
+      carrierOffers: {
+        list:   (loadId: number) => Promise<CarrierOffer[]>
+        get:    (id: number)     => Promise<CarrierOffer | undefined>
+        create: (dto: CreateCarrierOfferDto) => Promise<CarrierOffer>
+        update:  (id: number, dto: UpdateCarrierOfferDto) => Promise<CarrierOffer | undefined>
+        delete:  (id: number)     => Promise<boolean>
+        accept:  (id: number, dto?: UpdateCarrierOfferDto) => Promise<{ offer: CarrierOffer; allOffers: CarrierOffer[] }>
+      }
+
+      // -- Broker Mode: Carrier Vetting --
+      brokerVetting: {
+        get:    (loadId: number) => Promise<BrokerCarrierVetting | undefined>
+        upsert: (dto: CreateBrokerCarrierVettingDto) => Promise<BrokerCarrierVetting>
+        delete: (loadId: number) => Promise<boolean>
       }
 
       shell: {

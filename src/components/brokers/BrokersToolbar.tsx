@@ -2,7 +2,7 @@ import { Search, X, Building2, Plus } from 'lucide-react'
 import type { BrokerFlag } from '../../types/models'
 import { BROKER_FLAGS } from './constants'
 
-export interface BrokerFilters { flag: string }
+export interface BrokerFilters { flag: string; contact_type: string }
 
 interface Props {
   search: string; onSearch: (v: string) => void
@@ -23,6 +23,12 @@ export function BrokersToolbar({ search, onSearch, filters, onFilter, count, onA
           className='h-8 w-52 pl-8 pr-6 bg-surface-600 border border-surface-400 rounded-lg text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-orange-600/50' />
         {search && <button onClick={() => onSearch('')} className='absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400'><X size={10} /></button>}
       </div>
+      <select value={filters.contact_type} onChange={e => onFilter({ ...filters, contact_type: e.target.value })}
+        className='h-8 px-2 bg-surface-600 border border-surface-400 rounded-lg text-xs text-gray-400 focus:outline-none'>
+        <option value=''>All Types</option>
+        <option value='broker'>Broker</option>
+        <option value='shipper'>Shipper</option>
+      </select>
       <select value={filters.flag} onChange={e => onFilter({ ...filters, flag: e.target.value })}
         className='h-8 px-2 bg-surface-600 border border-surface-400 rounded-lg text-xs text-gray-400 focus:outline-none'>
         <option value=''>All Flags</option>

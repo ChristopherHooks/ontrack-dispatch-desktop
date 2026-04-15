@@ -21,15 +21,16 @@ import {
   listMarketingGroups, createMarketingGroup, updateMarketingGroup, markGroupPosted, deleteMarketingGroup,
   getTodaysGroups, getCategoryAnalysis, seedFbGroups, markGroupReviewed, snoozeGroup,
   listPostLog, createPostLog, updatePostLog, deletePostLog, getRecentlyUsedTemplateIds, getTemplateUsageCounts,
-  listFbConversations, getFbConversation, createFbConversation, updateFbConversation, deleteFbConversation, fbConversationExists,
-  listFbPosts, createFbPost, updateFbPost, deleteFbPost, fbPostExists,
-  listFbQueuePosts, createFbQueuePost, updateFbQueuePost, deleteFbQueuePost, suggestNextCategory, getRecentFbPostCategories,
   listBrokerCallLog, createBrokerCallLog, deleteBrokerCallLog,
   listCarrierBrokerApprovals, upsertCarrierBrokerApproval, deleteCarrierBrokerApproval,
   listDriverProspects, getDriverProspect, createDriverProspect, updateDriverProspect, deleteDriverProspect,
   listProspectOutreach, createProspectOutreach, deleteProspectOutreach,
   getDriverOnboardingChecklist, setDriverOnboardingItem,
   listLoadAccessorials, createLoadAccessorial, updateLoadAccessorial, deleteLoadAccessorial,
+  getLastRefresh, logRefresh, getOutreachPerformance, getOutreachSummary,
+  listDatPostings, getDatPosting, createDatPosting, updateDatPosting, deleteDatPosting,
+  listCarrierOffers, getCarrierOffer, createCarrierOffer, updateCarrierOffer, deleteCarrierOffer, acceptCarrierOffer,
+  getVetting, upsertVetting, deleteVetting,
 } from './repositories'
 import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
@@ -235,6 +236,38 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('driverDocs:create', (_e, dto: unknown) => createDriverDocument(getDb(), dto as any))
   ipcMain.handle('driverDocs:update', (_e, id: number, dto: unknown) => updateDriverDocument(getDb(), id, dto as any))
   ipcMain.handle('driverDocs:delete', (_e, id: number) => deleteDriverDocument(getDb(), id))
+  ipcMain.handle('driverDocs:openAttachment', (_e, absolutePath: string) => {
+    if (typeof absolutePath !== 'string') return
+    if (!existsSync(absolutePath)) return
+    shell.openPath(absolutePath)
+  })
+  // Opens file picker, copies chosen file into userData/driver-docs/{driverId}/,
+  // returns { storedPath, displayName } or null if user cancelled
+  ipcMain.handle('driverDocs:pickFile', async (_e, driverId: number) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Attach Document',
+      buttonLabel: 'Attach',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documents', extensions: ['pdf','doc','docx','jpg','jpeg','png','tif','tiff'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const src = result.filePaths[0]
+    const destDir = join(app.getPath('userData'), 'driver-docs', String(driverId))
+    mkdirSync(destDir, { recursive: true })
+
+    const ts      = Date.now()
+    const origName = basename(src)
+    const ext      = extname(src)
+    const safeName = `${ts}_${origName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const dest     = join(destDir, safeName)
+
+    copyFileSync(src, dest)
+    return { storedPath: dest, displayName: origName.replace(ext, '') + ext }
+  })
 
   // -- Loads --
   ipcMain.handle('loads:list',   (_e, status?: string) => listLoads(getDb(), status))
@@ -301,6 +334,34 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('loadAccessorials:create', (_e, dto: unknown)             => createLoadAccessorial(getDb(), dto as any))
   ipcMain.handle('loadAccessorials:update', (_e, id: number, dto: unknown) => updateLoadAccessorial(getDb(), id, dto as any))
   ipcMain.handle('loadAccessorials:delete', (_e, id: number)               => deleteLoadAccessorial(getDb(), id))
+
+  // -- Outreach Engine --
+  ipcMain.handle('outreach:getLastRefresh', () => getLastRefresh(getDb()))
+  ipcMain.handle('outreach:logRefresh',     (_e, notes: string | null, templateCountAdded: number) =>
+    logRefresh(getDb(), notes ?? null, templateCountAdded ?? 0)
+  )
+  ipcMain.handle('outreach:performance',    () => getOutreachPerformance(getDb()))
+  ipcMain.handle('outreach:summary',        () => getOutreachSummary(getDb()))
+
+  // -- Broker Mode: DAT Postings --
+  ipcMain.handle('datPostings:list',   (_e, loadId: number)          => listDatPostings(getDb(), loadId))
+  ipcMain.handle('datPostings:get',    (_e, id: number)              => getDatPosting(getDb(), id))
+  ipcMain.handle('datPostings:create', (_e, dto: unknown)            => createDatPosting(getDb(), dto as any))
+  ipcMain.handle('datPostings:update', (_e, id: number, dto: unknown) => updateDatPosting(getDb(), id, dto as any))
+  ipcMain.handle('datPostings:delete', (_e, id: number)              => deleteDatPosting(getDb(), id))
+
+  // -- Broker Mode: Carrier Offers --
+  ipcMain.handle('carrierOffers:list',   (_e, loadId: number)          => listCarrierOffers(getDb(), loadId))
+  ipcMain.handle('carrierOffers:get',    (_e, id: number)              => getCarrierOffer(getDb(), id))
+  ipcMain.handle('carrierOffers:create', (_e, dto: unknown)            => createCarrierOffer(getDb(), dto as any))
+  ipcMain.handle('carrierOffers:update',  (_e, id: number, dto: unknown) => updateCarrierOffer(getDb(), id, dto as any))
+  ipcMain.handle('carrierOffers:delete',  (_e, id: number)              => deleteCarrierOffer(getDb(), id))
+  ipcMain.handle('carrierOffers:accept',  (_e, id: number, dto?: unknown) => acceptCarrierOffer(getDb(), id, dto as any))
+
+  // -- Broker Mode: Carrier Vetting --
+  ipcMain.handle('brokerVetting:get',    (_e, loadId: number) => getVetting(getDb(), loadId))
+  ipcMain.handle('brokerVetting:upsert', (_e, dto: unknown)   => upsertVetting(getDb(), dto as any))
+  ipcMain.handle('brokerVetting:delete', (_e, loadId: number) => deleteVetting(getDb(), loadId))
 
   // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))
@@ -416,127 +477,6 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('marketing:post:recentIds',    (_e, days?: number) => getRecentlyUsedTemplateIds(getDb(), days))
   ipcMain.handle('marketing:post:usageCounts',  () => getTemplateUsageCounts(getDb()))
 
-  // -- FB Conversation Agent (Agent 1) — CRUD --
-  ipcMain.handle('fbConv:list',   (_e, stage?: string) => listFbConversations(getDb(), stage))
-  ipcMain.handle('fbConv:get',    (_e, id: number) => getFbConversation(getDb(), id))
-  ipcMain.handle('fbConv:create', (_e, dto: unknown) => createFbConversation(getDb(), dto as any))
-  ipcMain.handle('fbConv:update', (_e, id: number, dto: unknown) => updateFbConversation(getDb(), id, dto as any))
-  ipcMain.handle('fbConv:delete', (_e, id: number) => deleteFbConversation(getDb(), id))
-  ipcMain.handle('fbConv:exists', (_e, name: string, phone: string | null) => fbConversationExists(getDb(), name, phone))
-
-  // -- FB Conversation Agent — AI actions --
-  ipcMain.handle('fb:conv:generateReply', async (_e, p: { name: string; stage: string; lastMessage: string | null; trailer: string | null; location: string | null }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Name: ${p.name}\nStage: ${p.stage}\nLast message: ${p.lastMessage ?? 'none'}\nEquipment: ${p.trailer ?? 'unknown'}\nLocation: ${p.location ?? 'unknown'}\n\nWrite a short, friendly Facebook DM reply (2-3 sentences) that builds rapport and naturally moves the conversation toward a phone call.`,
-      'You write short, natural Facebook DM replies for a trucking dispatch company called OnTrack Hauling Solutions. Replies should sound human, not salesy.',
-      200,
-    )
-  })
-  ipcMain.handle('fb:conv:generateFollowUp', async (_e, p: { name: string; stage: string; lastMessageAt: string | null }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Name: ${p.name}\nStage: ${p.stage}\nLast contact: ${p.lastMessageAt ?? 'unknown'}\n\nWrite a short follow-up message (1-2 sentences). Friendly, not pushy. Acknowledge time passed.`,
-      'You write short, natural Facebook DM follow-ups for a trucking dispatcher.',
-      150,
-    )
-  })
-  ipcMain.handle('fb:conv:suggestQuestion', async (_e, p: { name: string; stage: string; lastMessage: string | null; trailer: string | null; location: string | null }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Lead: ${p.name}\nStage: ${p.stage}\nEquipment: ${p.trailer ?? 'unknown'}\nLocation: ${p.location ?? 'unknown'}\nLast message: ${p.lastMessage ?? 'none'}\n\nSuggest the single best qualifying question to ask this lead next. Return just the question, nothing else.`,
-      'You help trucking dispatchers qualify carrier leads on Facebook.',
-      100,
-    )
-  })
-  ipcMain.handle('fb:conv:handoffSummary', async (_e, p: { name: string; phone: string | null; trailer: string | null; location: string | null; stage: string; notes: string | null }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Name: ${p.name}\nPhone: ${p.phone ?? 'not captured'}\nEquipment: ${p.trailer ?? 'unknown'}\nLocation: ${p.location ?? 'unknown'}\nStage: ${p.stage}\nNotes: ${p.notes ?? 'none'}\n\nWrite a brief call-ready handoff summary (3-4 sentences) for a dispatcher to read before calling this carrier.`,
-      'You write concise call-ready carrier summaries for trucking dispatchers.',
-      250,
-    )
-  })
-
-  // -- FB Lead Hunter Agent (Agent 2) — CRUD --
-  ipcMain.handle('fbHunter:list',   (_e, status?: string) => listFbPosts(getDb(), status as any))
-  ipcMain.handle('fbHunter:create', (_e, dto: unknown) => createFbPost(getDb(), dto as any))
-  ipcMain.handle('fbHunter:update', (_e, id: number, dto: unknown) => updateFbPost(getDb(), id, dto as any))
-  ipcMain.handle('fbHunter:delete', (_e, id: number) => deleteFbPost(getDb(), id))
-  ipcMain.handle('fbHunter:exists', (_e, rawText: string) => fbPostExists(getDb(), rawText))
-
-  // -- FB Lead Hunter Agent — AI actions --
-  ipcMain.handle('fb:hunter:classify', async (_e, p: { rawText: string }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Facebook post: "${p.rawText.slice(0, 800)}"\n\nReturn valid JSON only (no markdown, no code block):\n{"intent":"Needs Dispatcher"|"Needs Load"|"Empty Truck"|"Looking for Consistent Freight"|"General Networking"|"Low Intent"|"Ignore","extractedName":string|null,"extractedPhone":string|null,"extractedLocation":string|null,"extractedEquipment":string|null,"recommendedAction":string,"why":string}`,
-      'You classify Facebook posts for a trucking dispatch company. Return valid JSON only. No explanations, no markdown.',
-      350,
-    )
-  })
-  ipcMain.handle('fb:hunter:draftComment', async (_e, p: { rawText: string; intent: string }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Intent: ${p.intent}\nPost: "${p.rawText.slice(0, 400)}"\n\nWrite a short public Facebook comment (1-2 sentences) showing genuine interest. Friendly, not salesy. No generic phrases like "DM me".`,
-      'You write brief public Facebook comments for a trucking dispatch company called OnTrack Hauling Solutions.',
-      150,
-    )
-  })
-  ipcMain.handle('fb:hunter:draftDm', async (_e, p: { intent: string; extractedInfo: string }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Intent: ${p.intent}\nExtracted info: ${p.extractedInfo}\n\nWrite a short, direct Facebook DM opening (2-3 sentences) to start a dispatching conversation. Introduce the company briefly.`,
-      'You write concise Facebook DMs for a trucking dispatcher at OnTrack Hauling Solutions looking for carriers to work with.',
-      200,
-    )
-  })
-
-  // -- FB Content Agent (Agent 3) — CRUD --
-  ipcMain.handle('fbContent:list',       (_e, status?: string) => listFbQueuePosts(getDb(), status as any))
-  ipcMain.handle('fbContent:create',     (_e, dto: unknown) => createFbQueuePost(getDb(), dto as any))
-  ipcMain.handle('fbContent:update',     (_e, id: number, dto: unknown) => updateFbQueuePost(getDb(), id, dto as any))
-  ipcMain.handle('fbContent:delete',     (_e, id: number) => deleteFbQueuePost(getDb(), id))
-  ipcMain.handle('fbContent:suggestCat', () => suggestNextCategory(getDb()))
-  ipcMain.handle('fbContent:recentCats', (_e, days?: number) => getRecentFbPostCategories(getDb(), days))
-
-  // -- FB Content Agent — AI actions --
-  ipcMain.handle('fb:content:generatePost', async (_e, p: { category: string; recentCategories: string[] }) => {
-    const apiKey     = store.get('claude_api_key') as string | undefined
-    const company    = (store.get('companyName') as string | undefined) ?? 'OnTrack Hauling Solutions'
-    const owner      = (store.get('ownerName')   as string | undefined) ?? 'Chris'
-    return claudeComplete(
-      apiKey ?? '',
-      `Company: ${company}\nContact: ${owner}\nCategory: ${p.category}\nRecent categories (vary your angle): ${p.recentCategories.slice(0, 5).join(', ') || 'none'}\n\nWrite one Facebook post for this category. Natural human tone. No hashtag spam. No bullet lists. 2-4 sentences. End with a clear call to action.`,
-      'You write Facebook posts for a trucking dispatch company. Posts should sound human, professional, and build trust with independent owner-operators.',
-      300,
-    )
-  })
-  ipcMain.handle('fb:content:generateVariation', async (_e, p: { content: string }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Original post:\n${p.content}\n\nWrite one variation of this post with different wording. Same core message, different angle or opening. 2-4 sentences.`,
-      'You rewrite Facebook posts for a trucking dispatch company. Keep the professional, human tone.',
-      250,
-    )
-  })
-  ipcMain.handle('fb:content:suggestReplies', async (_e, p: { content: string }) => {
-    const apiKey = store.get('claude_api_key') as string | undefined
-    return claudeComplete(
-      apiKey ?? '',
-      `Post: "${p.content}"\n\nSuggest 3 short reply options (1 sentence each) for likely comments on this post. Format as:\n1. [reply]\n2. [reply]\n3. [reply]`,
-      'You suggest comment replies for Facebook posts from a trucking dispatch company.',
-      200,
-    )
-  })
-
   // -- Shell utilities --
   ipcMain.handle('shell:openExternal', (_e, url: string) => {
     if (typeof url !== 'string') return
@@ -553,7 +493,6 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     shell.openPath(fullPath)
   })
 
-  // Opens a driver document attachment by absolute path
   // -- Load Attachments --
   ipcMain.handle('loadAttachments:list',   (_e, loadId: number) => listLoadAttachments(getDb(), loadId))
   ipcMain.handle('loadAttachments:create', (_e, dto: unknown) => createLoadAttachment(getDb(), dto as any))
@@ -588,40 +527,6 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('loadDeductions:list',   (_e, loadId: number) => listLoadDeductions(getDb(), loadId))
   ipcMain.handle('loadDeductions:create', (_e, dto: unknown) => createLoadDeduction(getDb(), dto as any))
   ipcMain.handle('loadDeductions:delete', (_e, id: number) => deleteLoadDeduction(getDb(), id))
-
-  ipcMain.handle('driverDocs:openAttachment', (_e, absolutePath: string) => {
-    if (typeof absolutePath !== 'string') return
-    if (!existsSync(absolutePath)) return
-    shell.openPath(absolutePath)
-  })
-
-  // Opens file picker, copies chosen file into userData/driver-docs/{driverId}/,
-  // returns { storedPath, displayName } or null if user cancelled
-  ipcMain.handle('driverDocs:pickFile', async (_e, driverId: number) => {
-    const result = await dialog.showOpenDialog({
-      title: 'Attach Document',
-      buttonLabel: 'Attach',
-      properties: ['openFile'],
-      filters: [
-        { name: 'Documents', extensions: ['pdf','doc','docx','jpg','jpeg','png','tif','tiff'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    })
-    if (result.canceled || result.filePaths.length === 0) return null
-
-    const src = result.filePaths[0]
-    const destDir = join(app.getPath('userData'), 'driver-docs', String(driverId))
-    mkdirSync(destDir, { recursive: true })
-
-    const ts      = Date.now()
-    const origName = basename(src)
-    const ext      = extname(src)
-    const safeName = `${ts}_${origName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-    const dest     = join(destDir, safeName)
-
-    copyFileSync(src, dest)
-    return { storedPath: dest, displayName: origName.replace(ext, '') + ext }
-  })
 
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',          () => { runSeedIfEmpty(getDb());      return { ok: true } })

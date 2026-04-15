@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, ArrowRight, Truck, Calendar, DollarSign, FileText, Tag, Hash, MapPin, Info, AlertTriangle, CheckSquare, Square, Clock } from 'lucide-react'
 import type { Load, CreateLoadDto, LoadStatus, Driver, Broker, Invoice } from '../../types/models'
-import { LOAD_STATUSES } from './constants'
+import { LOAD_STATUSES, BROKER_LOAD_STATUSES } from './constants'
 import { Term } from '../ui/Term'
 import { LoadAccessorialsPanel } from './LoadAccessorialsPanel'
 
@@ -59,6 +59,7 @@ const BLANK: CreateLoadDto = {
   pickup_date: null, delivery_date: null, miles: null, deadhead_miles: null,
   rate: null, fuel_surcharge: null,
   dispatch_pct: 7, trailer_type: null, commodity: null, status: 'Searching', invoiced: 0, notes: null,
+  load_mode: 'dispatch',
 }
 const inp = 'w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60 focus:ring-1 focus:ring-orange-600/20 transition-colors'
 
@@ -171,9 +172,16 @@ export function LoadModal({ load, prefill, onSave, onClose }: Props) {
                 <input className={inp} value={form.load_id??''} onChange={e=>str('load_id',e.target.value)} placeholder='Broker ref number' />
               </Field>
 
+              <Field label='Mode' icon={<Tag size={10} />}>
+                <select className={inp} value={form.load_mode} onChange={e=>setForm(p=>({...p,load_mode:e.target.value as 'dispatch'|'broker'}))}>
+                  <option value='dispatch'>Dispatch</option>
+                  <option value='broker'>Broker</option>
+                </select>
+              </Field>
+
               <Field label='Status' icon={<Tag size={10} />}>
                 <select className={inp} value={form.status} onChange={e=>setForm(p=>({...p,status:e.target.value as LoadStatus}))}>
-                  {LOAD_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+                  {(form.load_mode === 'broker' ? BROKER_LOAD_STATUSES : LOAD_STATUSES).map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
               <Field label='Driver' icon={<Truck size={10} />}>

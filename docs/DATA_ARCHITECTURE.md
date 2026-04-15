@@ -1,8 +1,8 @@
 # Data Architecture -- OnTrack Dispatch Dashboard
 
-Last updated: 2026-03-17
+Last updated: 2026-04-15
 
-## SQLite Schema (15+ tables)
+## SQLite Schema (20+ tables)
 
 | Table | Purpose |
 |---|---|
@@ -10,8 +10,8 @@ Last updated: 2026-03-17
 | leads | Prospect carriers before onboarding |
 | drivers | Active carrier relationships |
 | driver_documents | CDL, insurance, BOL, POD files per driver |
-| loads | Individual dispatched freight loads |
-| brokers | Broker directory with credit flags |
+| loads | Freight loads — dispatch-mode (OnTrack dispatches a driver) or broker-mode (OnTrack brokers to a carrier); distinguished by `load_mode` column |
+| brokers | Freight broker and shipper contacts; distinguished by `contact_type` column ('broker' or 'shipper') |
 | invoices | Dispatch fee invoices |
 | tasks | Daily recurring and one-off tasks |
 | task_completions | Per-date completion records (not a status flag) |
@@ -21,6 +21,10 @@ Last updated: 2026-03-17
 | audit_log | create/update/delete history |
 | marketing_groups | Facebook group rotation tracker with truck type tags |
 | marketing_post_log | History of posts used, groups posted to, results |
+| outreach_refresh_log | Tracks weekly outreach template refresh dates |
+| dat_postings | DAT load board postings for broker-mode loads |
+| carrier_offers | Carrier bids/offers received for broker-mode loads; one offer per load can be Accepted |
+| broker_carrier_vetting | Compliance vetting record for the selected carrier on a broker-mode load |
 
 ## Migration Strategy
 
@@ -38,7 +42,14 @@ electron/main/schema/migrations.ts applies only unapplied versions.
 | v7 | fleet_size column on leads (Power Units from FMCSA SAFER) |
 | v8 | marketing_groups table (group rotation tracker) |
 | v9 | marketing_post_log table; truck_type_tags, region_tags, active columns on marketing_groups |
-| v10-v19 | Additional columns and tables added in sessions 16-20. See migrations.ts for full list. |
+| v10–v19 | Additional columns and tables: operations tracking, analytics improvements, industry terms support, audit log enhancements. See migrations.ts for full list. |
+| v20–v29 | Dispatcher board, profit radar, operations filters; deadhead_miles and fuel_surcharge on loads; min_rpm on drivers |
+| v30–v39 | Outreach engine: outreach_refresh_log table (v39); performance tracking columns on marketing_post_log |
+| v40 | load_mode column on loads (TEXT DEFAULT 'dispatch') — additive, all existing rows default to dispatch |
+| v41 | contact_type column on brokers (TEXT DEFAULT 'broker') — additive, all existing rows default to broker |
+| v42 | dat_postings table: id, load_id, posted_at, expires_at, rate, notes, created_at, updated_at |
+| v43 | carrier_offers table: id, load_id, carrier_name, mc_number, dot_number, rate, contact_name, contact_phone, status, notes, created_at, updated_at |
+| v44 | broker_carrier_vetting table: id, load_id, carrier_name, carrier_mc, carrier_dot, insurance_verified, authority_verified, agreement_signed, notes, created_at, updated_at |
 
 Add new Migration objects to MIGRATIONS array to extend the schema.
 Use addColumnIfMissing() for adding columns to existing tables — safe to re-apply.
@@ -56,7 +67,7 @@ src/types/models.ts. Use import type to avoid runtime cross-process imports.
 | leadsRepo.ts | leads table |
 | driversRepo.ts | drivers table |
 | driverDocumentsRepo.ts | driver_documents table |
-| loadsRepo.ts | loads table |
+| loadsRepo.ts | loads table (listLoads computes has_accepted_offer + has_vetting via EXISTS subqueries) |
 | brokersRepo.ts | brokers table |
 | invoicesRepo.ts | invoices table |
 | tasksRepo.ts | tasks + task_completions tables |
@@ -65,6 +76,10 @@ src/types/models.ts. Use import type to avoid runtime cross-process imports.
 | auditRepo.ts | audit_log table |
 | documentsRepo.ts | documents table |
 | marketingRepo.ts | marketing_groups + marketing_post_log tables |
+| outreachRepo.ts | outreach_refresh_log table + performance aggregation queries |
+| datPostingsRepo.ts | dat_postings table |
+| carrierOffersRepo.ts | carrier_offers table; includes acceptCarrierOffer() atomic transaction |
+| brokerCarrierVettingRepo.ts | broker_carrier_vetting table |
 
 ## Type Source of Truth
 

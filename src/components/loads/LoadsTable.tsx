@@ -119,7 +119,12 @@ export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, 
             const rpmOk = r == null || minRpm == null || r >= minRpm
             return (
               <tr key={l.id} onClick={()=>onSelect(l)} className='border-b border-surface-600 last:border-0 hover:bg-surface-700 cursor-pointer transition-colors group'>
-                <td className='pl-4 pr-3 py-2.5 font-mono text-xs text-gray-400'>{l.load_id ?? <span className='text-gray-700'>#{l.id}</span>}</td>
+                <td className='pl-4 pr-3 py-2.5'>
+                  <div className='flex flex-col gap-0.5'>
+                    <span className='font-mono text-xs text-gray-400'>{l.load_id ?? <span className='text-gray-700'>#{l.id}</span>}</span>
+                    {l.load_mode === 'broker' && <span className='text-2xs font-medium text-sky-400 leading-none'>broker</span>}
+                  </div>
+                </td>
                 <td className='pr-3 py-2.5 text-xs text-gray-300 whitespace-nowrap'>{l.driver_id ? dMap[l.driver_id] ?? '—' : <span className='text-yellow-600'>Unassigned</span>}</td>
                 <td className='pr-3 py-2.5 text-xs text-gray-400'>
                   <span className='flex items-center gap-1'>
@@ -137,6 +142,18 @@ export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, 
                 <td className='pr-3 py-2.5 text-xs text-gray-500'>{fmt(l.delivery_date)}</td>
                 <td className='pr-3 py-2.5'>
                   <StatusDropdown load={l} onStatusChange={onStatusChange} />
+                  {l.load_mode === 'broker' && (
+                    <div className='flex items-center gap-2 mt-1 flex-wrap'>
+                      <span className={`text-2xs font-medium leading-none ${l.has_accepted_offer===1?'text-green-400':'text-gray-600'}`}>
+                        {l.has_accepted_offer===1?'Covered':'No offer'}
+                      </span>
+                      {l.has_accepted_offer===1 && (
+                        <span className={`text-2xs leading-none ${l.has_vetting===1?'text-sky-400':'text-gray-600'}`}>
+                          {l.has_vetting===1?'Vetted':'No vetting'}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className='pr-3 py-2.5'>
                   <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>

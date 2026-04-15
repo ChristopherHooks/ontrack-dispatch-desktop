@@ -18,7 +18,7 @@ export function Loads() {
   const [loading,  setLoading]  = useState(true)
   const [view,     setView]     = useState<LoadView>('list')
   const [search,   setSearch]   = useState('')
-  const [filters,  setFilters]  = useState<LoadFilters>({ status: '' })
+  const [filters,  setFilters]  = useState<LoadFilters>({ status: '', load_mode: '' })
   const [sortKey,  setSortKey]  = useState<keyof Load>('pickup_date')
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>('asc')
   const [selected, setSelected] = useState<Load | null>(null)
@@ -111,6 +111,7 @@ export function Loads() {
         (l.commodity ?? '').toLowerCase().includes(q)
       )
     }
+    if (filters.load_mode) r = r.filter(l => l.load_mode === filters.load_mode)
     if (filters.status) r = r.filter(l => l.status === filters.status)
     return [...r].sort((a, b) => {
       const av = a[sortKey] ?? ''; const bv = b[sortKey] ?? ''

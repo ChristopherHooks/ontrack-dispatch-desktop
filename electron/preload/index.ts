@@ -303,6 +303,41 @@ contextBridge.exposeInMainWorld('api', {
     },
   },
 
+  // -- Outreach Engine --
+  outreach: {
+    getLastRefresh: () => ipcRenderer.invoke('outreach:getLastRefresh'),
+    logRefresh:     (notes: string | null, templateCountAdded: number) =>
+                      ipcRenderer.invoke('outreach:logRefresh', notes, templateCountAdded),
+    performance:    () => ipcRenderer.invoke('outreach:performance'),
+    summary:        () => ipcRenderer.invoke('outreach:summary'),
+  },
+
+  // -- Broker Mode: DAT Postings --
+  datPostings: {
+    list:   (loadId: number) => ipcRenderer.invoke('datPostings:list', loadId),
+    get:    (id: number)     => ipcRenderer.invoke('datPostings:get', id),
+    create: (dto: unknown)   => ipcRenderer.invoke('datPostings:create', dto),
+    update: (id: number, dto: unknown) => ipcRenderer.invoke('datPostings:update', id, dto),
+    delete: (id: number)     => ipcRenderer.invoke('datPostings:delete', id),
+  },
+
+  // -- Broker Mode: Carrier Offers --
+  carrierOffers: {
+    list:   (loadId: number) => ipcRenderer.invoke('carrierOffers:list', loadId),
+    get:    (id: number)     => ipcRenderer.invoke('carrierOffers:get', id),
+    create: (dto: unknown)   => ipcRenderer.invoke('carrierOffers:create', dto),
+    update:  (id: number, dto: unknown)  => ipcRenderer.invoke('carrierOffers:update', id, dto),
+    delete:  (id: number)                => ipcRenderer.invoke('carrierOffers:delete', id),
+    accept:  (id: number, dto?: unknown) => ipcRenderer.invoke('carrierOffers:accept', id, dto),
+  },
+
+  // -- Broker Mode: Carrier Vetting --
+  brokerVetting: {
+    get:    (loadId: number) => ipcRenderer.invoke('brokerVetting:get', loadId),
+    upsert: (dto: unknown)   => ipcRenderer.invoke('brokerVetting:upsert', dto),
+    delete: (loadId: number) => ipcRenderer.invoke('brokerVetting:delete', loadId),
+  },
+
   // -- Browser import (Claude in Chrome → OnTrack) --
   // Claude reads a DAT/Truckstop tab, scores the loads, and POSTs to
   // http://localhost:3001/api/loads/browser-import. The main process

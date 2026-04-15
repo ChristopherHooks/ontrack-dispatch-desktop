@@ -87,7 +87,7 @@ export function getProfitRadarData(db: Database.Database): ProfitRadarData {
     " WHERE d.status = 'Active'" +
     " AND NOT EXISTS (" +
     "   SELECT 1 FROM loads l WHERE l.driver_id = d.id" +
-    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit')" +
+    "   AND l.status IN ('Booked', 'Picked Up', 'In Transit') AND l.load_mode = 'dispatch'" +
     ")" +
     " ORDER BY d.name ASC LIMIT 10"
   ).all() as Array<{

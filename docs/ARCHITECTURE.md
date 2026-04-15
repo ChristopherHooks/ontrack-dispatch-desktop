@@ -1,6 +1,6 @@
 # Architecture — OnTrack Dispatch Dashboard
 
-Last updated: 2026-03-15
+Last updated: 2026-04-15
 
 ## Process Model
 
@@ -9,7 +9,7 @@ Last updated: 2026-03-15
 │  Electron Main Process (Node.js)                             │
 │  electron/main/index.ts      — app lifecycle, BrowserWindow  │
 │  electron/main/db.ts         — SQLite init, migrations, WAL  │
-│  electron/main/ipcHandlers.ts — ~50 IPC channel handlers     │
+│  electron/main/ipcHandlers.ts — ~70 IPC channel handlers     │
 │  electron/main/repositories/ — all DB CRUD (one file/entity) │
 │  electron/main/schema/       — versioned migrations          │
 └──────────────────────┬──────────────────────────────────────┘
@@ -57,15 +57,17 @@ app/
 │   ├── main/
 │   │   ├── index.ts              Main process entry, BrowserWindow, lifecycle
 │   │   ├── db.ts                 SQLite init, runMigrations(), WAL, backup wiring
-│   │   ├── ipcHandlers.ts        All IPC handler registrations (~50 channels)
+│   │   ├── ipcHandlers.ts        All IPC handler registrations (~70 channels)
 │   │   ├── analytics.ts          Analytics aggregation queries
 │   │   ├── backup.ts             Auto daily + manual backup; staged restore
 │   │   ├── dashboard.ts          Dashboard KPI query (getDashboardStats)
-│   │   ├── dispatcherBoard.ts    Dispatcher board SQL
+│   │   ├── dispatcherBoard.ts    Dispatcher board SQL (dispatch-mode loads only)
 │   │   ├── fmcsaApi.ts           FMCSA QCMobile HTTP client + SAFER scraper
 │   │   ├── fmcsaImport.ts        FMCSA lead import pipeline + backfill
 │   │   ├── csvLeadImport.ts      CSV/TSV lead import with header detection
-│   │   ├── loadScanner.ts        Load recommendation engine
+│   │   ├── loadScanner.ts        Load recommendation engine (dispatch-mode loads only)
+│   │   ├── operations.ts         Operations page driver/load queries (dispatch-mode only)
+│   │   ├── profitRadar.ts        Profit radar queries (dispatch-mode loads only)
 │   │   ├── scheduler.ts          Background job ticker (minute-tick setInterval)
 │   │   ├── search.ts             Global search query (all entities)
 │   │   ├── seed.ts               Dev seed data (guarded by app_settings flag)
@@ -82,9 +84,13 @@ app/
 │   │   │   ├── auditRepo.ts
 │   │   │   ├── documentsRepo.ts
 │   │   │   ├── marketingRepo.ts  (marketing_groups + marketing_post_log)
+│   │   │   ├── outreachRepo.ts   (outreach_refresh_log + performance queries)
+│   │   │   ├── datPostingsRepo.ts      (dat_postings — broker load DAT board entries)
+│   │   │   ├── carrierOffersRepo.ts    (carrier_offers — carrier bids on broker loads)
+│   │   │   ├── brokerCarrierVettingRepo.ts (broker_carrier_vetting — carrier compliance)
 │   │   │   └── index.ts          Re-exports all repos
 │   │   └── schema/
-│   │       └── migrations.ts     Versioned DB migrations (19 applied)
+│   │       └── migrations.ts     Versioned DB migrations (44 applied)
 │   └── preload/
 │       └── index.ts              contextBridge → window.api (all namespaces)
 ├── src/
@@ -175,14 +181,17 @@ as `window.api.<namespace>.<method>()`.
 | backup:listBackups | List backup files |
 | backup:stageRestore | Stage a restore for next launch |
 | search:global | Cross-entity search (leads, drivers, loads, brokers, invoices) |
-| scanner:recommendLoads | Load opportunity recommendations |
-| dispatcher:board / availableLoads / assignLoad | Dispatcher board queries |
+| scanner:recommendLoads | Load opportunity recommendations (dispatch-mode loads only) |
+| dispatcher:board / availableLoads / assignLoad | Dispatcher board queries (dispatch-mode loads only) |
+| datPostings:list / get / create / update / delete | DAT board posting CRUD (broker loads) |
+| carrierOffers:list / get / create / update / delete / accept | Carrier offer CRUD + atomic acceptance |
+| brokerVetting:get / upsert / delete | Broker carrier vetting record per load |
 | dev:seed / reseed / seedMissing / seedTasksOnly / clearSeedData / reseedDocs | Dev tools |
 | db:query | Read-only SQL query (dev builds only, gated by !app.isPackaged) |
 
 ## Database Schema
 
-15+ tables across 19 migrations. Full schema in docs/DATA_ARCHITECTURE.md.
+20+ tables across 44 migrations. Full schema in docs/DATA_ARCHITECTURE.md.
 
 ```
 WAL journal mode, synchronous=NORMAL, cache_size=-32000

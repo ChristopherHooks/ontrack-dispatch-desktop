@@ -58,7 +58,7 @@ const AVAILABLE_LOADS_SQL =
   '  b.flag AS broker_flag' +
   ' FROM loads l' +
   ' LEFT JOIN brokers b ON b.id = l.broker_id' +
-  " WHERE l.status = 'Searching' AND l.driver_id IS NULL" +
+  " WHERE l.status = 'Searching' AND l.driver_id IS NULL AND l.load_mode = 'dispatch'" +
   ' ORDER BY l.pickup_date ASC, l.created_at ASC'
 
 // Fetches active drivers needing a load, along with their best known current location:
@@ -84,7 +84,7 @@ const DRIVERS_BASE_SQL =
   ' AND NOT EXISTS (' +
   '   SELECT 1 FROM loads l' +
   '   WHERE l.driver_id = d.id' +
-  "   AND l.status IN ('Booked','Picked Up','In Transit')" +
+  "   AND l.status IN ('Booked','Picked Up','In Transit') AND l.load_mode = 'dispatch'" +
   ' )'
 
 type DriverRow = {

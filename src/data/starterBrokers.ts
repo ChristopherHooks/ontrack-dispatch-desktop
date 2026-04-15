@@ -12,7 +12,7 @@ import type { CreateBrokerDto } from '../types/models'
  * All contact info and policies should be verified directly — broker
  * requirements change. MC numbers provided for reference only.
  */
-export const STARTER_BROKERS: Omit<CreateBrokerDto, 'flag'>[] = [
+export const STARTER_BROKERS: Omit<CreateBrokerDto, 'flag' | 'contact_type'>[] = [
   {
     name:              'TQL (Total Quality Logistics)',
     mc_number:         '419806',

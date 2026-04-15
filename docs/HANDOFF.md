@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-03-29 (Session 26)
+2026-04-15 (Session 28)
 
 ## Current Branch
 
@@ -16,6 +16,68 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 28 — Outreach Engine: DB wiring, performance panel, dashboard reminder, bug fix (complete)
+
+Completed the Outreach Engine integration started in Session 27. Replaced the
+localStorage-based weekly refresh tracking with a proper DB-backed system, added
+full performance visibility, wired a dashboard reminder, and fixed a runtime crash.
+
+**Migration 039 — `outreach_refresh_log` table**
+- `electron/main/schema/migrations.ts` — migration039 creates `outreach_refresh_log` (id, refreshed_at, notes, template_count_added); added to MIGRATIONS array
+
+**New file: `electron/main/repositories/outreachRepo.ts`**
+- `getLastRefresh(db)` — most recent refresh log row or null
+- `logRefresh(db, notes, templateCountAdded)` — insert new refresh row
+- `getOutreachPerformance(db)` — aggregates marketing_post_log by template_id; returns uses, total_replies, total_leads, score (replies + leads*3)
+- `getOutreachSummary(db)` — totals across all posts; top_template_id; stale_template_ids (8+ uses, score=0)
+
+**Modified: `electron/main/repositories/index.ts`**
+- Added `export * from './outreachRepo'`
+
+**Modified: `electron/main/ipcHandlers.ts`**
+- 4 new channels: `outreach:getLastRefresh`, `outreach:logRefresh`, `outreach:performance`, `outreach:summary`
+
+**Modified: `electron/preload/index.ts`**
+- Added `outreach` namespace with 4 methods exposing the new IPC channels
+
+**Modified: `src/types/global.d.ts`**
+- Added full TypeScript types for `window.api.outreach.*`
+
+**Modified: `src/pages/Marketing.tsx`**
+- Replaced localStorage refresh state with DB-backed `loadOutreachMeta()` callback (calls getLastRefresh, performance, summary on mount)
+- "Mark refresh done" button calls `outreach.logRefresh(null, 0)` and reloads meta
+- `OutreachPerformancePanel` wired into Post History tab (shown when total_posts > 0)
+- Added missing `import OutreachPerformancePanel` statement (bug fix — caused "not defined" crash on Marketing tab load)
+
+**New file: `src/components/marketing/OutreachPerformancePanel.tsx`**
+- 3-tile totals row: Posts Logged, Total Replies, Leads Generated
+- Top templates table (up to 5): Template, Uses, Replies, Leads, Score with color coding (green >=10, yellow >=4, gray =0)
+- Stale template warning block (8+ uses, score=0)
+- Lowest performing table (up to 3, requires 3+ uses)
+
+**Modified: `src/pages/Dashboard.tsx`**
+- Fetches `outreach.getLastRefresh()` on mount
+- Shows dismissible blue banner when refresh is null or >= 7 days old
+- Banner shows days-since count and "Go to Outreach" button navigating to /marketing
+
+**New file: `docs/OUTREACH_ENGINE_SPEC.md`**
+- Full implementation reference: architecture, DB schema, generation logic, humanization system, UI integration, weekly refresh system, files/functions reference, output format, build order
+
+### Session 27 — Outreach Engine core (complete)
+
+Built the zero-AI-cost daily outreach generation system.
+
+**New file: `src/lib/outreachEngine.ts`**
+- 20 hook entries (2 variations each), 15 CTA entries (2 variations each), 15 pain points, 15 benefits
+- 20 variable-based outreach templates tagged by driver type for relevance matching
+- 5 page post templates (distinct tone + structure from group posts)
+- `generateTodaysOutreach()`: LCG seeded PRNG; scores templates by recency + driver type match; assembles 5 group posts + 1 page post; applies word-swap humanization (14 pairs, 28% rate)
+- All templates, hooks, CTAs roughened to sound human: contractions, fragments, uneven structure
+
+**Modified: `src/pages/Marketing.tsx`**
+- 4th tab "Outreach Engine" (Zap icon), targeting dropdowns, generate/regenerate buttons
+- `OutreachPostCard` sub-component with Copy + Mark Used actions
 
 ### Session 26 — Eight More App Improvements (complete)
 

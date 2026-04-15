@@ -11,7 +11,7 @@ export function Brokers() {
   const [brokers, setBrokers]   = useState<Broker[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
-  const [filters, setFilters]   = useState<BrokerFilters>({ flag: '' })
+  const [filters, setFilters]   = useState<BrokerFilters>({ flag: '', contact_type: '' })
   const [sortKey, setSortKey]   = useState<keyof Broker>('name')
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc')
   const [selected, setSelected] = useState<Broker | null>(null)
@@ -41,6 +41,7 @@ export function Brokers() {
         (b.email ?? '').toLowerCase().includes(q)
       )
     }
+    if (filters.contact_type) list = list.filter(b => b.contact_type === filters.contact_type)
     if (filters.flag) list = list.filter(b => b.flag === filters.flag)
     list.sort((a, b) => {
       const av = String(a[sortKey] ?? ''); const bv = String(b[sortKey] ?? '')
@@ -57,7 +58,7 @@ export function Brokers() {
   const seedStarterBrokers = async () => {
     setSeeding(true)
     for (const b of STARTER_BROKERS) {
-      try { await window.api.brokers.create({ ...b, flag: 'None' }) } catch { /* skip duplicates */ }
+      try { await window.api.brokers.create({ ...b, flag: 'None', contact_type: 'broker' }) } catch { /* skip duplicates */ }
     }
     await reload()
     setSeeding(false)

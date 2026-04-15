@@ -25,7 +25,7 @@ export type LeadPriority = "High" | "Medium" | "Low"
 export type DriverStatus  = "Active" | "Inactive" | "On Load"
 export type DriverDocType = "CDL" | "Insurance" | "BOL" | "POD" | "COI" | "Lease" | "W9" | "Other"
 
-export type LoadStatus = "Searching" | "Booked" | "Picked Up" | "In Transit" | "Delivered" | "Invoiced" | "Paid"
+export type LoadStatus = "Searching" | "Booked" | "Picked Up" | "In Transit" | "Delivered" | "Invoiced" | "Paid" | "Carrier Selected"
 
 export type BrokerFlag = "None" | "Preferred" | "Avoid" | "Slow Pay" | "Blacklisted"
 export type InvoiceStatus = "Draft" | "Sent" | "Overdue" | "Paid"
@@ -147,13 +147,17 @@ export interface Load {
   dispatch_pct: number | null
   trailer_type: string | null
   commodity: string | null
+  load_mode: 'dispatch' | 'broker'   // added migration 040; default 'dispatch'
   status: LoadStatus
   invoiced: 0 | 1
   notes: string | null
   created_at: string
   updated_at: string
+  // Computed by listLoads only — absent on individual get/create/update responses
+  has_accepted_offer?: 0 | 1
+  has_vetting?: 0 | 1
 }
-export type CreateLoadDto = Omit<Load, "id" | "created_at" | "updated_at">
+export type CreateLoadDto = Omit<Load, "id" | "created_at" | "updated_at" | "has_accepted_offer" | "has_vetting">
 export type UpdateLoadDto = Partial<CreateLoadDto>
 
 export type AccessorialType = 'Detention' | 'Lumper' | 'FSC' | 'Layover' | 'TONU' | 'Other'
@@ -182,6 +186,7 @@ export interface Broker {
   new_authority: number           // 0 = No, 1 = Yes, 2 = Unknown (migration 023)
   min_authority_days: number | null // minimum MC age in days required (30/60/90/180 or null = any)
   credit_limit: number | null     // max outstanding invoice balance in dollars (migration 034)
+  contact_type: 'broker' | 'shipper'  // added migration 041; default 'broker'
   created_at: string
   updated_at: string
 }
@@ -719,3 +724,59 @@ export interface ProfitRadarData {
   topGroups:   GroupPerformance[]
   topLanes:    BrokerLane[]
 }
+
+// -- Broker Mode: DAT Postings --
+export type DatPostingStatus = 'active' | 'expired' | 'filled'
+
+export interface DatPosting {
+  id:          number
+  load_id:     number
+  posted_rate: number | null
+  posted_at:   string
+  expires_at:  string | null
+  posting_ref: string | null   // DAT reference number or internal label
+  status:      DatPostingStatus
+  notes:       string | null
+  created_at:  string
+}
+export type CreateDatPostingDto = Omit<DatPosting, 'id' | 'created_at' | 'posted_at'>
+export type UpdateDatPostingDto = Partial<Omit<DatPosting, 'id' | 'load_id' | 'created_at' | 'posted_at'>>
+
+// -- Broker Mode: Carrier Offers --
+export type CarrierOfferStatus = 'Pending' | 'Accepted' | 'Rejected' | 'Countered'
+
+export interface CarrierOffer {
+  id:           number
+  load_id:      number
+  carrier_name: string
+  mc_number:    string | null
+  phone:        string | null
+  offered_rate: number | null
+  offered_at:   string
+  status:       CarrierOfferStatus
+  counter_rate: number | null
+  final_rate:   number | null
+  notes:        string | null
+  created_at:   string
+  updated_at:   string
+}
+export type CreateCarrierOfferDto = Omit<CarrierOffer, 'id' | 'created_at' | 'updated_at' | 'offered_at'>
+export type UpdateCarrierOfferDto = Partial<Omit<CarrierOffer, 'id' | 'load_id' | 'created_at' | 'updated_at' | 'offered_at'>>
+
+// -- Broker Mode: Carrier Vetting --
+export type SafetyRating = 'Satisfactory' | 'Conditional' | 'Unsatisfactory' | 'Not Rated'
+
+export interface BrokerCarrierVetting {
+  id:                      number
+  load_id:                 number
+  carrier_mc:              string | null
+  carrier_name:            string | null
+  insurance_verified:      0 | 1
+  authority_active:        0 | 1
+  safety_rating:           SafetyRating | null
+  carrier_packet_received: 0 | 1
+  vetting_date:            string | null
+  notes:                   string | null
+  created_at:              string
+}
+export type CreateBrokerCarrierVettingDto = Omit<BrokerCarrierVetting, 'id' | 'created_at'>
