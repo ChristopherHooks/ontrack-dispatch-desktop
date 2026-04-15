@@ -88,7 +88,7 @@ export function Drivers() {
       <div className='flex items-center justify-between'>
         <div>
           <h1 className='text-xl font-semibold text-gray-100'>Drivers</h1>
-          <p className='text-sm text-gray-500 mt-0.5'>Manage carrier profiles, documents, and dispatch settings</p>
+          <p className='text-sm text-gray-500 mt-0.5'>Your driver network. Keep profiles, documents, and availability current before searching loads.</p>
         </div>
         <button onClick={() => setShow1099(true)}
           className='flex items-center gap-1.5 h-8 px-3 text-xs rounded-lg font-medium bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200 border border-surface-400 transition-colors'>

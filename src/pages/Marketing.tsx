@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Megaphone, Copy, CheckCircle, RefreshCw, Plus, Trash2, X,
   ExternalLink, ChevronDown, ChevronUp, Image, Edit2, Check,
-  BookOpen, History, Users, SkipForward
+  BookOpen, History, Users, SkipForward, Zap, AlertTriangle,
 } from 'lucide-react'
 import { useSettingsStore } from '../store/settingsStore'
 import {
@@ -14,6 +14,10 @@ import {
   selectSuggestedTemplate, suggestGroupsForPost, fmtDaysSince,
   loadDailyTasks, saveDailyTasks, type DailyTask,
 } from '../lib/marketingUtils'
+import {
+  generateTodaysOutreach, getWeeklyRefreshState, markAiRefreshDone,
+  type OutreachVars, type GeneratedPost, type OutreachResult,
+} from '../lib/outreachEngine'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -382,13 +386,23 @@ export function Marketing() {
   const [newGroupTags, setNewGroupTags] = useState('')
 
   // Facebook Groups workflow
-  const [todaysRecs,  setTodaysRecs]   = useState<GroupRecommendation[]>([])
-  const [catAnalysis, setCatAnalysis]  = useState<CategoryGapAnalysis | null>(null)
-  const [showCoverage, setShowCoverage] = useState(false)
+  const [todaysRecs,      setTodaysRecs]      = useState<GroupRecommendation[]>([])
+  const [recsRefreshing,  setRecsRefreshing]  = useState(false)
+  const [catAnalysis,     setCatAnalysis]     = useState<CategoryGapAnalysis | null>(null)
+  const [showCoverage,    setShowCoverage]    = useState(false)
 
   // Post log
   const [postLog,      setPostLog]      = useState<PostLog[]>([])
-  const [activeTab,    setActiveTab]    = useState<'history' | 'groups' | 'templates'>('history')
+  const [activeTab,    setActiveTab]    = useState<'history' | 'groups' | 'templates' | 'outreach'>('history')
+
+  // Outreach Engine state
+  const [outreachResult,   setOutreachResult]   = useState<OutreachResult | null>(null)
+  const [outreachSeed,     setOutreachSeed]      = useState(0)
+  const [outreachCopied,   setOutreachCopied]   = useState<string | null>(null)
+  const [outreachDriverType, setOutreachDriverType] = useState('hotshot')
+  const [outreachLaneRegion, setOutreachLaneRegion] = useState('')
+  const [outreachRpmRange,   setOutreachRpmRange]   = useState('$2.00-$2.40')
+  const refreshState = getWeeklyRefreshState()
 
   // Refs for stable callbacks
   const recentIdsRef = useRef(recentIds)
@@ -413,10 +427,12 @@ export function Marketing() {
   }, [])
 
   const loadTodaysRecs = useCallback(async () => {
+    setRecsRefreshing(true)
     try {
       const recs = await (window.api as any).marketing.groups.todaysGroups(8)
       setTodaysRecs(recs)
     } catch {}
+    finally { setRecsRefreshing(false) }
   }, [])
 
   const loadCatAnalysis = useCallback(async () => {
@@ -458,8 +474,11 @@ export function Marketing() {
   const imagePrompt  = getImagePrompt(template)
 
   // ── Derived: suggested groups ──────────────────────────────────────────────
-
-  const suggestedGroups = suggestGroupsForPost(groups, truckType, today, 5)
+  // Use the same backend-scored Today's Groups list so both panels stay in sync.
+  // Falls back to the client-side filter only when todaysRecs hasn't loaded yet.
+  const suggestedGroups = todaysRecs.length > 0
+    ? todaysRecs.slice(0, 5).map(r => r.group)
+    : suggestGroupsForPost(groups, truckType, today, 5)
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -854,13 +873,13 @@ export function Marketing() {
 
       {/* Bottom tabs */}
       <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card overflow-hidden'>
-        <div className='flex border-b border-surface-500/50'>
-          {([ ['history', 'Post History', History], ['groups', 'Groups', Users], ['templates', 'All Templates', BookOpen] ] as const).map(([key, label, Icon]) => (
+        <div className='flex border-b border-surface-500/50 overflow-x-auto'>
+          {([ ['history', 'Post History', History], ['groups', 'Groups', Users], ['templates', 'All Templates', BookOpen], ['outreach', 'Outreach Engine', Zap] ] as const).map(([key, label, Icon]) => (
             <button
               key={key}
-              onClick={() => setActiveTab(key)}
+              onClick={() => setActiveTab(key as any)}
               className={[
-                'flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2',
+                'flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2 whitespace-nowrap',
                 activeTab === key
                   ? 'border-orange-500 text-orange-400'
                   : 'border-transparent text-gray-500 hover:text-gray-300',
@@ -950,9 +969,10 @@ export function Marketing() {
                   </span>
                 </div>
                 <button onClick={loadTodaysRecs}
-                  className='p-1 rounded hover:bg-surface-500 text-gray-600 hover:text-gray-300 transition-colors'
+                  disabled={recsRefreshing}
+                  className='p-1 rounded hover:bg-surface-500 text-gray-600 hover:text-gray-300 transition-colors disabled:opacity-50'
                   title='Refresh recommendations'>
-                  <RefreshCw size={12} />
+                  <RefreshCw size={12} className={recsRefreshing ? 'animate-spin' : ''} />
                 </button>
               </div>
               {todaysRecs.length === 0 ? (
@@ -1247,7 +1267,283 @@ export function Marketing() {
             </div>
           </div>
         )}
+
+        {/* Outreach Engine tab */}
+        {activeTab === 'outreach' && (
+          <div className='p-5 space-y-5'>
+
+            {/* Weekly AI refresh reminder */}
+            {refreshState.needsRefresh && (
+              <div className='flex items-start gap-3 bg-amber-900/20 border border-amber-700/40 rounded-xl p-4'>
+                <AlertTriangle size={14} className='text-amber-400 mt-0.5 shrink-0' />
+                <div className='flex-1 min-w-0'>
+                  <p className='text-xs font-semibold text-amber-300 mb-0.5'>Weekly refresh due</p>
+                  <p className='text-2xs text-amber-500 leading-relaxed'>
+                    {refreshState.daysSince === null
+                      ? 'You have not logged an AI template refresh yet. Use AI once this week to generate 5-10 new templates, fresh hooks, and new angles. Then copy them into the engine.'
+                      : `Last refresh was ${refreshState.daysSince} days ago. Spend 10 minutes with AI this week: ask for new hooks, new pain point angles, and 5 templates for your current target driver type.`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { markAiRefreshDone(); setOutreachResult(null) }}
+                  className='text-2xs text-amber-600 hover:text-amber-400 transition-colors whitespace-nowrap'
+                >Mark done</button>
+              </div>
+            )}
+
+            {/* Settings bar */}
+            <div className='bg-surface-600 rounded-xl border border-surface-400 p-4'>
+              <p className='text-xs font-semibold text-gray-300 mb-3'>Today\'s targeting</p>
+              <div className='grid grid-cols-3 gap-3'>
+                <div className='space-y-1'>
+                  <label className='text-2xs text-gray-500 uppercase tracking-wide'>Driver type</label>
+                  <select
+                    value={outreachDriverType}
+                    onChange={e => { setOutreachDriverType(e.target.value); setOutreachResult(null) }}
+                    className='w-full h-8 px-2 bg-surface-500 border border-surface-400 rounded-lg text-xs text-gray-200 focus:outline-none focus:border-orange-600/60'
+                  >
+                    <option value='hotshot'>Hotshot</option>
+                    <option value='box truck'>Box Truck</option>
+                    <option value='dry van'>Dry Van</option>
+                    <option value='reefer'>Reefer</option>
+                    <option value='flatbed'>Flatbed</option>
+                    <option value='step deck'>Step Deck</option>
+                    <option value='semi'>Semi / OTR</option>
+                    <option value='owner operator'>Owner Operator</option>
+                  </select>
+                </div>
+                <div className='space-y-1'>
+                  <label className='text-2xs text-gray-500 uppercase tracking-wide'>Lane region</label>
+                  <input
+                    type='text'
+                    value={outreachLaneRegion}
+                    onChange={e => { setOutreachLaneRegion(e.target.value); setOutreachResult(null) }}
+                    placeholder='e.g. Southeast, TX to Midwest'
+                    className='w-full h-8 px-2 bg-surface-500 border border-surface-400 rounded-lg text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60'
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <label className='text-2xs text-gray-500 uppercase tracking-wide'>RPM range</label>
+                  <input
+                    type='text'
+                    value={outreachRpmRange}
+                    onChange={e => { setOutreachRpmRange(e.target.value); setOutreachResult(null) }}
+                    placeholder='e.g. $2.10-$2.40'
+                    className='w-full h-8 px-2 bg-surface-500 border border-surface-400 rounded-lg text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60'
+                  />
+                </div>
+              </div>
+              <div className='flex gap-2 mt-4'>
+                <button
+                  onClick={() => {
+                    const vars: OutreachVars = {
+                      driver_type:  outreachDriverType,
+                      lane_region:  outreachLaneRegion || 'your region',
+                      rpm_range:    outreachRpmRange || '$2.00-$2.40',
+                      company_name: company,
+                    }
+                    const recentSet = new Set(recentIds)
+                    setOutreachResult(generateTodaysOutreach(vars, recentSet, outreachSeed))
+                  }}
+                  className='flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+                >
+                  <Zap size={12} />
+                  Generate Today&apos;s Outreach
+                </button>
+                {outreachResult && (
+                  <button
+                    onClick={() => {
+                      const nextSeed = outreachSeed + 1
+                      setOutreachSeed(nextSeed)
+                      const vars: OutreachVars = {
+                        driver_type:  outreachDriverType,
+                        lane_region:  outreachLaneRegion || 'your region',
+                        rpm_range:    outreachRpmRange || '$2.00-$2.40',
+                        company_name: company,
+                      }
+                      const recentSet = new Set(recentIds)
+                      setOutreachResult(generateTodaysOutreach(vars, recentSet, nextSeed))
+                    }}
+                    className='flex items-center gap-1.5 px-3 py-2 text-xs text-gray-400 hover:text-gray-200 border border-surface-400 hover:border-surface-300 rounded-lg transition-colors'
+                  >
+                    <RefreshCw size={11} /> Regenerate
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Generated posts */}
+            {outreachResult && (
+              <div className='space-y-4'>
+
+                {/* Group posts */}
+                <div>
+                  <p className='text-2xs text-gray-500 uppercase tracking-wide mb-3'>
+                    Group posts — {outreachResult.group_posts.length} posts ready
+                  </p>
+                  <div className='space-y-3'>
+                    {outreachResult.group_posts.map((post, i) => (
+                      <OutreachPostCard
+                        key={post.id}
+                        post={post}
+                        label={`Group post ${i + 1}`}
+                        labelColor='text-blue-400'
+                        copiedId={outreachCopied}
+                        onCopy={async (p) => {
+                          await navigator.clipboard.writeText(p.text)
+                          setOutreachCopied(p.id)
+                          setTimeout(() => setOutreachCopied(null), 2000)
+                        }}
+                        onMarkUsed={async (p) => {
+                          await api().post.create(
+                            p.template_id,
+                            'Outreach',
+                            outreachDriverType,
+                            today,
+                            [],
+                            true,
+                            0,
+                            0,
+                            null,
+                          )
+                          await loadAntiRep()
+                          await loadPostLog()
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Page post */}
+                <div>
+                  <p className='text-2xs text-gray-500 uppercase tracking-wide mb-3'>
+                    Page post — 1 post ready
+                  </p>
+                  <OutreachPostCard
+                    post={outreachResult.page_post}
+                    label='Business page post'
+                    labelColor='text-orange-400'
+                    copiedId={outreachCopied}
+                    onCopy={async (p) => {
+                      await navigator.clipboard.writeText(p.text)
+                      setOutreachCopied(p.id)
+                      setTimeout(() => setOutreachCopied(null), 2000)
+                    }}
+                    onMarkUsed={async (p) => {
+                      await api().post.create(
+                        p.template_id,
+                        'Outreach',
+                        outreachDriverType,
+                        today,
+                        [],
+                        true,
+                        0,
+                        0,
+                        null,
+                      )
+                      await loadAntiRep()
+                      await loadPostLog()
+                    }}
+                  />
+                </div>
+
+                <p className='text-2xs text-gray-700 pt-1'>
+                  Generated {new Date(outreachResult.generated_at).toLocaleTimeString()} · zero AI cost · click Regenerate for fresh posts
+                </p>
+              </div>
+            )}
+
+            {/* Weekly AI usage plan — shown when no result yet */}
+            {!outreachResult && (
+              <div className='bg-surface-600 rounded-xl border border-surface-400 p-4 space-y-3'>
+                <p className='text-xs font-semibold text-gray-300'>Weekly AI usage plan</p>
+                <p className='text-xs text-gray-500 leading-relaxed'>
+                  Use AI once per week — not daily. When you do, ask for: 5-10 new variable templates, 5 new hooks, 3 new CTA phrasings, and any new angles for your current target driver type. Paste the results into the engine files. Everything else runs locally.
+                </p>
+                <div className='space-y-1.5 pt-1'>
+                  <p className='text-2xs text-gray-600 uppercase tracking-wide'>This week\'s refresh checklist</p>
+                  {[
+                    'Generate 5-10 new outreach templates with variables',
+                    'Generate 5 new hook opening lines',
+                    'Generate 3 new CTA variations',
+                    'Try a new angle: new authority, seasonal freight, specific lane',
+                    'Rotate out any templates with 0 replies after 10+ uses',
+                  ].map((item, i) => (
+                    <div key={i} className='flex items-start gap-2'>
+                      <span className='text-2xs text-gray-700 mt-0.5'>{i + 1}.</span>
+                      <span className='text-2xs text-gray-500'>{item}</span>
+                    </div>
+                  ))}
+                </div>
+                {refreshState.lastDate && (
+                  <p className='text-2xs text-gray-700'>
+                    Last refresh: {refreshState.lastDate}
+                    {refreshState.daysSince !== null ? ` (${refreshState.daysSince}d ago)` : ''}
+                  </p>
+                )}
+              </div>
+            )}
+
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
+
+// ── OutreachPostCard component ────────────────────────────────────────────────
+
+interface OutreachPostCardProps {
+  post:       GeneratedPost
+  label:      string
+  labelColor: string
+  copiedId:   string | null
+  onCopy:     (post: GeneratedPost) => void
+  onMarkUsed: (post: GeneratedPost) => void
+}
+
+function OutreachPostCard({ post, label, labelColor, copiedId, onCopy, onMarkUsed }: OutreachPostCardProps) {
+  const [markedUsed, setMarkedUsed] = useState(false)
+  const isCopied = copiedId === post.id
+
+  return (
+    <div className={[
+      'bg-surface-600 rounded-xl border p-4 transition-colors',
+      markedUsed ? 'border-green-700/40 bg-green-900/10' : 'border-surface-400',
+    ].join(' ')}>
+      <div className='flex items-center justify-between mb-2'>
+        <span className={`text-2xs font-semibold uppercase tracking-wide ${labelColor}`}>{label}</span>
+        <div className='flex items-center gap-2'>
+          {markedUsed && (
+            <span className='text-2xs text-green-500'>Logged</span>
+          )}
+          <button
+            onClick={() => onCopy(post)}
+            className={[
+              'flex items-center gap-1 px-2.5 py-1 text-2xs rounded-lg border transition-colors',
+              isCopied
+                ? 'bg-green-800/30 border-green-700/50 text-green-400'
+                : 'border-surface-400 text-gray-500 hover:text-gray-200 hover:border-surface-300',
+            ].join(' ')}
+          >
+            {isCopied ? <><CheckCircle size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
+          </button>
+          {!markedUsed && (
+            <button
+              onClick={async () => {
+                await onMarkUsed(post)
+                setMarkedUsed(true)
+              }}
+              className='flex items-center gap-1 px-2.5 py-1 text-2xs rounded-lg border border-surface-400 text-gray-500 hover:text-orange-400 hover:border-orange-700/50 transition-colors'
+            >
+              <Check size={10} /> Mark used
+            </button>
+          )}
+        </div>
+      </div>
+      <p className='text-xs text-gray-300 whitespace-pre-wrap leading-relaxed'>
+        {post.text}
+      </p>
     </div>
   )
 }

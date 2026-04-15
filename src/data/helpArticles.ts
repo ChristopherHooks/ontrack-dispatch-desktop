@@ -12,7 +12,7 @@ export interface Shortcut {
   description: string
 }
 
-export const DOC_CATEGORIES = ['All', 'Dispatch', 'Drivers', 'Sales', 'Marketing', 'Brokers', 'Finance', 'Template', 'Reference', 'Policy', 'Other'] as const
+export const DOC_CATEGORIES = ['All', 'Dispatch', 'Drivers', 'Sales', 'Finance', 'Reference', 'Template', 'Policy', 'Other'] as const
 
 export const HELP_CATEGORIES = [
   'Getting Started',

@@ -255,7 +255,7 @@ export function Leads() {
     <div className='space-y-4 max-w-[1400px] animate-fade-in'>
       <div>
         <h1 className='text-xl font-semibold text-gray-100'>Leads</h1>
-        <p className='text-sm text-gray-500 mt-0.5'>Manage your carrier pipeline</p>
+        <p className='text-sm text-gray-500 mt-0.5'>Find, contact, and convert owner-operators into signed drivers.</p>
       </div>
 
       {/* ── Pipeline Summary ── */}

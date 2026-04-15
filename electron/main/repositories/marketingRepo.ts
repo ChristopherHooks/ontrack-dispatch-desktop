@@ -270,6 +270,9 @@ export function getTodaysGroups(db: Database.Database, n = 8): GroupRecommendati
       score = -999
     }
 
+    // Small random jitter (±4) so equal-score groups shuffle on each refresh
+    score += (Math.random() * 8) - 4
+
     return { group: g, score, reasons }
   })
 

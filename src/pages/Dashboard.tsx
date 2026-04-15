@@ -260,7 +260,12 @@ export function Dashboard() {
           {loading ? (
             <p className='text-sm text-gray-400'>Loading...</p>
           ) : stats.todayTasks.length === 0 ? (
-            <p className='text-sm text-gray-400'>No tasks found.</p>
+            <div className='text-center py-4'>
+              <p className='text-sm text-gray-600'>No tasks scheduled for today.</p>
+              <button onClick={() => navigate('/tasks')} className='mt-2 text-xs text-orange-500 hover:text-orange-400 transition-colors'>
+                Set up your daily task list →
+              </button>
+            </div>
           ) : (
             <ul className='space-y-1'>
               {stats.todayTasks.map(task => (
@@ -283,7 +288,12 @@ export function Dashboard() {
             <h2 className='text-sm font-semibold text-gray-200'>Dispatch Board</h2>
           </div>
           {drivers.length === 0 ? (
-            <p className='text-xs text-gray-600 text-center py-4'>No drivers yet.</p>
+            <div className='text-center py-4'>
+              <p className='text-xs text-gray-600'>No drivers added yet.</p>
+              <button onClick={() => navigate('/drivers')} className='mt-2 text-2xs text-orange-500 hover:text-orange-400 transition-colors'>
+                Add your first driver →
+              </button>
+            </div>
           ) : (
             <div className='space-y-2'>
               {boardDrivers.map(d => {

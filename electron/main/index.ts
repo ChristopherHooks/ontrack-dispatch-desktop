@@ -134,14 +134,8 @@ function createWindow(): void {
     },
   })
 
-  mainWindow.on('close', (e) => {
-    if (!isQuitting) {
-      // Minimize to tray instead of closing — keeps scheduler + reminders alive
-      e.preventDefault()
-      mainWindow?.hide()
-      return
-    }
-    // Actual quit: save bounds and close pop-outs
+  mainWindow.on('close', () => {
+    // Save window position and close any pop-out windows before quitting
     if (mainWindow) {
       const b = mainWindow.getBounds()
       store.set('windowBounds', { width: b.width, height: b.height, x: b.x, y: b.y })
@@ -311,12 +305,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  // Do not quit — app lives in the system tray so the scheduler and
-  // follow-up reminders keep running. Use "Quit OnTrack" in the tray menu
-  // to exit completely.
-  //
-  // macOS: app.quit() is still the correct path when the Dock icon is Cmd+Q'd,
-  // which is handled via the before-quit event below.
+  app.quit()
 })
 
 app.on('before-quit', () => {
