@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, ArrowRight, Truck, Calendar, DollarSign, FileText, Tag, Hash, MapPin, Info, AlertTriangle, CheckSquare, Square, Clock } from 'lucide-react'
-import type { Load, CreateLoadDto, LoadStatus, Driver, Broker, Invoice } from '../../types/models'
+import type { Load, CreateLoadDto, LoadStatus, Driver, Broker, Invoice, SopDocument } from '../../types/models'
 import { LOAD_STATUSES, BROKER_LOAD_STATUSES } from './constants'
 import { Term } from '../ui/Term'
 import { LoadAccessorialsPanel } from './LoadAccessorialsPanel'
+import { resolveGuidance } from '../../lib/guidanceResolver'
+import { ContextGuidancePanel } from '../ui/ContextGuidancePanel'
 
 // ---------------------------------------------------------------------------
 // Rate benchmarks — static reference, general U.S. spot market averages.
@@ -96,10 +98,12 @@ export function LoadModal({ load, prefill, onSave, onClose }: Props) {
   // Pre-submit checklist state
   const [showChecklist, setShowChecklist] = useState(false)
   const [checkedItems, setCheckedItems] = useState<boolean[]>(CHECKLIST_ITEMS.map(() => false))
+  const [allDocs, setAllDocs] = useState<SopDocument[]>([])
 
   useEffect(() => {
     Promise.all([window.api.drivers.list(), window.api.brokers.list(), window.api.invoices.list()])
       .then(([d,b,inv]) => { setDrivers(d); setBrokers(b); setInvoices(inv) })
+    window.api.documents.list().then(setAllDocs).catch(() => {})
     if (load) { const { id, created_at, updated_at, ...rest } = load; setForm({ ...BLANK, ...rest }) }
     else if (prefill) setForm({ ...BLANK, ...prefill })
     else setForm(BLANK)
@@ -389,6 +393,19 @@ export function LoadModal({ load, prefill, onSave, onClose }: Props) {
                   </div>
                 )
               })()}
+            {(() => {
+              const ctx = form.load_mode === 'broker' ? 'load-create-broker' : 'load-create-dispatch'
+              const guideDocs = resolveGuidance(ctx, allDocs)
+              if (guideDocs.length === 0) return null
+              return (
+                <div className='col-span-2 mt-1 px-1'>
+                  <ContextGuidancePanel
+                    docs={guideDocs}
+                    label={form.load_mode === 'broker' ? 'Broker Load SOPs' : 'Dispatch Load SOPs'}
+                  />
+                </div>
+              )
+            })()}
             {error && <p className='mt-3 text-xs text-red-400'>{error}</p>}
           </div>
           {/* Pre-booking checklist — shown when creating a Booked load */}

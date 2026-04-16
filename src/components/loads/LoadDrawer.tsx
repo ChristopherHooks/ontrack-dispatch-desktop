@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Edit2, Trash2, Plus, ArrowRight, Printer, FileText, Copy, Paperclip, Phone, MessageSquare, Check, ChevronDown, Receipt } from 'lucide-react'
-import type { Load, LoadStatus, Driver, Broker, Note, TimelineEvent, DatPosting, CarrierOffer, BrokerCarrierVetting } from '../../types/models'
+import type { Load, LoadStatus, Driver, Broker, Note, TimelineEvent, DatPosting, CarrierOffer, BrokerCarrierVetting, SopDocument } from '../../types/models'
 import { LOAD_STATUS_STYLES, LOAD_STATUS_NEXT } from './constants'
+import { resolveGuidance } from '../../lib/guidanceResolver'
+import { ContextGuidancePanel } from '../ui/ContextGuidancePanel'
 
 interface Props {
   load: Load; drivers: Driver[]; brokers: Broker[]
@@ -284,6 +286,8 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
   const [vetting,       setVetting]       = useState<BrokerCarrierVetting|null>(null)
   const [vettingForm,   setVettingForm]   = useState<VettingForm>(VETTING_BLANK)
   const [editVetting,   setEditVetting]   = useState(false)
+  // --- Contextual SOP guidance (broker mode only) ---
+  const [allDocs, setAllDocs] = useState<SopDocument[]>([])
 
   useEffect(() => {
     window.api.notes.list('load', load.id).then(setNotes).catch(() => {})
@@ -293,6 +297,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
     try {
       window.api.loadAttachments.list(load.id).then(setAttachments).catch(() => {})
       window.api.loadDeductions.list(load.id).then(setDeductions).catch(() => {})
+      window.api.documents.list().then(setAllDocs).catch(() => {})
       if (load.load_mode === 'broker') {
         window.api.datPostings.list(load.id).then(setDatPostings).catch(() => {})
         window.api.carrierOffers.list(load.id).then(setCarrierOffers).catch(() => {})
@@ -638,6 +643,9 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
               {load.load_id&&<Row label='Broker Ref #' value={load.load_id} mono/>}
             </div>
+            {load.load_mode !== 'broker' && (
+              <ContextGuidancePanel docs={resolveGuidance('load-create-dispatch', allDocs)} label='Load Booking SOPs'/>
+            )}
           </div>
 
           {/* ── Broker Mode Panels ── */}
@@ -675,7 +683,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
           {/* DAT Postings */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
-              <Sec title='DAT Postings'/>
+              <Sec title='DAT Postings / Broker Overview'/>
               <button onClick={showDatForm && editDatId==null ? ()=>{setShowDatForm(false);setDatForm(DAT_BLANK)} : openAddDat}
                 className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'>
                 <Plus size={10}/>{showDatForm && editDatId==null ? 'Cancel' : 'Add'}
@@ -726,6 +734,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 </div>
               ))
             }
+            <ContextGuidancePanel docs={resolveGuidance('broker-overview', allDocs)} label='Broker Workflow SOPs'/>
           </div>
 
           {/* Carrier Offers */}
@@ -822,6 +831,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 </div>
               ))
             }
+            <ContextGuidancePanel docs={resolveGuidance('carrier-offers', allDocs)} label='Carrier Offer SOPs'/>
           </div>
 
           {/* Carrier Vetting */}
@@ -917,6 +927,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
             {!editVetting && !vetting && (
               <p className='text-2xs text-gray-700 italic'>No vetting record yet.</p>
             )}
+            <ContextGuidancePanel docs={resolveGuidance('carrier-vetting', allDocs)} label='Vetting SOPs'/>
           </div>
 
           </>)}
@@ -1027,6 +1038,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 </div>
               ))
             }
+            <ContextGuidancePanel docs={resolveGuidance('dispatch-board', allDocs)} label='Check Call SOPs'/>
           </div>
           {/* Message Templates */}
           {driver && (

@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer, TrendingUp } from 'lucide-react'
-import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice } from '../../types/models'
+import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { openSaferMc } from '../../lib/saferUrl'
 import { DispatchAgreementModal } from './DispatchAgreementModal'
 import { Term } from '../ui/Term'
+import { resolveGuidance } from '../../lib/guidanceResolver'
+import { ContextGuidancePanel } from '../ui/ContextGuidancePanel'
 
 // Defined at module level so JSX is not nested inside an IIFE inside JSX
 // (which causes Babel parse errors in some Vite configurations).
@@ -68,6 +70,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [addApproval,setAddApproval]         = useState(false)
   const [allBrokers,setAllBrokers]           = useState<{ id:number; name:string }[]>([])
   const [apprForm,setApprForm]               = useState<{ broker_id:string; status:'Submitted'|'Approved'|'Denied'; notes:string; submitted_at:string; approved_at:string }>({ broker_id:'', status:'Submitted', notes:'', submitted_at:'', approved_at:'' })
+  const [sopDocs,setSopDocs]                 = useState<SopDocument[]>([])
 
   useEffect(() => {
     // Sync whenever we switch to a different driver OR the saved value changes
@@ -110,6 +113,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
         setPayHistory(history)
         setApprovals(apprvs as CarrierBrokerApprovalRow[])
         setAllBrokers((brkrs as { id:number; name:string }[]).map(b => ({ id:b.id, name:b.name })))
+        window.api.documents.list().then(setSopDocs).catch(() => {})
       }).catch(err => {
         console.error('DriverDrawer: data fetch error', err)
         // Fall back to core data only (works even when app window hasn't been fully reloaded)
@@ -360,6 +364,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                         </span>
                       </button>
                     ))}
+                    <ContextGuidancePanel docs={resolveGuidance('driver-onboarding', sopDocs)} label='Onboarding SOPs'/>
                   </div>
                 )}
               </div>
@@ -613,6 +618,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 </div>
               ))
             }
+            <ContextGuidancePanel docs={resolveGuidance('driver-documents', sopDocs)} label='Document SOPs'/>
           </div>
           {/* Performance Scorecard */}
           {(() => {

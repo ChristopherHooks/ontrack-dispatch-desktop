@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import type { BoardRow, AvailableLoad, AssignLoadResult, LoadRecommendation } from '../types/models'
+import type { BoardRow, AvailableLoad, AssignLoadResult, LoadRecommendation, SopDocument } from '../types/models'
 import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star, Phone } from 'lucide-react'
+import { resolveGuidance } from '../lib/guidanceResolver'
+import { ContextGuidancePanel } from '../components/ui/ContextGuidancePanel'
 
 type BoardGroup = 'Needs Load' | 'In Transit' | 'Picked Up' | 'Booked' | 'Available Soon' | 'Inactive'
 
@@ -52,6 +54,7 @@ export function DispatcherBoard() {
   const [selectedDriverName, setSelectedDriverName] = useState<string | null>(null)
   const [recommendations,    setRecommendations]    = useState<LoadRecommendation[]>([])
   const [recsLoading,        setRecsLoading]        = useState(false)
+  const [allDocs,            setAllDocs]            = useState<SopDocument[]>([])
 
   const loadBoard = async () => {
     setLoading(true)
@@ -83,7 +86,11 @@ export function DispatcherBoard() {
     }
   }
 
-  useEffect(() => { loadBoard(); loadAvailable() }, [])
+  useEffect(() => {
+    loadBoard()
+    loadAvailable()
+    window.api.documents.list().then(setAllDocs).catch(() => {})
+  }, [])
 
   const handleLogCall = async (loadId: number, driverName: string) => {
     const now = new Date()
@@ -288,9 +295,18 @@ export function DispatcherBoard() {
           )}
         </div>
 
-        {/* Right column: Available Loads + Recommended Loads */}
+        {/* Right column: Available Loads + SOP Guidance + Recommended Loads */}
         <div className='flex flex-col gap-4 shrink-0'>
           <AvailableLoadsPanel loads={availableLoads} />
+          {(() => {
+            const guideDocs = resolveGuidance('dispatch-board', allDocs)
+            if (guideDocs.length === 0) return null
+            return (
+              <div className='w-72 shrink-0 bg-surface-800 border border-surface-400 rounded-xl px-3 py-2.5'>
+                <ContextGuidancePanel docs={guideDocs} label='Dispatch SOPs' />
+              </div>
+            )
+          })()}
           {selectedDriverId != null && (
             <RecommendedLoadsPanel
               driverName={selectedDriverName ?? ''}
