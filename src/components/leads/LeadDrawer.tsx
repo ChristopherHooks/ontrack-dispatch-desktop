@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { LeadScoreBadge } from './LeadScoreBadge'
 import { computeLeadScore } from '../../lib/leadScore'
 import { STATUS_STYLES, STATUS_DOTS, PRIORITY_STYLES, STATUSES, PRIORITIES, TRAILER_TYPES, CONTACT_METHODS } from './constants'
+import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
 import { openSaferMc, openSaferDot } from '../../lib/saferUrl'
 import { LeadNurturePanel } from './LeadNurturePanel'
 
@@ -179,10 +180,10 @@ function buildIntroMailUrl(to: string, driverName: string, fromEmail: string, fr
 function Row({ icon, label, value, mono = false }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
   return (
     <div className='flex items-start gap-2.5'>
-      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <span className='text-gray-400 mt-0.5 shrink-0'>{icon}</span>
       <div>
-        <p className='text-2xs text-gray-600'>{label}</p>
-        <p className={`text-sm text-gray-300 ${mono ? 'font-mono' : ''}`}>{value}</p>
+        <p className={typeTokens.label}>{label}</p>
+        <p className={`${typeTokens.value} ${mono ? 'font-mono' : ''}`}>{value}</p>
       </div>
     </div>
   )
@@ -201,9 +202,9 @@ function InlineText({ icon, label, value, placeholder, mono = false, onSave }:
 
   return (
     <div className='flex items-start gap-2.5'>
-      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <span className='text-gray-400 mt-0.5 shrink-0'>{icon}</span>
       <div className='flex-1 min-w-0'>
-        <p className='text-2xs text-gray-600'>{label}</p>
+        <p className='text-xs text-gray-400'>{label}</p>
         {editing ? (
           <div className='flex items-center gap-1 mt-0.5'>
             <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
@@ -269,9 +270,9 @@ function InlineDatetime({ icon, label, date, time, onSaveDate, onSaveTime }:
 
   return (
     <div className='flex items-start gap-2.5'>
-      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <span className='text-gray-400 mt-0.5 shrink-0'>{icon}</span>
       <div className='flex-1 min-w-0'>
-        <p className='text-2xs text-gray-600'>{label}</p>
+        <p className='text-xs text-gray-400'>{label}</p>
         {editing ? (
           <div className='flex flex-col gap-1 mt-0.5'>
             <input ref={dateRef} type='date' value={draftDate}
@@ -284,7 +285,7 @@ function InlineDatetime({ icon, label, date, time, onSaveDate, onSaveTime }:
                 onChange={e => setDraftTime(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Escape') cancel() }}
                 className='bg-surface-600 border border-surface-400 rounded px-2 py-0.5 text-sm text-gray-100 outline-none flex-1' />
-              <span className='text-2xs text-gray-600'>reminder</span>
+              <span className='text-2xs text-gray-400'>reminder</span>
             </div>
             <div className='flex gap-1 mt-0.5'>
               <button onClick={commit}
@@ -306,7 +307,7 @@ function InlineDatetime({ icon, label, date, time, onSaveDate, onSaveTime }:
               <span className='ml-1 opacity-0 group-hover:opacity-60 text-2xs text-orange-500'>[edit]</span>
             </button>
             {time && (
-              <span className='flex items-center gap-0.5 text-2xs text-orange-400 bg-orange-900/20 border border-orange-700/30 px-1.5 py-0.5 rounded'
+              <span className={`flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded ${badgeTokens.warning}`}
                 title={`Reminder set for ${fmtTime(time)}`}>
                 <Bell size={9} />
                 {fmtTime(time)}
@@ -332,9 +333,9 @@ function InlineSelect({ icon, label, value, options, onSave }:
 
   return (
     <div className='flex items-start gap-2.5'>
-      <span className='text-gray-600 mt-0.5 shrink-0'>{icon}</span>
+      <span className='text-gray-400 mt-0.5 shrink-0'>{icon}</span>
       <div className='flex-1 min-w-0'>
-        <p className='text-2xs text-gray-600'>{label}</p>
+        <p className='text-xs text-gray-400'>{label}</p>
         {editing ? (
           <select ref={selectRef} defaultValue={value ?? ''}
             onChange={e => { onSave(e.target.value); setEditing(false) }}
@@ -611,7 +612,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
 
               {/* Attempt counter badge */}
               {(lead.contact_attempt_count ?? 0) > 0 && (
-                <span className='text-2xs text-gray-600 bg-surface-600 px-1.5 py-0.5 rounded'>
+                <span className='text-2xs text-gray-400 bg-surface-600 px-1.5 py-0.5 rounded'>
                   {lead.contact_attempt_count} attempt{lead.contact_attempt_count !== 1 ? 's' : ''}
                 </span>
               )}
@@ -713,7 +714,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             )}
             {/* AI Follow-Up output */}
             {aiFollowUp && (
-              <div className='mt-3 rounded-lg border border-purple-800/30 bg-purple-900/10 p-3'>
+              <div className='mt-3 rounded-lg border border-purple-500/20 dark:border-purple-800/30 bg-purple-500/8 dark:bg-purple-900/10 p-3'>
                 <div className='flex items-center justify-between mb-2'>
                   <div className='flex items-center gap-1.5'>
                     <Sparkles size={10} className='text-purple-400' />
@@ -727,20 +728,20 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                       {aiCopied ? <Check size={9} /> : <Copy size={9} />}
                       {aiCopied ? 'Copied' : 'Copy'}
                     </button>
-                    <button onClick={() => setAiFollowUp(null)} className='h-5 px-1 text-2xs text-gray-600 hover:text-gray-400 transition-colors'>
+                    <button onClick={() => setAiFollowUp(null)} className='h-5 px-1 text-2xs text-gray-400 hover:text-gray-400 transition-colors'>
                       <X size={9} />
                     </button>
                   </div>
                 </div>
                 <p className='text-xs text-gray-300 leading-relaxed whitespace-pre-wrap'>{aiFollowUp}</p>
-                <p className='text-2xs text-gray-600 mt-2'>Review and personalize before sending.</p>
+                <p className='text-2xs text-gray-400 mt-2'>Review and personalize before sending.</p>
               </div>
             )}
           </div>
 
           {/* Overdue banner */}
           {overdue && (
-            <div className='mx-5 mt-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-900/20 border border-orange-700/30'>
+            <div className='mx-5 mt-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500/10 dark:bg-orange-900/20 border border-orange-500/20 dark:border-orange-700/30'>
               <AlertTriangle size={12} className='text-orange-400 shrink-0' />
               <p className='text-xs text-orange-300'>Follow-up overdue since <strong>{fmtDate(lead.follow_up_date)}</strong></p>
             </div>
@@ -751,25 +752,25 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             <div className='mx-5 mt-4 flex items-center gap-4 px-3 py-2 rounded-lg bg-surface-700/50 border border-surface-500/40'>
               {lead.last_contact_date && (
                 <div>
-                  <p className='text-2xs text-gray-600'>Last Contact</p>
+                  <p className='text-2xs text-gray-400'>Last Contact</p>
                   <p className='text-xs text-gray-300'>{fmtDate(lead.last_contact_date)}</p>
                 </div>
               )}
               {(lead.contact_attempt_count ?? 0) > 0 && (
                 <div>
-                  <p className='text-2xs text-gray-600'>Attempts</p>
+                  <p className='text-2xs text-gray-400'>Attempts</p>
                   <p className='text-xs text-gray-300'>{lead.contact_attempt_count}</p>
                 </div>
               )}
               {lead.contact_method && (
                 <div>
-                  <p className='text-2xs text-gray-600'>Last Method</p>
+                  <p className='text-2xs text-gray-400'>Last Method</p>
                   <p className='text-xs text-gray-300'>{lead.contact_method}</p>
                 </div>
               )}
               {lead.outreach_outcome && (
                 <div className='flex-1 min-w-0'>
-                  <p className='text-2xs text-gray-600'>Last Outcome</p>
+                  <p className='text-2xs text-gray-400'>Last Outcome</p>
                   <p className='text-xs text-gray-300 truncate'>{lead.outreach_outcome}</p>
                 </div>
               )}
@@ -836,7 +837,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                 <div className='flex items-start gap-2.5'>
                   <span className='text-gray-600 mt-0.5 shrink-0'><Mail size={12} /></span>
                   <div>
-                    <p className='text-2xs text-gray-600'>Email</p>
+                    <p className='text-2xs text-gray-400'>Email</p>
                     <p className='text-sm text-gray-300 break-all'>{lead.email}</p>
                     <button
                       onClick={() => (window.api as any).shell.openExternal(buildIntroMailUrl(lead.email!, lead.name, ownerEmail, ownerPhone))}
@@ -863,7 +864,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                 <div className='flex items-start gap-2.5'>
                   <span className='text-gray-600 mt-0.5 shrink-0'><Tag size={12} /></span>
                   <div>
-                    <p className='text-2xs text-gray-600'>MC #</p>
+                    <p className='text-2xs text-gray-400'>MC #</p>
                     <button
                       onClick={e => {
                         const num = lead.mc_number.replace(/^MC-?/i, '').trim()
@@ -880,7 +881,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
                 <div className='flex items-start gap-2.5'>
                   <span className='text-gray-600 mt-0.5 shrink-0'><Tag size={12} /></span>
                   <div>
-                    <p className='text-2xs text-gray-600'>DOT #</p>
+                    <p className='text-2xs text-gray-400'>DOT #</p>
                     <button onClick={e => openSaferDot(lead.dot_number!, e)}
                       className='text-sm font-mono text-gray-300 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
                       title='View on FMCSA SAFER'>{lead.dot_number}</button>
@@ -916,7 +917,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             <div className='flex items-center justify-between mb-3'>
               <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Notes</p>
               <button onClick={() => setAddingNote(v => !v)}
-                className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
+                className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors'>
                 <Plus size={10} /> Add
               </button>
             </div>
@@ -932,12 +933,12 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               </div>
             )}
             {notes.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No notes yet.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No notes yet.</p>
               : notes.map(n => (
                 <div key={n.id} className='group/note flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <div className='flex-1 min-w-0'>
                     <p className='text-xs text-gray-300 whitespace-pre-wrap'>{n.content}</p>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(n.created_at)}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(n.created_at)}</p>
                   </div>
                   <button onClick={() => delNote(n.id)}
                     className='opacity-0 group-hover/note:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all shrink-0'>
@@ -951,7 +952,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             <div className='flex items-center justify-between mb-3'>
               <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Call Log</p>
               <button onClick={() => setAddingCall(v => !v)}
-                className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
+                className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors'>
                 <Plus size={10} /> Log
               </button>
             </div>
@@ -980,19 +981,19 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
               </div>
             )}
             {calls.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No calls logged yet.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No calls logged yet.</p>
               : calls.map(c => (
                 <div key={c.id} className='group/call flex items-start gap-2.5 py-2.5 border-b border-surface-600 last:border-0'>
                   <PhoneCall size={12} className='text-gray-600 mt-0.5 shrink-0' />
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center gap-2 flex-wrap'>
                       <span className='text-xs font-medium text-gray-300'>{c.type}</span>
-                      <span className='text-2xs text-gray-600'>|</span>
+                      <span className='text-2xs text-gray-400'>|</span>
                       <span className='text-2xs text-gray-500'>{c.outcome}</span>
-                      {c.duration && <><span className='text-2xs text-gray-600'>|</span><span className='text-2xs text-gray-600'>{c.duration}</span></>}
+                      {c.duration && <><span className='text-2xs text-gray-400'>|</span><span className='text-2xs text-gray-400'>{c.duration}</span></>}
                     </div>
                     {c.summary && <p className='text-xs text-gray-400 mt-0.5'>{c.summary}</p>}
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(c.created_at)}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(c.created_at)}</p>
                   </div>
                   <button onClick={() => delCall(c.id)}
                     className='opacity-0 group-hover/call:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all shrink-0'>
@@ -1006,7 +1007,7 @@ export function LeadDrawer({ lead, onClose, onEdit, onUpdate, onStatusChange, on
             <button onClick={() => setShowScore(v => !v)}
               className='flex items-center gap-1.5 w-full text-left'>
               <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider flex-1'>Score Breakdown</p>
-              <span className='text-2xs text-gray-600'>{total}/100 · {grade}</span>
+              <span className='text-2xs text-gray-400'>{total}/100 · {grade}</span>
               <ChevronDown size={12} className={`text-gray-600 transition-transform ${showScore ? 'rotate-180' : ''}`} />
             </button>
             {showScore && (

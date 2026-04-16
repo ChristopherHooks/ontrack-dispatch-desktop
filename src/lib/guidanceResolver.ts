@@ -7,7 +7,7 @@
  * Scoring: category match (+2 primary, +1 secondary) + title keyword match (+1 each).
  */
 
-import type { SopDocument } from '../types/models'
+import type { SopDocument, LoadStatus } from '../types/models'
 
 export type GuidanceContext =
   | 'broker-overview' | 'carrier-offers' | 'carrier-vetting'
@@ -85,4 +85,101 @@ export function resolveGuidance(context: GuidanceContext, docs: SopDocument[]): 
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map(x => x.doc)
+}
+
+// ---------------------------------------------------------------------------
+// State-aware load guidance
+// ---------------------------------------------------------------------------
+
+export interface LoadGuidanceResult {
+  primary: SopDocument | null
+  reason: string | null
+  secondary: SopDocument[]
+}
+
+interface LoadState {
+  load_mode: 'dispatch' | 'broker'
+  status: LoadStatus
+  invoiced: 0 | 1
+}
+
+interface BrokerWorkflowState {
+  datPostings: { length: number }
+  carrierOffers: Array<{ status: string }>
+  vetting: object | null
+}
+
+/**
+ * Determines the single most-recommended SOP (primary) for a load
+ * based on live workflow state, plus supporting secondary SOPs.
+ *
+ * Broker mode state machine:
+ *   no DAT postings          → DAT / posting SOPs
+ *   no accepted offer        → carrier offer / inbound call SOPs
+ *   accepted + no vetting    → carrier vetting / compliance SOPs
+ *   Carrier Selected/Booked  → rate con / pickup SOPs
+ *   Delivered + not invoiced → invoice / settlement SOPs
+ *   Invoiced/Paid            → general broker overview
+ *
+ * Dispatch mode state machine:
+ *   Searching                → load booking SOPs
+ *   Booked / In Transit      → check call SOPs
+ *   Delivered + not invoiced → POD / invoice SOPs
+ *   otherwise                → general dispatch SOPs
+ */
+export function resolveGuidanceForLoad(
+  load: LoadState,
+  brokerState: BrokerWorkflowState,
+  docs: SopDocument[]
+): LoadGuidanceResult {
+  const ranked = (context: GuidanceContext) => resolveGuidance(context, docs)
+
+  let primaryContext: GuidanceContext
+  let reason: string
+
+  if (load.load_mode === 'broker') {
+    const hasAcceptedOffer = brokerState.carrierOffers.some(o => o.status === 'Accepted')
+
+    if (brokerState.datPostings.length === 0) {
+      primaryContext = 'broker-overview'
+      reason = 'No DAT posting yet — start with the broker workflow'
+    } else if (!hasAcceptedOffer) {
+      primaryContext = 'carrier-offers'
+      reason = 'Waiting on carrier — review offer and negotiation steps'
+    } else if (!brokerState.vetting) {
+      primaryContext = 'carrier-vetting'
+      reason = 'Offer accepted — complete carrier vetting before dispatch'
+    } else if (['Delivered'].includes(load.status) && load.invoiced === 0) {
+      primaryContext = 'broker-overview'
+      reason = 'Load delivered — ready to invoice'
+    } else {
+      primaryContext = 'broker-overview'
+      reason = null as unknown as string
+    }
+  } else {
+    // dispatch mode
+    if (load.status === 'Searching') {
+      primaryContext = 'load-create-dispatch'
+      reason = 'Searching for a load — review booking checklist'
+    } else if (['Booked', 'Picked Up', 'In Transit'].includes(load.status)) {
+      primaryContext = 'dispatch-board'
+      reason = 'Load is active — check call and status update steps'
+    } else if (load.status === 'Delivered' && load.invoiced === 0) {
+      primaryContext = 'load-create-dispatch'
+      reason = 'Delivered — confirm POD received and invoice ready'
+    } else {
+      primaryContext = 'load-create-dispatch'
+      reason = null as unknown as string
+    }
+  }
+
+  const all = ranked(primaryContext)
+  const primary = all[0] ?? null
+  const secondary = all.slice(1, 3)
+
+  return {
+    primary,
+    reason: reason || null,
+    secondary,
+  }
 }

@@ -4,6 +4,7 @@ import type { Broker, BrokerFlag, BrokerRating, Load, Note, Invoice } from '../.
 import { FLAG_STYLES, BROKER_FLAGS } from './constants'
 import { LOAD_STATUS_STYLES } from '../loads/constants'
 import { openSaferMc } from '../../lib/saferUrl'
+import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
 
 interface Props {
   broker: Broker
@@ -19,21 +20,21 @@ const fmtDT = (dt: string) => new Date(dt).toLocaleDateString('en-US', { month: 
 function Row({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div>
-      <p className='text-2xs text-gray-600'>{label}</p>
-      <p className={`text-sm mt-0.5 ${accent ?? 'text-gray-300'}`}>{value}</p>
+      <p className={typeTokens.label}>{label}</p>
+      <p className={`text-sm mt-0.5 ${accent ?? typeTokens.value}`}>{value}</p>
     </div>
   )
 }
 function Sec({ title }: { title: string }) {
-  return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
+  return <p className={`${typeTokens.sectionTitle} mb-3`}>{title}</p>
 }
 
 const INTEL_RATING_STYLE: Record<BrokerRating, string> = {
-  Preferred: 'bg-green-500/15 text-green-400 border-green-500/25',
-  Strong:    'bg-green-500/10 text-green-400 border-green-500/20',
-  Neutral:   'bg-gray-500/10 text-gray-400 border-gray-500/20',
-  Caution:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
-  Avoid:     'bg-red-500/15 text-red-400 border-red-500/25',
+  Preferred: badgeTokens.success,
+  Strong:    badgeTokens.success,
+  Neutral:   badgeTokens.neutral,
+  Caution:   badgeTokens.caution,
+  Avoid:     badgeTokens.danger,
 }
 
 export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }: Props) {
@@ -186,19 +187,19 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               <Row label='Payment Terms' value={broker.payment_terms ? `Net ${broker.payment_terms} days` : '---'} />
               <Row label='Credit Rating' value={broker.credit_rating ?? 'Unknown'} />
               <Row label='Avg Days to Pay' value={broker.avg_days_pay != null ? `${broker.avg_days_pay} days` : '---'} />
-              {payScore && <div><p className='text-2xs text-gray-600'>Payer Score</p><p className={`text-sm mt-0.5 font-semibold ${payColor}`}>{payScore}</p></div>}
+              {payScore && <div><p className='text-2xs text-gray-400'>Payer Score</p><p className={`text-sm mt-0.5 font-semibold ${payColor}`}>{payScore}</p></div>}
               {payGrade && (
                 <div>
-                  <p className='text-2xs text-gray-600 mb-1'>Payment Grade</p>
+                  <p className='text-2xs text-gray-400 mb-1'>Payment Grade</p>
                   <div className='flex items-center gap-2'>
-                    <span className={`text-sm font-bold px-2.5 py-0.5 rounded-lg border ${
-                      payGrade === 'A' ? 'bg-green-500/15 text-green-400 border-green-500/30' :
-                      payGrade === 'B' ? 'bg-green-500/10 text-green-300 border-green-500/20' :
-                      payGrade === 'C' ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' :
-                      payGrade === 'D' ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
-                                         'bg-red-500/15 text-red-400 border-red-500/30'
+                    <span className={`text-sm font-bold px-2.5 py-0.5 rounded-lg ${
+                      payGrade === 'A' ? badgeTokens.success :
+                      payGrade === 'B' ? badgeTokens.success :
+                      payGrade === 'C' ? badgeTokens.caution :
+                      payGrade === 'D' ? badgeTokens.warning :
+                                         badgeTokens.danger
                     }`}>{payGrade}</span>
-                    <span className='text-2xs text-gray-600'>
+                    <span className='text-2xs text-gray-400'>
                       {avgDaysToPay != null ? `avg ${Math.round(avgDaysToPay)}d` : ''}{invoiceCount > 0 ? ` · ${invoiceCount} inv` : ''}
                     </span>
                   </div>
@@ -231,25 +232,25 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                 {creditOpen && (
                   <div className='mt-3 grid grid-cols-2 gap-3'>
                     <div>
-                      <p className='text-2xs text-gray-600'>Outstanding Balance</p>
-                      <p className={`text-sm font-mono font-semibold mt-0.5 ${outstandingTotal > 0 ? 'text-yellow-400' : 'text-gray-700'}`}>
+                      <p className='text-2xs text-gray-400'>Outstanding Balance</p>
+                      <p className={`text-sm font-mono font-semibold mt-0.5 ${outstandingTotal > 0 ? 'text-yellow-400' : 'text-gray-500'}`}>
                         ${outstandingTotal.toFixed(2)}
                       </p>
-                      <p className='text-2xs text-gray-700 mt-0.5'>{outstanding.length} invoice{outstanding.length !== 1 ? 's' : ''} open</p>
+                      <p className='text-2xs text-gray-500 mt-0.5'>{outstanding.length} invoice{outstanding.length !== 1 ? 's' : ''} open</p>
                     </div>
                     <div>
-                      <p className='text-2xs text-gray-600'>Credit Limit</p>
-                      <p className={`text-sm font-mono font-semibold mt-0.5 ${overLimitWarning ? 'text-red-400' : broker.credit_limit != null ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <p className='text-2xs text-gray-400'>Credit Limit</p>
+                      <p className={`text-sm font-mono font-semibold mt-0.5 ${overLimitWarning ? 'text-red-400' : broker.credit_limit != null ? 'text-gray-300' : 'text-gray-500'}`}>
                         {broker.credit_limit != null ? `$${broker.credit_limit.toLocaleString()}` : 'Not set'}
                       </p>
                       {overLimitWarning && <p className='text-2xs text-red-500 mt-0.5'>Limit exceeded</p>}
                     </div>
                     <div>
-                      <p className='text-2xs text-gray-600'>Stated Terms</p>
+                      <p className='text-2xs text-gray-400'>Stated Terms</p>
                       <p className='text-sm text-gray-300 mt-0.5'>Net {broker.payment_terms}d</p>
                     </div>
                     <div>
-                      <p className='text-2xs text-gray-600'>Actual Avg Pay</p>
+                      <p className='text-2xs text-gray-400'>Actual Avg Pay</p>
                       <p className={`text-sm font-semibold mt-0.5 ${
                         avgActualDays == null ? 'text-gray-700' :
                         avgActualDays <= broker.payment_terms ? 'text-green-400' :
@@ -258,12 +259,12 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                         {avgActualDays != null ? `${Math.round(avgActualDays)}d` : '—'}
                       </p>
                       {avgActualDays != null && paidInvs.length > 0 && (
-                        <p className='text-2xs text-gray-700 mt-0.5'>{paidInvs.length} paid invoices</p>
+                        <p className='text-2xs text-gray-500 mt-0.5'>{paidInvs.length} paid invoices</p>
                       )}
                     </div>
                     {outstanding.length > 0 && (
                       <div className='col-span-2'>
-                        <p className='text-2xs text-gray-600 mb-1.5'>Open Invoices</p>
+                        <p className='text-2xs text-gray-400 mb-1.5'>Open Invoices</p>
                         <div className='space-y-1'>
                           {outstanding.map(i => {
                             const daysOut = i.sent_date
@@ -272,7 +273,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                             return (
                               <div key={i.id} className='flex items-center justify-between text-2xs'>
                                 <span className='text-gray-500 font-mono'>{i.invoice_number}</span>
-                                <span className={`px-1.5 py-0.5 rounded border text-2xs ${i.status === 'Overdue' ? 'bg-red-900/20 border-red-700/30 text-red-400' : 'bg-surface-600 border-surface-500 text-gray-500'}`}>{i.status}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-2xs ${i.status === 'Overdue' ? badgeTokens.danger : badgeTokens.neutral}`}>{i.status}</span>
                                 <span className='text-gray-600'>${(i.dispatch_fee ?? 0).toFixed(2)}</span>
                                 <span className='text-gray-700'>{daysOut != null ? `${daysOut}d` : '—'}</span>
                               </div>
@@ -291,7 +292,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
             <Sec title='New Authority Policy' />
             <div className='flex items-center gap-3 flex-wrap'>
               <div>
-                <p className='text-2xs text-gray-600 mb-1'>Works With New Auth</p>
+                <p className='text-2xs text-gray-400 mb-1'>Works With New Auth</p>
                 <select
                   value={localNewAuth === 1 ? 'yes' : localNewAuth === 2 ? 'unknown' : 'no'}
                   onChange={async e => {
@@ -309,7 +310,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               </div>
               {localNewAuth === 1 && (
                 <div>
-                  <p className='text-2xs text-gray-600 mb-1'>Min Authority Age</p>
+                  <p className='text-2xs text-gray-400 mb-1'>Min Authority Age</p>
                   <select
                     value={localMinDays ?? ''}
                     onChange={async e => {
@@ -327,10 +328,10 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                 </div>
               )}
               {localNewAuth === 0 && (
-                <p className='text-2xs text-gray-600 italic self-end pb-1'>This broker does not load new authorities.</p>
+                <p className='text-2xs text-gray-400 italic self-end pb-1'>This broker does not load new authorities.</p>
               )}
               {localNewAuth === 2 && (
-                <p className='text-2xs text-gray-600 italic self-end pb-1'>New authority policy not confirmed for this broker.</p>
+                <p className='text-2xs text-gray-400 italic self-end pb-1'>New authority policy not confirmed for this broker.</p>
               )}
             </div>
           </div>
@@ -349,16 +350,16 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
           {/* Performance */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
-              <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Performance</p>
+              <p className={typeTokens.sectionTitle}>Performance</p>
               <span className={`text-2xs px-2 py-0.5 rounded-full border font-semibold ${INTEL_RATING_STYLE[intelRating]}`}>
                 {intelRating}
               </span>
             </div>
             <div className='grid grid-cols-2 gap-3'>
-              <div><p className='text-2xs text-gray-600'>Total Loads</p><p className='text-sm text-gray-200 mt-0.5 font-semibold'>{loads.length}</p></div>
-              <div><p className='text-2xs text-gray-600'>Completed</p><p className='text-sm text-gray-200 mt-0.5 font-semibold'>{completedLoads.length}</p></div>
-              <div><p className='text-2xs text-gray-600'>Total Revenue</p><p className='text-sm text-green-400 mt-0.5 font-semibold font-mono'>{totalRevenue > 0 ? `$${totalRevenue.toLocaleString()}` : '---'}</p></div>
-              <div><p className='text-2xs text-gray-600'>Avg RPM</p><p className='text-sm text-gray-200 mt-0.5 font-mono font-semibold'>{avgRpm > 0 ? `$${avgRpm.toFixed(2)}/mi` : '---'}</p></div>
+              <div><p className={typeTokens.microLabel}>Total Loads</p><p className='text-sm text-gray-200 mt-0.5 font-semibold'>{loads.length}</p></div>
+              <div><p className={typeTokens.microLabel}>Completed</p><p className='text-sm text-gray-200 mt-0.5 font-semibold'>{completedLoads.length}</p></div>
+              <div><p className={typeTokens.microLabel}>Total Revenue</p><p className='text-sm text-green-400 mt-0.5 font-semibold font-mono'>{totalRevenue > 0 ? `$${totalRevenue.toLocaleString()}` : '---'}</p></div>
+              <div><p className={typeTokens.microLabel}>Avg RPM</p><p className='text-sm text-gray-200 mt-0.5 font-mono font-semibold'>{avgRpm > 0 ? `$${avgRpm.toFixed(2)}/mi` : '---'}</p></div>
             </div>
           </div>
           {/* Preferred Lanes */}
@@ -366,16 +367,16 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
             <div className='flex items-center justify-between mb-3'>
               <div className='flex items-center gap-2'>
                 <MapPin size={11} className='text-gray-600' />
-                <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider'>Preferred Lanes</p>
+                <p className={typeTokens.sectionTitle}>Preferred Lanes</p>
               </div>
               {!addingLane && (
-                <button onClick={() => setAddingLane(true)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
+                <button onClick={() => setAddingLane(true)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors'>
                   <Plus size={10} />Add Lane
                 </button>
               )}
             </div>
             {localLanes.length === 0 && !addingLane && (
-              <p className='text-2xs text-gray-700 italic'>No preferred lanes recorded. Add lanes this broker regularly covers (e.g. TX-FL).</p>
+              <p className='text-2xs text-gray-500 italic'>No preferred lanes recorded. Add lanes this broker regularly covers (e.g. TX-FL).</p>
             )}
             {localLanes.length > 0 && (
               <div className='flex flex-wrap gap-1.5 mb-2'>
@@ -402,7 +403,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                 <button onClick={addLane} className='flex items-center gap-1 px-2 h-7 text-2xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'>
                   <Check size={10} />Add
                 </button>
-                <button onClick={() => { setAddingLane(false); setLaneInput('') }} className='text-2xs text-gray-600 hover:text-gray-300 transition-colors'>Cancel</button>
+                <button onClick={() => { setAddingLane(false); setLaneInput('') }} className='text-2xs text-gray-400 hover:text-gray-300 transition-colors'>Cancel</button>
               </div>
             )}
           </div>
@@ -410,7 +411,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title={`Load History (${loads.length})`} />
             {loads.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No loads with this broker yet.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No loads with this broker yet.</p>
               : <div className='space-y-1.5 max-h-48 overflow-y-auto pr-1'>
                   {loads.slice(0, 12).map(l => {
                     const origin = [l.origin_city, l.origin_state].filter(Boolean).join(', ') || '---'
@@ -427,7 +428,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                       </div>
                     )
                   })}
-                  {loads.length > 12 && <p className='text-2xs text-gray-700 text-center pt-1'>+{loads.length - 12} more</p>}
+                  {loads.length > 12 && <p className='text-2xs text-gray-500 text-center pt-1'>+{loads.length - 12} more</p>}
                 </div>
             }
           </div>
@@ -435,7 +436,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Contact Log' />
-              <button onClick={() => setAddingCall(v => !v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10} />Log Contact</button>
+              <button onClick={() => setAddingCall(v => !v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10} />Log Contact</button>
             </div>
             {addingCall && (
               <div className='mb-3'>
@@ -453,13 +454,13 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               </div>
             )}
             {callLog.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No contact history yet. Log calls, negotiations, and follow-ups here.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No contact history yet. Log calls, negotiations, and follow-ups here.</p>
               : callLog.map(e => (
                 <div key={e.id} className='group/cl flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <MessageSquare size={10} className='text-gray-600 mt-0.5 shrink-0' />
                   <div className='flex-1 min-w-0'>
                     <p className='text-xs text-gray-300'>{e.note}</p>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(e.created_at)}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(e.created_at)}</p>
                   </div>
                   <button onClick={() => delCallLog(e.id)} className='opacity-0 group-hover/cl:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10} /></button>
                 </div>
@@ -471,7 +472,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
           <div className='px-5 py-4'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Notes' />
-              <button onClick={() => setAddNote(v => !v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10} />Add</button>
+              <button onClick={() => setAddNote(v => !v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10} />Add</button>
             </div>
             {addNote && (
               <div className='mb-3'>
@@ -485,7 +486,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
               </div>
             )}
             {notes.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No notes yet.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No notes yet.</p>
               : notes.map(n => (
                 <div key={n.id} className='group/note py-2 border-b border-surface-600 last:border-0'>
                   {editingNoteId === n.id ? (
@@ -506,7 +507,7 @@ export function BrokerDrawer({ broker, onClose, onEdit, onDelete, onFlagChange }
                     <div className='flex items-start gap-2'>
                       <div className='flex-1 min-w-0'>
                         <p className='text-xs text-gray-300 whitespace-pre-wrap'>{n.content}</p>
-                        <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(n.created_at)}</p>
+                        <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(n.created_at)}</p>
                       </div>
                       <div className='flex items-center gap-0.5 opacity-0 group-hover/note:opacity-100 transition-all'>
                         <button onClick={() => startEditNote(n)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400 transition-colors'><Pencil size={10} /></button>

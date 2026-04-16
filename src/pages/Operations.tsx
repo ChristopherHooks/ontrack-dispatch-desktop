@@ -13,6 +13,7 @@ import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import { LaunchSprintPanel } from '../components/operations/LaunchSprintPanel'
 import { useSettingsStore } from '../store/settingsStore'
+import { badge as badgeTokens } from '../styles/uiTokens'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
   OperationsData, DriverOpportunity, GroupPerformance, BrokerLane, ProfitRadarData,
@@ -205,14 +206,14 @@ export function Operations() {
       {!loading && ops.driversNeedingLoads > 0 && (
         <div className='flex items-center justify-between gap-3 px-4 py-3 bg-orange-600/10 border border-orange-600/30 rounded-xl'>
           <div className='flex items-center gap-2.5'>
-            <Truck size={15} className='text-orange-400 shrink-0' />
-            <span className='text-sm text-orange-200'>
-              You have <span className='font-semibold text-orange-400'>{ops.driversNeedingLoads} driver{ops.driversNeedingLoads !== 1 ? 's' : ''}</span> ready — find them loads now.
+            <Truck size={15} className='text-orange-700 dark:text-orange-400 shrink-0' />
+            <span className='text-sm text-orange-900 dark:text-orange-200'>
+              You have <span className='font-semibold text-orange-700 dark:text-orange-400'>{ops.driversNeedingLoads} driver{ops.driversNeedingLoads !== 1 ? 's' : ''}</span> ready — find them loads now.
             </span>
           </div>
           <button
             onClick={() => navigate('/findloads')}
-            className='shrink-0 text-xs font-medium text-orange-400 hover:text-orange-300 border border-orange-600/40 hover:border-orange-500/60 px-3 py-1.5 rounded-lg transition-colors'>
+            className='shrink-0 text-xs font-medium text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 border border-orange-500/60 dark:border-orange-600/40 hover:border-orange-600/80 dark:hover:border-orange-500/60 px-3 py-1.5 rounded-lg transition-colors'>
             Find Loads
           </button>
         </div>
@@ -299,7 +300,7 @@ export function Operations() {
                   <div className={`shrink-0 ${row.ok ? 'text-gray-600' : 'text-gray-400'}`}>{row.icon}</div>
                   <div className='flex-1 min-w-0'>
                     <span className={`text-sm font-medium ${row.ok ? 'text-gray-500' : 'text-gray-200'}`}>{row.label}</span>
-                    <span className='text-xs text-gray-600 ml-2'>{row.detail}</span>
+                    <span className='text-xs text-gray-400 ml-2'>{row.detail}</span>
                   </div>
                   {!row.ok && (
                     <button
@@ -347,7 +348,7 @@ export function Operations() {
                 { label: 'Avg RPM', value: sc.avgRpm != null ? `$${sc.avgRpm.toFixed(2)}` : '—' },
               ].map((item, i) => (
                 <div key={i} className='px-5 py-3'>
-                  <p className='text-2xs text-gray-500'>{item.label}</p>
+                  <p className='text-2xs text-gray-400'>{item.label}</p>
                   <p className='text-lg font-bold font-mono text-gray-100 mt-0.5'>{item.value}</p>
                 </div>
               ))}
@@ -423,8 +424,8 @@ export function Operations() {
                 <Target size={14} className='text-orange-400' />
                 <span className='text-xs font-semibold text-gray-200'>Monthly Revenue Goal</span>
                 {onPace
-                  ? <span className='text-2xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/40'>On pace</span>
-                  : <span className='text-2xs px-2 py-0.5 rounded-full bg-yellow-900/40 text-yellow-500 border border-yellow-800/40'>Behind pace</span>
+                  ? <span className={`text-2xs px-2 py-0.5 rounded-full ${badgeTokens.success}`}>On pace</span>
+                  : <span className={`text-2xs px-2 py-0.5 rounded-full ${badgeTokens.caution}`}>Behind pace</span>
                 }
               </div>
               <button
@@ -446,28 +447,28 @@ export function Operations() {
             {/* Stats row */}
             <div className='flex items-center gap-6 flex-wrap'>
               <div>
-                <p className='text-2xs text-gray-600'>Earned MTD</p>
+                <p className='text-2xs text-gray-400'>Earned MTD</p>
                 <p className='text-sm font-bold text-gray-200'>{fmt$(revenue)}</p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Goal</p>
+                <p className='text-2xs text-gray-400'>Goal</p>
                 <p className='text-sm font-bold text-gray-200'>{fmt$(revenueGoal!)}</p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Projected Month End</p>
+                <p className='text-2xs text-gray-400'>Projected Month End</p>
                 <p className={`text-sm font-bold font-mono ${onPace ? 'text-green-400' : 'text-orange-400'}`}>{fmt$(projected)}</p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Remaining</p>
+                <p className='text-2xs text-gray-400'>Remaining</p>
                 <p className={`text-sm font-bold ${remaining > 0 ? 'text-orange-400' : 'text-green-400'}`}>{fmt$(remaining)}</p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Day {dayOfMo} of {daysInMo}</p>
-                <p className='text-sm font-bold text-gray-400'>{daysLeft}d left</p>
+                <p className='text-2xs text-gray-400'>Day {dayOfMo} of {daysInMo}</p>
+                <p className='text-sm font-bold text-gray-300'>{daysLeft}d left</p>
               </div>
               {daysLeft > 0 && remaining > 0 && (
                 <div>
-                  <p className='text-2xs text-gray-600'>Needed per day</p>
+                  <p className='text-2xs text-gray-400'>Needed per day</p>
                   <p className='text-sm font-bold text-yellow-500'>{fmt$(perDay)}</p>
                 </div>
               )}
@@ -748,11 +749,11 @@ export function Operations() {
                   const overdue = lead.follow_up_date && lead.follow_up_date < todayIso
                   return (
                     <li key={lead.id} className='flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-600 transition-colors cursor-pointer' onClick={() => navigate(`/leads?open=${lead.id}`)}>
-                      <span className={['text-2xs px-1 py-0.5 rounded shrink-0',
-                        lead.priority === 'High'   ? 'bg-red-900/30 text-red-400' :
-                        lead.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' :
-                                                     'bg-surface-600 text-gray-500',
-                      ].join(' ')}>{lead.priority}</span>
+                      <span className={`text-2xs px-1 py-0.5 rounded shrink-0 ${
+                        lead.priority === 'High'   ? badgeTokens.danger :
+                        lead.priority === 'Medium' ? badgeTokens.caution :
+                                                     badgeTokens.neutral
+                      }`}>{lead.priority}</span>
                       <span className='text-xs text-gray-300 flex-1 truncate'>{lead.name}</span>
                       {lead.company && <span className='text-2xs text-gray-600 truncate max-w-[80px]'>{lead.company}</span>}
                       {overdue && <span className='text-2xs text-red-400 shrink-0'>overdue</span>}
@@ -779,11 +780,11 @@ export function Operations() {
                       className='flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-600 transition-colors cursor-pointer'
                       onClick={() => navigate('/driver-acquisition')}
                     >
-                      <span className={['text-2xs px-1 py-0.5 rounded shrink-0',
-                        p.priority === 'High'   ? 'bg-red-900/30 text-red-400' :
-                        p.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' :
-                                                   'bg-surface-600 text-gray-500',
-                      ].join(' ')}>{p.priority}</span>
+                      <span className={`text-2xs px-1 py-0.5 rounded shrink-0 ${
+                        p.priority === 'High'   ? badgeTokens.danger :
+                        p.priority === 'Medium' ? badgeTokens.caution :
+                                                   badgeTokens.neutral
+                      }`}>{p.priority}</span>
                       <span className='text-xs text-gray-300 flex-1 truncate'>{p.name}</span>
                       <span className='text-2xs text-gray-600 shrink-0'>{p.stage}</span>
                       {overdue && <span className='text-2xs text-red-400 shrink-0'>overdue</span>}
@@ -946,11 +947,11 @@ const STATUS_LABEL: Record<ComplianceStatus, string> = {
 }
 
 const COMPLIANCE_CLS: Record<ComplianceStatus, string> = {
-  ok:       'bg-green-900/30 text-green-400 border-green-800/40',
-  warn:     'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
-  critical: 'bg-red-900/30 text-red-400 border-red-800/40',
-  expired:  'bg-red-950/60 text-red-300 border-red-700/60',
-  missing:  'bg-surface-600 text-gray-600 border-surface-400',
+  ok:       badgeTokens.success,
+  warn:     badgeTokens.caution,
+  critical: badgeTokens.danger,
+  expired:  badgeTokens.danger,
+  missing:  badgeTokens.neutral,
 }
 
 function StatusBadge({ status, expiry }: { status: ComplianceStatus; expiry: string | null }) {
@@ -991,8 +992,8 @@ function ComplianceMatrix({ rows, onNavigate }: { rows: DriverComplianceRow[]; o
           <FileText size={14} className={allClear ? 'text-green-400' : 'text-red-400'} />
           <h2 className='text-xs font-semibold text-gray-200'>Carrier Compliance</h2>
           {allClear
-            ? <span className='text-2xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/40'>All clear</span>
-            : <span className='text-2xs px-2 py-0.5 rounded-full bg-red-900/40 text-red-400 border border-red-800/40'>{alertCount} need attention</span>
+            ? <span className={`text-2xs px-2 py-0.5 rounded-full ${badgeTokens.success}`}>All clear</span>
+            : <span className={`text-2xs px-2 py-0.5 rounded-full ${badgeTokens.danger}`}>{alertCount} need attention</span>
           }
         </div>
         <div className='flex items-center gap-2'>
@@ -1033,7 +1034,7 @@ function ComplianceMatrix({ rows, onNavigate }: { rows: DriverComplianceRow[]; o
               </tbody>
             </table>
           </div>
-          <p className='text-2xs text-gray-700 mt-3'>CDL / Insurance from driver profile. COI from attached documents. Hover any badge to see the date. Warn = within 60 days, Critical = within 30 days.</p>
+          <p className='text-2xs text-gray-500 mt-3'>CDL / Insurance from driver profile. COI from attached documents. Hover any badge to see the date. Warn = within 60 days, Critical = within 30 days.</p>
         </div>
       )}
     </div>
@@ -1054,7 +1055,7 @@ function KpiCard({ label, value, icon, accent = false, sub, onClick }: {
       <div className={['mb-1.5', accent ? 'text-orange-500' : 'text-gray-500'].join(' ')}>{icon}</div>
       <p className='text-2xl font-bold text-gray-100'>{value}</p>
       <p className='text-xs text-gray-400 mt-0.5 leading-tight'>{label}</p>
-      {sub && <p className='text-2xs text-gray-600 mt-0.5 leading-tight'>{sub}</p>}
+      {sub && <p className='text-2xs text-gray-400 mt-0.5 leading-tight'>{sub}</p>}
     </button>
   )
 }
@@ -1115,10 +1116,11 @@ function TaskRow({ task, initialDone, todayIso, onDocLink }: {
             <Clock size={10}/>{task.time_of_day}
           </div>
         )}
-        <span className={['text-2xs px-1.5 py-0.5 rounded-full shrink-0',
-          task.priority === 'High'   ? 'bg-red-900/30 text-red-400' :
-          task.priority === 'Medium' ? 'bg-yellow-900/30 text-yellow-500' :
-                                       'bg-surface-600 text-gray-500'].join(' ')}>
+        <span className={`text-2xs px-1.5 py-0.5 rounded-full shrink-0 ${
+          task.priority === 'High'   ? badgeTokens.danger :
+          task.priority === 'Medium' ? badgeTokens.caution :
+                                       badgeTokens.neutral
+        }`}>
           {task.priority}
         </span>
         {hasNotes && (
@@ -1193,9 +1195,9 @@ function TopLeadRow({ rank, lead, onStatusChange }: {
   const [saving, setSaving] = useState(false)
 
   const gradeCls =
-    lead._grade === 'Hot'  ? 'bg-orange-900/40 text-orange-400 border-orange-700/40' :
-    lead._grade === 'Warm' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-700/30' :
-                             'bg-surface-600 text-gray-500 border-surface-500'
+    lead._grade === 'Hot'  ? badgeTokens.warning :
+    lead._grade === 'Warm' ? badgeTokens.caution :
+                             badgeTokens.neutral
 
   const identifier = lead.mc_number ?? (lead.dot_number ? 'DOT-' + lead.dot_number : null)
   const location   = [lead.city, lead.state].filter(Boolean).join(', ')

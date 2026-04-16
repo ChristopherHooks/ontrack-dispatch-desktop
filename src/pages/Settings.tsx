@@ -451,10 +451,10 @@ export function Settings() {
           </p>
           <div className='bg-surface-600 rounded-lg border border-surface-400 p-3'>
             <p className='text-2xs text-gray-500 font-mono'>OnTrackDashboard/</p>
-            <p className='text-2xs text-gray-600 font-mono ml-4'>database.db</p>
-            <p className='text-2xs text-gray-600 font-mono ml-4'>drivers/</p>
-            <p className='text-2xs text-gray-600 font-mono ml-4'>documents/</p>
-            <p className='text-2xs text-gray-600 font-mono ml-4'>backups/  (auto-daily)</p>
+            <p className='text-2xs text-gray-500 font-mono ml-4'>database.db</p>
+            <p className='text-2xs text-gray-500 font-mono ml-4'>drivers/</p>
+            <p className='text-2xs text-gray-500 font-mono ml-4'>documents/</p>
+            <p className='text-2xs text-gray-500 font-mono ml-4'>backups/  (auto-daily)</p>
           </div>
         </div>
       </Section>
@@ -548,7 +548,7 @@ export function Settings() {
               placeholder='Paste your FMCSA QCMobile web key here'
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
-            <p className='text-2xs text-gray-600 mt-1'>
+            <p className='text-2xs text-gray-400 mt-1'>
               Register free at mobile.fmcsa.dot.gov/QCDevsite/home — used by the FMCSA import on the Leads page.
             </p>
           </div>
@@ -561,7 +561,7 @@ export function Settings() {
               placeholder='Texas, Georgia, Illinois, Tennessee, Ohio'
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
-            <p className='text-2xs text-gray-600 mt-1'>
+            <p className='text-2xs text-gray-400 mt-1'>
               Each term triggers one API search. State names work well — many carriers include their home state in their name.
               Leave blank to use the 7 built-in defaults.
             </p>
@@ -583,7 +583,7 @@ export function Settings() {
           {/* Re-enrich existing leads */}
           <div className='border-t border-surface-500 pt-4'>
             <p className='text-xs font-medium text-gray-400 mb-1'>Re-enrich Existing Leads</p>
-            <p className='text-2xs text-gray-600 mb-3'>
+            <p className='text-2xs text-gray-400 mb-3'>
               Scrapes SAFER for any leads missing fleet size, then re-prioritizes all FMCSA leads
               using your current rules (30–180 day authority + 1–3 trucks = High).
             </p>
@@ -617,7 +617,7 @@ export function Settings() {
               placeholder='sk-ant-...'
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
-            <p className='text-2xs text-gray-600 mt-1'>
+            <p className='text-2xs text-gray-400 mt-1'>
               Required for the FB Agents tab (Conversation, Lead Hunter, Content). Get a key at console.anthropic.com.
               Stored locally in app settings — never sent anywhere except Anthropic.
             </p>
@@ -661,7 +661,7 @@ export function Settings() {
       </Section>
 
       {/* Version */}
-      <div className='text-2xs text-gray-700 pt-4 border-t border-surface-400'>
+      <div className='text-2xs text-gray-500 pt-4 border-t border-surface-400'>
         OnTrack Dispatch Dashboard v1.0.0 · Electron + React + SQLite
       </div>
     </div>
@@ -673,7 +673,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
     <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
       <div className='flex items-center gap-2 mb-4 pb-3 border-b border-surface-400'>
         <span className='text-orange-500'>{icon}</span>
-        <h2 className='text-sm font-semibold text-gray-200'>{title}</h2>
+        <h2 className='text-sm font-semibold text-gray-100'>{title}</h2>
       </div>
       {children}
     </div>

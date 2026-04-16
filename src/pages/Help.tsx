@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { HelpCircle, Search, ChevronRight, ChevronDown, Keyboard, BookOpen, PlayCircle, Phone, Copy, Check } from 'lucide-react'
+import { badge as badgeTokens } from '../styles/uiTokens'
 import { HELP_ARTICLES, HELP_CATEGORIES, KEYBOARD_SHORTCUTS } from '../data/helpArticles'
 import type { HelpArticle } from '../data/helpArticles'
 import { INDUSTRY_TERMS, TERM_CATEGORIES } from '../data/industryTerms'
@@ -7,25 +8,25 @@ import type { IndustryTerm } from '../data/industryTerms'
 import { useSettingsStore } from '../store/settingsStore'
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'Getting Started': 'bg-green-900/30 text-green-400 border-green-700/40',
-  'Operations':      'bg-orange-900/30 text-orange-400 border-orange-700/40',
-  'Dispatch':        'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
-  'Leads':           'bg-blue-900/30 text-blue-400 border-blue-700/40',
-  'Drivers':         'bg-purple-900/30 text-purple-400 border-purple-700/40',
-  'Brokers':         'bg-teal-900/30 text-teal-400 border-teal-700/40',
-  'Invoices':        'bg-emerald-900/30 text-emerald-400 border-emerald-700/40',
-  'Marketing':       'bg-pink-900/30 text-pink-400 border-pink-700/40',
-  'Analytics':       'bg-sky-900/30 text-sky-400 border-sky-700/40',
-  'Backup & Data':   'bg-gray-900/30 text-gray-400 border-gray-700/40',
+  'Getting Started': badgeTokens.success,
+  'Operations':      badgeTokens.warning,
+  'Dispatch':        badgeTokens.caution,
+  'Leads':           badgeTokens.info,
+  'Drivers':         badgeTokens.purple,
+  'Brokers':         badgeTokens.teal,
+  'Invoices':        badgeTokens.emerald,
+  'Marketing':       badgeTokens.pink,
+  'Analytics':       badgeTokens.sky,
+  'Backup & Data':   badgeTokens.neutral,
 }
 
 const TERM_CATEGORY_COLORS: Record<string, string> = {
-  'Documents':       'bg-blue-900/30 text-blue-400 border-blue-700/40',
-  'Equipment':       'bg-orange-900/30 text-orange-400 border-orange-700/40',
-  'Regulatory':      'bg-red-900/30 text-red-400 border-red-700/40',
-  'Dispatch':        'bg-purple-900/30 text-purple-400 border-purple-700/40',
-  'Rates & Freight': 'bg-green-900/30 text-green-400 border-green-700/40',
-  'Business':        'bg-teal-900/30 text-teal-400 border-teal-700/40',
+  'Documents':       badgeTokens.info,
+  'Equipment':       badgeTokens.warning,
+  'Regulatory':      badgeTokens.danger,
+  'Dispatch':        badgeTokens.purple,
+  'Rates & Freight': badgeTokens.success,
+  'Business':        badgeTokens.teal,
 }
 
 type HelpTab = 'articles' | 'glossary' | 'scripts'
@@ -82,21 +83,21 @@ export function Help() {
         <button
           onClick={() => setTab('articles')}
           className={'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ' +
-            (tab === 'articles' ? 'bg-orange-600/20 text-orange-400 border border-orange-600/40' : 'text-gray-400 hover:text-gray-200 border border-transparent')}>
+            (tab === 'articles' ? 'bg-orange-600/20 text-orange-800 dark:text-orange-400 border border-orange-600/40' : 'text-gray-400 hover:text-gray-200 border border-transparent')}>
           <HelpCircle size={14} />
           Articles
         </button>
         <button
           onClick={() => setTab('glossary')}
           className={'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ' +
-            (tab === 'glossary' ? 'bg-orange-600/20 text-orange-400 border border-orange-600/40' : 'text-gray-400 hover:text-gray-200 border border-transparent')}>
+            (tab === 'glossary' ? 'bg-orange-600/20 text-orange-800 dark:text-orange-400 border border-orange-600/40' : 'text-gray-400 hover:text-gray-200 border border-transparent')}>
           <BookOpen size={14} />
           Glossary
         </button>
         <button
           onClick={() => setTab('scripts')}
           className={'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ' +
-            (tab === 'scripts' ? 'bg-orange-600/20 text-orange-400 border border-orange-600/40' : 'text-gray-400 hover:text-gray-200 border border-transparent')}>
+            (tab === 'scripts' ? 'bg-orange-600/20 text-orange-800 dark:text-orange-400 border border-orange-600/40' : 'text-gray-400 hover:text-gray-200 border border-transparent')}>
           <Phone size={14} />
           Call Scripts
         </button>
@@ -116,13 +117,13 @@ export function Help() {
           <div className='flex flex-wrap gap-2'>
             <button onClick={() => setCategory(null)}
               className={'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ' +
-                (!category ? 'bg-orange-600/20 border-orange-600 text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
+                (!category ? 'bg-orange-600/20 border-orange-600 text-orange-800 dark:text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
               All Topics
             </button>
             {HELP_CATEGORIES.map(cat => (
               <button key={cat} onClick={() => setCategory(c => c === cat ? null : cat)}
                 className={'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ' +
-                  (category === cat ? 'bg-orange-600/20 border-orange-600 text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
+                  (category === cat ? 'bg-orange-600/20 border-orange-600 text-orange-800 dark:text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
                 {cat}
               </button>
             ))}
@@ -178,13 +179,13 @@ export function Help() {
           <div className='flex flex-wrap gap-2'>
             <button onClick={() => setTermCategory(null)}
               className={'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ' +
-                (!termCategory ? 'bg-orange-600/20 border-orange-600 text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
+                (!termCategory ? 'bg-orange-600/20 border-orange-600 text-orange-800 dark:text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
               All Categories
             </button>
             {TERM_CATEGORIES.map(cat => (
               <button key={cat} onClick={() => setTermCategory(c => c === cat ? null : cat)}
                 className={'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ' +
-                  (termCategory === cat ? 'bg-orange-600/20 border-orange-600 text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
+                  (termCategory === cat ? 'bg-orange-600/20 border-orange-600 text-orange-800 dark:text-orange-400' : 'bg-surface-700 border-surface-400 text-gray-400 hover:text-gray-200')}>
                 {cat}
               </button>
             ))}
@@ -405,7 +406,7 @@ function ArticleCard({ article, expanded, onToggle }: { article: HelpArticle; ex
             <span className={'text-2xs px-1.5 py-0.5 rounded border ' + cc}>{article.category}</span>
           </div>
           <h3 className='text-sm font-semibold text-gray-200'>{article.title}</h3>
-          <p className='text-xs text-gray-500 mt-0.5'>{article.summary}</p>
+          <p className='text-xs text-gray-400 mt-0.5'>{article.summary}</p>
         </div>
         {expanded ? <ChevronDown size={15} className='text-gray-500 shrink-0'/> : <ChevronRight size={15} className='text-gray-500 shrink-0'/>}
       </button>

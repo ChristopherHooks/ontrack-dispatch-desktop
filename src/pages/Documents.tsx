@@ -50,7 +50,7 @@ const START_HERE_SEARCHES = [
 const WORKFLOW_GROUPS = [
   {
     label: 'Your Workflow',
-    headerClass: 'text-orange-400',
+    headerClass: 'text-orange-700 dark:text-orange-400',
     cats: [
       { name: 'Dispatch',  Icon: ClipboardList },
       { name: 'Drivers',   Icon: Truck },
@@ -235,7 +235,7 @@ export function Documents() {
                   <button key={doc.id} onClick={() => selectDoc(doc)}
                     className={'w-full text-left px-3 py-2 rounded-r-lg border-l-2 border-l-orange-500 bg-orange-600/10 transition-colors ' +
                       (selected?.id === doc.id ? 'bg-orange-600/20' : 'hover:bg-orange-600/15')}>
-                    <p className='text-xs font-semibold text-orange-300 truncate'>{doc.title}</p>
+                    <p className='text-xs font-semibold text-orange-900 dark:text-orange-300 truncate'>{doc.title}</p>
                     <span className={'text-2xs px-1.5 py-0.5 rounded border mt-1 inline-block ' + (CATEGORY_COLORS[doc.category] ?? CATEGORY_COLORS.Other)}>
                       {doc.category}
                     </span>
@@ -251,7 +251,7 @@ export function Documents() {
             {/* All */}
             <button onClick={() => { setCategory('All'); setSearch('') }}
               className={'w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-sm transition-colors ' +
-                (category === 'All' ? 'bg-orange-600/20 text-orange-400 font-medium' : 'text-gray-400 hover:bg-surface-600 hover:text-gray-200')}>
+                (category === 'All' ? 'bg-orange-600/20 text-orange-800 dark:text-orange-400 font-medium' : 'text-gray-400 hover:bg-surface-600 hover:text-gray-200')}>
               <span className='flex-1'>All Documents</span>
               <span className='text-2xs bg-surface-600 text-gray-500 px-1.5 py-0.5 rounded-full'>{allDocs.length}</span>
             </button>
@@ -264,7 +264,7 @@ export function Documents() {
                 {group.cats.map(({ name, Icon }) => (
                   <button key={name} onClick={() => { setCategory(name); setSearch('') }}
                     className={'w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-sm transition-colors ' +
-                      (category === name ? 'bg-orange-600/20 text-orange-400 font-medium' : 'text-gray-400 hover:bg-surface-600 hover:text-gray-200')}>
+                      (category === name ? 'bg-orange-600/20 text-orange-800 dark:text-orange-400 font-medium' : 'text-gray-400 hover:bg-surface-600 hover:text-gray-200')}>
                     <Icon size={12} className='shrink-0' />
                     <span className='flex-1'>{name}</span>
                     {(catCounts[name] ?? 0) > 0 && (
@@ -297,7 +297,7 @@ export function Documents() {
             ) : docs.map(doc => (
               <button key={doc.id} onClick={() => selectDoc(doc)}
                 className={'w-full text-left px-3 py-2 rounded-lg border transition-colors ' +
-                  (selected?.id === doc.id ? 'bg-orange-600/15 border-orange-700/40 text-orange-300' : 'bg-surface-700 border-surface-400 text-gray-300 hover:border-surface-300')}>
+                  (selected?.id === doc.id ? 'bg-orange-600/15 border-orange-700/40 text-orange-900 dark:text-orange-300' : 'bg-surface-700 border-surface-400 text-gray-300 hover:border-surface-300')}>
                 <p className='text-xs font-semibold truncate mb-1'>{doc.title}</p>
                 <div className='flex items-center gap-2'>
                   <span className={'text-2xs px-1.5 py-0.5 rounded border shrink-0 ' + (CATEGORY_COLORS[doc.category] ?? CATEGORY_COLORS.Other)}>

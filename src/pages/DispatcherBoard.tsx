@@ -5,6 +5,7 @@ import type { BoardRow, AvailableLoad, AssignLoadResult, LoadRecommendation, Sop
 import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star, Phone } from 'lucide-react'
 import { resolveGuidance } from '../lib/guidanceResolver'
 import { ContextGuidancePanel } from '../components/ui/ContextGuidancePanel'
+import { badge as badgeTokens } from '../styles/uiTokens'
 
 type BoardGroup = 'Needs Load' | 'In Transit' | 'Picked Up' | 'Booked' | 'Available Soon' | 'Inactive'
 
@@ -24,12 +25,12 @@ function deriveGroup(row: BoardRow): BoardGroup {
 interface GroupMeta { color: string; rowBg: string; badge: string; dot: string }
 
 const GROUP_META: Record<BoardGroup, GroupMeta> = {
-  'Needs Load':     { color: 'text-orange-400', rowBg: 'bg-orange-950/20 hover:bg-orange-950/30', badge: 'bg-orange-900/40 text-orange-300 border border-orange-700/40', dot: 'bg-orange-500 animate-pulse' },
-  'In Transit':     { color: 'text-green-400',  rowBg: 'bg-surface-700 hover:bg-surface-600',     badge: 'bg-green-900/40 text-green-300 border border-green-700/40',   dot: 'bg-green-500' },
-  'Picked Up':      { color: 'text-blue-400',   rowBg: 'bg-surface-700 hover:bg-surface-600',     badge: 'bg-blue-900/40 text-blue-300 border border-blue-700/40',     dot: 'bg-blue-500' },
-  'Booked':         { color: 'text-yellow-400', rowBg: 'bg-surface-700 hover:bg-surface-600',     badge: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700/40', dot: 'bg-yellow-500' },
-  'Available Soon': { color: 'text-cyan-400',   rowBg: 'bg-cyan-950/20 hover:bg-cyan-950/30',     badge: 'bg-cyan-900/40 text-cyan-300 border border-cyan-700/40',     dot: 'bg-cyan-400' },
-  'Inactive':       { color: 'text-gray-500',   rowBg: 'bg-surface-800 opacity-60 hover:opacity-80', badge: 'bg-surface-700 text-gray-500 border border-surface-400', dot: 'bg-gray-600' },
+  'Needs Load':     { color: 'text-orange-600 dark:text-orange-400', rowBg: 'hover:bg-surface-600 dark:bg-orange-950/20 dark:hover:bg-orange-950/30', badge: badgeTokens.warning, dot: 'bg-orange-500 animate-pulse' },
+  'In Transit':     { color: 'text-green-600 dark:text-green-400',   rowBg: 'bg-surface-700 hover:bg-surface-600', badge: badgeTokens.success, dot: 'bg-green-500' },
+  'Picked Up':      { color: 'text-blue-600 dark:text-blue-400',     rowBg: 'bg-surface-700 hover:bg-surface-600', badge: badgeTokens.info,    dot: 'bg-blue-500' },
+  'Booked':         { color: 'text-yellow-600 dark:text-yellow-500', rowBg: 'bg-surface-700 hover:bg-surface-600', badge: badgeTokens.caution, dot: 'bg-yellow-400' },
+  'Available Soon': { color: 'text-cyan-600 dark:text-cyan-400',     rowBg: 'hover:bg-surface-600 dark:bg-cyan-950/20 dark:hover:bg-cyan-950/30', badge: badgeTokens.cyan, dot: 'bg-cyan-400' },
+  'Inactive':       { color: 'text-gray-500',                        rowBg: 'bg-surface-800 opacity-60 hover:opacity-80', badge: badgeTokens.neutral, dot: 'bg-gray-600' },
 }
 
 const SEL = 'bg-surface-800 border border-surface-400 text-gray-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-orange-500'

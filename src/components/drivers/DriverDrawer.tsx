@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer, TrendingUp } from 'lucide-react'
 import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
+import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
 import { openSaferMc } from '../../lib/saferUrl'
 import { DispatchAgreementModal } from './DispatchAgreementModal'
 import { Term } from '../ui/Term'
@@ -42,10 +43,10 @@ function mcAge(authorityDate: string | null): { label: string; days: number } | 
 const fmt = (d: string | null) => { if (!d) return '—'; const [y,m,day]=d.split('-'); return `${m}/${day}/${y}` }
 const fmtDT = (dt: string) => new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
 function Row({ label, value, mono=false }: { label:string; value:string; mono?:boolean }) {
-  return <div><p className='text-2xs text-gray-600'>{label}</p><p className={`text-sm mt-0.5 ${mono?'font-mono':''} ${value==='—'?'text-gray-700':'text-gray-300'}`}>{value}</p></div>
+  return <div><p className={typeTokens.label}>{label}</p><p className={`text-sm mt-0.5 ${mono?'font-mono':''} ${value==='—'?'text-gray-500':typeTokens.value}`}>{value}</p></div>
 }
 function Sec({ title }: { title:string }) {
-  return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
+  return <p className={`${typeTokens.sectionTitle} mb-3`}>{title}</p>
 }
 export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete, onUpdate }: Props) {
   const [docs,setDocs]         = useState<DriverDocument[]>([])
@@ -305,7 +306,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               )}
             </div>
             {DRIVER_STATUSES.filter(s=>s!==driver.status).map(s=>(
-              <button key={s} onClick={()=>onStatusChange(driver,s)} className='px-2 h-7 text-2xs text-gray-600 hover:text-orange-400 rounded hover:bg-surface-600 transition-colors'>→ {s}</button>
+              <button key={s} onClick={()=>onStatusChange(driver,s)} className='px-2 h-7 text-2xs text-gray-400 hover:text-orange-400 rounded hover:bg-surface-600 transition-colors'>→ {s}</button>
             ))}
             <div className='flex-1'/>
             {!confirmDel
@@ -324,7 +325,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               <p className='text-xs text-gray-300'>
                 {[load.origin_city,load.origin_state].filter(Boolean).join(', ')||'—'} → {[load.dest_city,load.dest_state].filter(Boolean).join(', ')||'—'}
               </p>
-              <p className='text-2xs text-gray-600 mt-0.5'>
+              <p className='text-2xs text-gray-400 mt-0.5'>
                 {load.status}{load.miles!=null?` · ${load.miles.toLocaleString()} mi`:''}{load.rate!=null?` · $${load.rate.toLocaleString()}`:''}
               </p>
             </div>
@@ -341,7 +342,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 >
                   <div className='flex items-center gap-2'>
                     <p className='text-xs font-medium text-gray-300'>Carrier Setup</p>
-                    <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${allDone ? 'bg-green-900/40 text-green-400' : 'bg-surface-500 text-gray-500'}`}>
+                    <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${allDone ? badgeTokens.success : 'bg-surface-500 text-gray-500'}`}>
                       {done}/{DRIVER_SETUP_ITEMS.length}
                     </span>
                   </div>
@@ -381,33 +382,33 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 <p className='text-xs font-medium text-gray-300'>Broker Approvals</p>
                 <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${
                   approvals.filter(a => a.status==='Approved').length > 0
-                    ? 'bg-green-900/40 text-green-400'
+                    ? badgeTokens.success
                     : 'bg-surface-500 text-gray-500'
                 }`}>
                   {approvals.filter(a=>a.status==='Approved').length} approved
                 </span>
               </div>
               <div className='flex items-center gap-2'>
-                <span className='text-2xs text-gray-600'>{approvals.length} tracked</span>
+                <span className='text-2xs text-gray-400'>{approvals.length} tracked</span>
                 <ChevronDown size={13} className={`text-gray-600 transition-transform ${approvalsOpen ? 'rotate-180' : ''}`} />
               </div>
             </button>
             {approvalsOpen && (
               <div className='border-t border-surface-600'>
                 {approvals.length === 0 && !addApproval && (
-                  <p className='px-3 py-3 text-2xs text-gray-600 italic'>No broker approvals tracked yet. Add the first one below.</p>
+                  <p className='px-3 py-3 text-2xs text-gray-400 italic'>No broker approvals tracked yet. Add the first one below.</p>
                 )}
                 {approvals.map(a => (
                   <div key={a.id} className='group flex items-center gap-2 px-3 py-2 border-b border-surface-600 last:border-0'>
                     <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${a.status==='Approved'?'bg-green-400':a.status==='Denied'?'bg-red-400':'bg-yellow-400'}`} />
                     <div className='flex-1 min-w-0'>
                       <span className='text-xs text-gray-300 font-medium'>{a.broker_name}</span>
-                      {a.notes && <span className='text-2xs text-gray-600 ml-2'>{a.notes}</span>}
+                      {a.notes && <span className='text-2xs text-gray-400 ml-2'>{a.notes}</span>}
                     </div>
                     <span className={`text-2xs px-1.5 py-0.5 rounded font-medium shrink-0 ${
-                      a.status==='Approved'?'bg-green-900/40 text-green-400':
-                      a.status==='Denied'?'bg-red-900/40 text-red-400':
-                      'bg-yellow-900/30 text-yellow-400'
+                      a.status==='Approved'? badgeTokens.success :
+                      a.status==='Denied'?   badgeTokens.danger :
+                                             badgeTokens.caution
                     }`}>{a.status}</span>
                     <button onClick={() => delApproval(a.id)} className='opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all shrink-0'>
                       <X size={10}/>
@@ -450,7 +451,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 ) : (
                   <button
                     onClick={() => setAddApproval(true)}
-                    className='flex items-center gap-1 px-3 py-2.5 text-2xs text-gray-600 hover:text-orange-400 transition-colors w-full'
+                    className='flex items-center gap-1 px-3 py-2.5 text-2xs text-gray-400 hover:text-orange-400 transition-colors w-full'
                   >
                     <Plus size={10}/> Add broker approval
                   </button>
@@ -470,7 +471,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
             </div>
             {/* Current Location — inline editable */}
             <div className='mt-3'>
-              <p className='text-2xs text-gray-600 flex items-center gap-1'><MapPin size={10}/>Current Location</p>
+              <p className='text-2xs text-gray-400 flex items-center gap-1'><MapPin size={10}/>Current Location</p>
               {editingLocation ? (
                 <div className='flex items-center gap-1.5 mt-1'>
                   <input
@@ -486,7 +487,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 </div>
               ) : (
                 <div className='group/loc flex items-center gap-1.5 mt-0.5'>
-                  <p className={`text-sm ${localLocation?'text-gray-300':'text-gray-700'}`}>{localLocation??'—'}</p>
+                  <p className={`text-sm ${localLocation?'text-gray-200':'text-gray-500'}`}>{localLocation??'—'}</p>
                   <button onClick={()=>{setEditingLocation(true);setLocationText(localLocation??'')}}
                     className='opacity-0 group-hover/loc:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400 transition-all'><Pencil size={11}/></button>
                 </div>
@@ -499,7 +500,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
             <div className='grid grid-cols-2 gap-3'>
               {driver.mc_number
                 ? <div>
-                    <p className='text-2xs text-gray-600'>MC #</p>
+                    <p className='text-2xs text-gray-400'>MC #</p>
                     <button onClick={e => openSaferMc(driver.mc_number, e)}
                       className='text-sm mt-0.5 font-mono text-gray-300 hover:text-orange-400 hover:underline transition-colors cursor-pointer'
                       title='View on FMCSA SAFER'>{driver.mc_number}</button>
@@ -510,12 +511,12 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 const age = mcAge(driver.authority_date)
                 return (
                   <div>
-                    <p className='text-2xs text-gray-600'>MC Age</p>
+                    <p className='text-2xs text-gray-400'>MC Age</p>
                     {age ? (
                       <div className='flex items-center gap-1.5 mt-0.5'>
                         <span className='text-sm font-mono text-gray-300'>{age.label}</span>
                         {age.days < 90 && (
-                          <span className='text-2xs px-1.5 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-400 font-medium'>
+                          <span className={`text-2xs px-1.5 py-0.5 rounded-full font-medium ${badgeTokens.warning}`}>
                             New Auth
                           </span>
                         )}
@@ -526,19 +527,19 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               })()}
               <Row label='CDL #' value={driver.cdl_number??'—'} mono/>
               <div>
-                <p className='text-2xs text-gray-600'>CDL Expiry</p>
+                <p className='text-2xs text-gray-400'>CDL Expiry</p>
                 <p className={`text-sm mt-0.5 flex items-center gap-1 ${isExp(driver.cdl_expiry)?'text-orange-400':'text-gray-300'}`}>
                   {isExp(driver.cdl_expiry)&&<AlertTriangle size={11}/>}{fmt(driver.cdl_expiry)}
                 </p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Insurance Expiry</p>
+                <p className='text-2xs text-gray-400'>Insurance Expiry</p>
                 <p className={`text-sm mt-0.5 flex items-center gap-1 ${isExp(driver.insurance_expiry)?'text-orange-400':'text-gray-300'}`}>
                   {isExp(driver.insurance_expiry)&&<AlertTriangle size={11}/>}{fmt(driver.insurance_expiry)}
                 </p>
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>Medical Card Expiry</p>
+                <p className='text-2xs text-gray-400'>Medical Card Expiry</p>
                 <p className={`text-sm mt-0.5 flex items-center gap-1 ${isExp(driver.medical_card_expiry)?'text-orange-400':'text-gray-300'}`}>
                   {isExp(driver.medical_card_expiry)&&<AlertTriangle size={11}/>}{fmt(driver.medical_card_expiry??null)}
                 </p>
@@ -558,7 +559,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
             </div>
             {driver.preferred_lanes&&(
               <div className='mt-3'>
-                <p className='text-2xs text-gray-600'>Preferred Lanes</p>
+                <p className='text-2xs text-gray-400'>Preferred Lanes</p>
                 <p className='text-sm text-gray-300 mt-0.5'>{driver.preferred_lanes}</p>
               </div>
             )}
@@ -567,7 +568,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Documents'/>
-              <button onClick={()=>setAddDoc(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
+              <button onClick={()=>setAddDoc(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
             </div>
             {addDoc&&(
               <div className='mb-3 p-3 rounded-lg bg-surface-700 space-y-2'>
@@ -594,7 +595,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               </div>
             )}
             {docs.length===0
-              ?<p className='text-2xs text-gray-700 italic'>No documents on file.</p>
+              ?<p className='text-2xs text-gray-500 italic'>No documents on file.</p>
               :docs.map(doc=>(
                 <div key={doc.id} className='group/doc flex items-center gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <div className='flex-1 min-w-0'>
@@ -640,16 +641,16 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                 </div>
                 <div className='grid grid-cols-2 gap-3'>
                   <div>
-                    <p className='text-2xs text-gray-600'>Total Loads</p>
+                    <p className={typeTokens.microLabel}>Total Loads</p>
                     <p className='text-sm text-gray-200 font-semibold mt-0.5'>{completed.length}</p>
                   </div>
                   <div>
-                    <p className='text-2xs text-gray-600'>This Month</p>
+                    <p className={typeTokens.microLabel}>This Month</p>
                     <p className='text-sm text-gray-200 font-semibold mt-0.5'>{loadsThisMonth}</p>
                   </div>
                   {avgRpm != null && (
                     <div>
-                      <p className='text-2xs text-gray-600'>Avg RPM</p>
+                      <p className={typeTokens.microLabel}>Avg RPM</p>
                       <p className={`text-sm font-semibold font-mono mt-0.5 ${avgRpm >= 2 ? 'text-green-400' : avgRpm >= 1.5 ? 'text-yellow-400' : 'text-red-400'}`}>
                         ${avgRpm.toFixed(2)}
                       </p>
@@ -657,7 +658,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                   )}
                   {totalFees > 0 && (
                     <div>
-                      <p className='text-2xs text-gray-600'>Total Earned (fees)</p>
+                      <p className={typeTokens.microLabel}>Total Earned (fees)</p>
                       <p className='text-sm text-green-400 font-semibold font-mono mt-0.5'>
                         ${totalFees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
@@ -676,11 +677,11 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                   <div key={inv.id} className='flex items-center justify-between py-1.5 border-b border-surface-600 last:border-0'>
                     <div className='min-w-0'>
                       <p className='text-xs font-mono text-gray-300'>{inv.invoice_number}</p>
-                      <p className='text-2xs text-gray-600 mt-0.5'>Paid {fmt(inv.paid_date)}</p>
+                      <p className='text-2xs text-gray-400 mt-0.5'>Paid {fmt(inv.paid_date)}</p>
                     </div>
                     <div className='text-right shrink-0 ml-3'>
                       <p className='text-xs font-semibold font-mono text-green-400'>${(inv.dispatch_fee??0).toFixed(2)}</p>
-                      {inv.driver_gross!=null&&<p className='text-2xs text-gray-600'>${inv.driver_gross.toLocaleString()} gross</p>}
+                      {inv.driver_gross!=null&&<p className='text-2xs text-gray-400'>${inv.driver_gross.toLocaleString()} gross</p>}
                     </div>
                   </div>
                 ))}
@@ -691,7 +692,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
           <div className='px-5 py-4'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Notes'/>
-              <button onClick={()=>setAddNote(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
+              <button onClick={()=>setAddNote(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
             </div>
             {addNote&&(
               <div className='mb-3'>
@@ -705,12 +706,12 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               </div>
             )}
             {notes.length===0
-              ?<p className='text-2xs text-gray-700 italic'>No notes yet.</p>
+              ?<p className='text-2xs text-gray-500 italic'>No notes yet.</p>
               :notes.map(n=>(
                 <div key={n.id} className='group/note flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <div className='flex-1 min-w-0'>
                     <p className='text-xs text-gray-300 whitespace-pre-wrap'>{n.content}</p>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(n.created_at)}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(n.created_at)}</p>
                   </div>
                   <button onClick={()=>delNote(n.id)} className='opacity-0 group-hover/note:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10}/></button>
                 </div>

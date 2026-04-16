@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { X, Edit2, Trash2, Plus, ArrowRight, Printer, FileText, Copy, Paperclip, Phone, MessageSquare, Check, ChevronDown, Receipt } from 'lucide-react'
 import type { Load, LoadStatus, Driver, Broker, Note, TimelineEvent, DatPosting, CarrierOffer, BrokerCarrierVetting, SopDocument } from '../../types/models'
 import { LOAD_STATUS_STYLES, LOAD_STATUS_NEXT } from './constants'
-import { resolveGuidance } from '../../lib/guidanceResolver'
+import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
+import { resolveGuidanceForLoad } from '../../lib/guidanceResolver'
 import { ContextGuidancePanel } from '../ui/ContextGuidancePanel'
 
 interface Props {
@@ -241,10 +242,10 @@ function printSettlement(load: Load, driver: Driver | undefined, broker: Broker 
   document.head.removeChild(style)
 }
 function Row({ label, value, accent=false, mono=false }: { label:string; value:string; accent?:boolean; mono?:boolean }) {
-  return <div><p className='text-2xs text-gray-600'>{label}</p><p className={`text-sm mt-0.5 ${accent?'text-green-400 font-mono font-semibold':value==='—'?'text-gray-700':'text-gray-300'}${mono?' font-mono':''}`}>{value}</p></div>
+  return <div><p className={typeTokens.label}>{label}</p><p className={`text-sm mt-0.5 ${accent?'text-green-400 font-mono font-semibold':value==='—'?'text-gray-500':typeTokens.value}${mono?' font-mono':''}`}>{value}</p></div>
 }
 function Sec({ title }: { title:string }) {
-  return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
+  return <p className={`${typeTokens.sectionTitle} mb-3`}>{title}</p>
 }
 type LoadAttachment = { id: number; load_id: number; title: string; file_path: string; file_name: string; created_at: string }
 type Deduction     = { id: number; load_id: number; label: string; amount: number; created_at: string }
@@ -286,7 +287,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
   const [vetting,       setVetting]       = useState<BrokerCarrierVetting|null>(null)
   const [vettingForm,   setVettingForm]   = useState<VettingForm>(VETTING_BLANK)
   const [editVetting,   setEditVetting]   = useState(false)
-  // --- Contextual SOP guidance (broker mode only) ---
+  // --- Contextual SOP guidance ---
   const [allDocs, setAllDocs] = useState<SopDocument[]>([])
 
   useEffect(() => {
@@ -540,17 +541,36 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             }
           </div>
+          {/* Contextual SOP guidance — state-aware, shown at top before all sections */}
+          {(() => {
+            const guide = resolveGuidanceForLoad(
+              load,
+              { datPostings, carrierOffers, vetting },
+              allDocs
+            )
+            if (!guide.primary && guide.secondary.length === 0) return null
+            return (
+              <div className='px-5 pt-3 pb-1'>
+                <ContextGuidancePanel
+                  primary={guide.primary}
+                  reason={guide.reason}
+                  docs={guide.secondary}
+                  label='Recommended SOPs'
+                />
+              </div>
+            )
+          })()}
           {/* Route */}
           <div className='px-5 py-4 border-b border-surface-600'>
             <Sec title='Route'/>
             <div className='flex items-center gap-3 mb-3'>
               <div className='flex-1'>
-                <p className='text-2xs text-gray-600'>Origin</p>
+                <p className='text-2xs text-gray-400'>Origin</p>
                 <p className='text-sm text-gray-200 font-medium mt-0.5'>{origin}</p>
               </div>
               <ArrowRight size={16} className='text-gray-600 shrink-0'/>
               <div className='flex-1 text-right'>
-                <p className='text-2xs text-gray-600'>Destination</p>
+                <p className='text-2xs text-gray-400'>Destination</p>
                 <p className='text-sm text-gray-200 font-medium mt-0.5'>{dest}</p>
               </div>
             </div>
@@ -569,7 +589,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
             <div className='grid grid-cols-2 gap-3'>
               <Row label='Gross Rate' value={load.rate!=null?`$${load.rate.toLocaleString()}`:'—'}/>
               <div>
-                <p className='text-2xs text-gray-600'>Rate Per Mile</p>
+                <p className='text-2xs text-gray-400'>Rate Per Mile</p>
                 <p className={`text-sm mt-0.5 font-mono font-semibold ${rpm==null?'text-gray-700':rpmOk?'text-green-400':'text-red-400'}`}>
                   {rpm!=null?`$${rpm.toFixed(2)}/mi`:'—'}
                   {!rpmOk&&driver?.min_rpm!=null&&<span className='text-2xs text-red-500 font-normal ml-1'>(min ${driver.min_rpm.toFixed(2)})</span>}
@@ -589,14 +609,14 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               return (
                 <div className='mt-3 pt-3 border-t border-surface-600 grid grid-cols-2 gap-3'>
                   <div>
-                    <p className='text-2xs text-gray-600'>Your Earnings</p>
+                    <p className='text-2xs text-gray-400'>Your Earnings</p>
                     <p className='text-sm mt-0.5 font-mono font-semibold text-green-400'>${dispFee.toFixed(2)}</p>
-                    <p className='text-2xs text-gray-700'>dispatch fee</p>
+                    <p className='text-2xs text-gray-500'>dispatch fee</p>
                   </div>
                   <div>
-                    <p className='text-2xs text-gray-600'>Driver Net</p>
+                    <p className='text-2xs text-gray-400'>Driver Net</p>
                     <p className='text-sm mt-0.5 font-mono font-semibold text-gray-300'>${driverNet.toFixed(2)}</p>
-                    <p className='text-2xs text-gray-700'>after fee{dedTotal > 0 ? ` + ded` : ''}</p>
+                    <p className='text-2xs text-gray-500'>after fee{dedTotal > 0 ? ` + ded` : ''}</p>
                   </div>
                 </div>
               )
@@ -607,14 +627,14 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
             <Sec title='Assignment'/>
             <div className='grid grid-cols-2 gap-3'>
               <div>
-                <p className='text-2xs text-gray-600'>Driver</p>
+                <p className='text-2xs text-gray-400'>Driver</p>
                 {driver
                   ?<p className='text-sm text-gray-200 mt-0.5 font-medium'>{driver.name}{driver.company&&<span className='text-gray-500 font-normal'> · {driver.company}</span>}</p>
                   :<p className='text-sm text-yellow-600 mt-0.5'>Unassigned</p>
                 }
               </div>
               <div>
-                <p className='text-2xs text-gray-600'>{broker?.contact_type === 'shipper' ? 'Shipper' : 'Broker'}</p>
+                <p className='text-2xs text-gray-400'>{broker?.contact_type === 'shipper' ? 'Shipper' : 'Broker'}</p>
                 <p className='text-sm text-gray-300 mt-0.5'>{broker?.name??'—'}</p>
                 {broker && (() => {
                   const slowDiff  = broker.avg_days_pay != null ? broker.avg_days_pay - broker.payment_terms : null
@@ -622,7 +642,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                   const payColor  = payScore === 'On Time' ? 'text-green-400' : payScore === 'Slightly Late' ? 'text-yellow-400' : payScore ? 'text-red-400' : 'text-gray-600'
                   return (
                     <div className='flex items-center gap-2 mt-1 flex-wrap'>
-                      {broker.payment_terms > 0 && <span className='text-2xs text-gray-600'>Net {broker.payment_terms}</span>}
+                      {broker.payment_terms > 0 && <span className='text-2xs text-gray-400'>Net {broker.payment_terms}</span>}
                       {broker.avg_days_pay != null && <span className='text-2xs text-gray-500'>avg {Math.round(broker.avg_days_pay)}d</span>}
                       {payScore && <span className={`text-2xs font-semibold ${payColor}`}>{payScore}</span>}
                       {broker.flag !== 'None' && (
@@ -635,7 +655,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                         }`}>{broker.flag}</span>
                       )}
                       {broker.credit_rating && broker.credit_rating !== 'Unknown' && (
-                        <span className='text-2xs text-gray-600'>{broker.credit_rating}</span>
+                        <span className='text-2xs text-gray-400'>{broker.credit_rating}</span>
                       )}
                     </div>
                   )
@@ -643,9 +663,6 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
               {load.load_id&&<Row label='Broker Ref #' value={load.load_id} mono/>}
             </div>
-            {load.load_mode !== 'broker' && (
-              <ContextGuidancePanel docs={resolveGuidance('load-create-dispatch', allDocs)} label='Load Booking SOPs'/>
-            )}
           </div>
 
           {/* ── Broker Mode Panels ── */}
@@ -685,7 +702,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
             <div className='flex items-center justify-between mb-3'>
               <Sec title='DAT Postings / Broker Overview'/>
               <button onClick={showDatForm && editDatId==null ? ()=>{setShowDatForm(false);setDatForm(DAT_BLANK)} : openAddDat}
-                className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'>
+                className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'>
                 <Plus size={10}/>{showDatForm && editDatId==null ? 'Cancel' : 'Add'}
               </button>
             </div>
@@ -715,7 +732,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             )}
             {datPostings.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No DAT postings yet.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No DAT postings yet.</p>
               : datPostings.map(p => (
                 <div key={p.id} className='group/dat flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <div className='flex-1 min-w-0'>
@@ -724,8 +741,8 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                       {p.posting_ref && <span className='text-2xs text-gray-500'>#{p.posting_ref}</span>}
                       <span className={`text-2xs px-1.5 py-0 rounded border ${p.status==='active'?'border-green-700/40 text-green-500':p.status==='filled'?'border-orange-700/40 text-orange-400':'border-surface-400 text-gray-600'}`}>{p.status}</span>
                     </div>
-                    {p.expires_at && <p className='text-2xs text-gray-700 mt-0.5'>expires {fmt(p.expires_at)}</p>}
-                    {p.notes && <p className='text-2xs text-gray-600 mt-0.5 truncate'>{p.notes}</p>}
+                    {p.expires_at && <p className='text-2xs text-gray-500 mt-0.5'>expires {fmt(p.expires_at)}</p>}
+                    {p.notes && <p className='text-2xs text-gray-400 mt-0.5 truncate'>{p.notes}</p>}
                   </div>
                   <div className='flex gap-1 opacity-0 group-hover/dat:opacity-100 transition-all'>
                     <button onClick={()=>openEditDat(p)} className='p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-orange-400'><Edit2 size={10}/></button>
@@ -734,7 +751,6 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 </div>
               ))
             }
-            <ContextGuidancePanel docs={resolveGuidance('broker-overview', allDocs)} label='Broker Workflow SOPs'/>
           </div>
 
           {/* Carrier Offers */}
@@ -742,13 +758,13 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Carrier Offers'/>
               <button onClick={showOfferForm && editOfferId==null ? ()=>{setShowOfferForm(false);setOfferForm(OFFER_BLANK)} : openAddOffer}
-                className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'>
+                className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'>
                 <Plus size={10}/>{showOfferForm && editOfferId==null ? 'Cancel' : 'Add'}
               </button>
             </div>
             {/* Accepted carrier summary — quick-glance card */}
             {acceptedOffer && !showOfferForm && (
-              <div className='mb-3 px-3 py-2.5 rounded-lg bg-green-900/20 border border-green-800/30'>
+              <div className='mb-3 px-3 py-2.5 rounded-lg bg-green-500/10 dark:bg-green-900/20 border border-green-500/20 dark:border-green-800/30'>
                 <div className='flex items-start justify-between gap-3'>
                   <div className='min-w-0'>
                     <p className='text-2xs text-green-600 uppercase tracking-wide font-semibold mb-0.5'>Accepted Carrier</p>
@@ -759,7 +775,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                     </div>
                   </div>
                   <div className='text-right shrink-0'>
-                    <p className='text-2xs text-gray-600'>Rate</p>
+                    <p className='text-2xs text-gray-400'>Rate</p>
                     <p className='text-sm font-mono font-semibold text-green-400'>
                       {acceptedOffer.final_rate != null ? `$${acceptedOffer.final_rate.toLocaleString()}` :
                        acceptedOffer.offered_rate != null ? `$${acceptedOffer.offered_rate.toLocaleString()}` : '—'}
@@ -801,13 +817,13 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             )}
             {carrierOffers.length === 0
-              ? <p className='text-2xs text-gray-700 italic'>No carrier offers yet.</p>
+              ? <p className='text-2xs text-gray-500 italic'>No carrier offers yet.</p>
               : [...carrierOffers].sort((a,b)=>(a.status==='Accepted'?-1:b.status==='Accepted'?1:0)).map(o => (
-                <div key={o.id} className={`group/offer flex items-start gap-2 py-2 border-b border-surface-600 last:border-0 ${o.status==='Accepted'?'bg-green-900/15 rounded-lg px-2 -mx-2 border-green-800/30':''}` }>
+                <div key={o.id} className={`group/offer flex items-start gap-2 py-2 border-b border-surface-600 last:border-0 ${o.status==='Accepted'?'bg-green-500/10 dark:bg-green-900/15 rounded-lg px-2 -mx-2 border-green-500/20 dark:border-green-800/30':''}` }>
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center gap-2 flex-wrap'>
                       <span className={`text-xs font-medium ${o.status==='Accepted'?'text-green-300':'text-gray-200'}`}>{o.carrier_name}</span>
-                      {o.mc_number && <span className='text-2xs text-gray-600'>{o.mc_number}</span>}
+                      {o.mc_number && <span className='text-2xs text-gray-400'>{o.mc_number}</span>}
                       <span className={`text-2xs px-1.5 py-0 rounded border ${o.status==='Accepted'?'border-green-600/60 text-green-400 font-semibold':o.status==='Rejected'?'border-red-700/40 text-red-400':o.status==='Countered'?'border-yellow-700/40 text-yellow-400':'border-surface-400 text-gray-600'}`}>{o.status}</span>
                     </div>
                     <div className='flex items-center gap-3 mt-0.5 flex-wrap'>
@@ -815,8 +831,8 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                       {o.counter_rate != null && <span className='text-2xs text-gray-500'>counter <span className='font-mono text-yellow-400'>${o.counter_rate.toLocaleString()}</span></span>}
                       {o.final_rate != null && <span className='text-2xs text-gray-500'>final <span className='font-mono text-green-400'>${o.final_rate.toLocaleString()}</span></span>}
                     </div>
-                    {o.phone && <p className='text-2xs text-gray-700 mt-0.5'>{o.phone}</p>}
-                    {o.notes && <p className='text-2xs text-gray-600 mt-0.5 truncate'>{o.notes}</p>}
+                    {o.phone && <p className='text-2xs text-gray-500 mt-0.5'>{o.phone}</p>}
+                    {o.notes && <p className='text-2xs text-gray-400 mt-0.5 truncate'>{o.notes}</p>}
                   </div>
                   <div className='flex gap-1 opacity-0 group-hover/offer:opacity-100 transition-all'>
                     {o.status === 'Pending' && (
@@ -831,7 +847,6 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 </div>
               ))
             }
-            <ContextGuidancePanel docs={resolveGuidance('carrier-offers', allDocs)} label='Carrier Offer SOPs'/>
           </div>
 
           {/* Carrier Vetting */}
@@ -840,12 +855,12 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               <Sec title='Carrier Vetting'/>
               <div className='flex items-center gap-2 mb-3'>
                 {!editVetting && (
-                  <button onClick={openEditVetting} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors'>
+                  <button onClick={openEditVetting} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors'>
                     <Edit2 size={10}/>{vetting ? 'Edit' : 'New'}
                   </button>
                 )}
                 {vetting && !editVetting && (
-                  <button onClick={delVetting} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-red-400 transition-colors ml-1'>
+                  <button onClick={delVetting} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-red-400 transition-colors ml-1'>
                     <Trash2 size={10}/>
                   </button>
                 )}
@@ -892,7 +907,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                 {(vetting.carrier_name || vetting.carrier_mc) && (
                   <div className='flex items-center gap-2 flex-wrap'>
                     <span className='text-xs text-gray-200 font-medium'>{vetting.carrier_name ?? '—'}</span>
-                    {vetting.carrier_mc && <span className='text-2xs text-gray-600'>{vetting.carrier_mc}</span>}
+                    {vetting.carrier_mc && <span className='text-2xs text-gray-400'>{vetting.carrier_mc}</span>}
                   </div>
                 )}
                 {acceptedOffer && (
@@ -902,7 +917,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                     const mcMismatch = vetting.carrier_mc && acceptedOffer.mc_number &&
                       vetting.carrier_mc.trim() !== acceptedOffer.mc_number.trim()
                     return (nameMismatch || mcMismatch) ? (
-                      <p className='text-2xs text-yellow-500/80 border border-yellow-700/30 rounded px-2 py-1 bg-yellow-900/10'>
+                      <p className='text-2xs text-yellow-500 border border-yellow-500/25 dark:border-yellow-700/30 rounded px-2 py-1 bg-yellow-500/8 dark:bg-yellow-900/10'>
                         Vetting carrier differs from accepted offer ({acceptedOffer.carrier_name}{acceptedOffer.mc_number ? ` · ${acceptedOffer.mc_number}` : ''})
                       </p>
                     ) : null
@@ -920,14 +935,13 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                     {vetting.safety_rating}
                   </span>
                 )}
-                {vetting.vetting_date && <p className='text-2xs text-gray-600'>Vetted {fmt(vetting.vetting_date)}</p>}
-                {vetting.notes && <p className='text-2xs text-gray-600'>{vetting.notes}</p>}
+                {vetting.vetting_date && <p className='text-2xs text-gray-400'>Vetted {fmt(vetting.vetting_date)}</p>}
+                {vetting.notes && <p className='text-2xs text-gray-400'>{vetting.notes}</p>}
               </div>
             )}
             {!editVetting && !vetting && (
-              <p className='text-2xs text-gray-700 italic'>No vetting record yet.</p>
+              <p className='text-2xs text-gray-500 italic'>No vetting record yet.</p>
             )}
-            <ContextGuidancePanel docs={resolveGuidance('carrier-vetting', allDocs)} label='Vetting SOPs'/>
           </div>
 
           </>)}
@@ -936,7 +950,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Deductions'/>
-              <button onClick={()=>setAddDed(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
+              <button onClick={()=>setAddDed(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
             </div>
             {addDed&&(
               <div className='mb-3 p-3 rounded-lg bg-surface-700 space-y-2'>
@@ -952,7 +966,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             )}
             {deductions.length===0
-              ?<p className='text-2xs text-gray-700 italic'>No deductions — driver receives gross minus dispatch fee.</p>
+              ?<p className='text-2xs text-gray-500 italic'>No deductions — driver receives gross minus dispatch fee.</p>
               :<>
                 {deductions.map(d=>(
                   <div key={d.id} className='group/ded flex items-center gap-2 py-2 border-b border-surface-600 last:border-0'>
@@ -963,7 +977,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                     <button onClick={()=>delDed(d.id)} className='opacity-0 group-hover/ded:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10}/></button>
                   </div>
                 ))}
-                <div className='pt-2 text-2xs text-gray-600'>
+                <div className='pt-2 text-2xs text-gray-400'>
                   Total deducted: <span className='text-red-400 font-mono'>${deductions.reduce((s,d)=>s+d.amount,0).toFixed(2)}</span>
                 </div>
               </>
@@ -974,7 +988,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Attachments'/>
-              <button onClick={()=>setAddAtt(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
+              <button onClick={()=>setAddAtt(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
             </div>
             {addAtt&&(
               <div className='mb-3 p-3 rounded-lg bg-surface-700 space-y-2'>
@@ -993,7 +1007,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             )}
             {attachments.length===0
-              ?<p className='text-2xs text-gray-700 italic'>No attachments.</p>
+              ?<p className='text-2xs text-gray-500 italic'>No attachments.</p>
               :attachments.map(a=>(
                 <div key={a.id} className='group/att flex items-center gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <div className='flex-1 min-w-0'>
@@ -1001,7 +1015,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                       className='flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 font-medium transition-colors truncate'>
                       <FileText size={11}/>{a.title}
                     </button>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{a.file_name}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{a.file_name}</p>
                   </div>
                   <button onClick={()=>delAttachment(a.id)} className='opacity-0 group-hover/att:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10}/></button>
                 </div>
@@ -1012,7 +1026,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
           <div className='px-5 py-4 border-b border-surface-600'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Check Calls'/>
-              <button onClick={()=>setAddCall(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Log Call</button>
+              <button onClick={()=>setAddCall(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Log Call</button>
             </div>
             {addCall&&(
               <div className='mb-3'>
@@ -1026,19 +1040,18 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             )}
             {checkCalls.length===0
-              ?<p className='text-2xs text-gray-700 italic'>No check calls logged.</p>
+              ?<p className='text-2xs text-gray-500 italic'>No check calls logged.</p>
               :checkCalls.map(c=>(
                 <div key={c.id} className='group/cc flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <Phone size={10} className='text-gray-600 mt-0.5 shrink-0'/>
                   <div className='flex-1 min-w-0'>
                     <p className='text-xs text-gray-300'>{c.label}</p>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(c.created_at)}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(c.created_at)}</p>
                   </div>
                   <button onClick={()=>delCheckCall(c.id)} className='opacity-0 group-hover/cc:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10}/></button>
                 </div>
               ))
             }
-            <ContextGuidancePanel docs={resolveGuidance('dispatch-board', allDocs)} label='Check Call SOPs'/>
           </div>
           {/* Message Templates */}
           {driver && (
@@ -1070,7 +1083,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
                       <p className='px-3 py-2 text-2xs text-gray-500 leading-relaxed'>{t.text}</p>
                     </div>
                   ))}
-                  <p className='text-2xs text-gray-700 mt-1'>Paste into SMS, WhatsApp, or your preferred messaging app.</p>
+                  <p className='text-2xs text-gray-500 mt-1'>Paste into SMS, WhatsApp, or your preferred messaging app.</p>
                 </div>
               )}
             </div>
@@ -1080,7 +1093,7 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
           <div className='px-5 py-4'>
             <div className='flex items-center justify-between mb-3'>
               <Sec title='Notes'/>
-              <button onClick={()=>setAddNote(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-600 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
+              <button onClick={()=>setAddNote(v=>!v)} className='flex items-center gap-1 text-2xs text-gray-400 hover:text-orange-400 transition-colors mb-3'><Plus size={10}/>Add</button>
             </div>
             {addNote&&(
               <div className='mb-3'>
@@ -1094,12 +1107,12 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
               </div>
             )}
             {notes.length===0
-              ?<p className='text-2xs text-gray-700 italic'>No notes yet.</p>
+              ?<p className='text-2xs text-gray-500 italic'>No notes yet.</p>
               :notes.map(n=>(
                 <div key={n.id} className='group/note flex items-start gap-2 py-2 border-b border-surface-600 last:border-0'>
                   <div className='flex-1 min-w-0'>
                     <p className='text-xs text-gray-300 whitespace-pre-wrap'>{n.content}</p>
-                    <p className='text-2xs text-gray-700 mt-0.5'>{fmtDT(n.created_at)}</p>
+                    <p className='text-2xs text-gray-500 mt-0.5'>{fmtDT(n.created_at)}</p>
                   </div>
                   <button onClick={()=>delNote(n.id)} className='opacity-0 group-hover/note:opacity-100 p-1 rounded hover:bg-surface-600 text-gray-600 hover:text-red-400 transition-all'><X size={10}/></button>
                 </div>

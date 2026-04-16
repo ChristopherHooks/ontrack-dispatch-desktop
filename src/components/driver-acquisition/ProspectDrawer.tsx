@@ -22,7 +22,7 @@ const OUTREACH_OUTCOMES = ['No Answer', 'Left Voicemail', 'Spoke', 'Replied', 'N
 const ROW = ({ label, value }: { label: string; value: React.ReactNode }) => (
   value ? (
     <div className='flex items-start gap-3'>
-      <span className='text-2xs text-gray-600 w-28 shrink-0 pt-0.5 uppercase tracking-wide'>{label}</span>
+      <span className='text-2xs text-gray-400 w-28 shrink-0 pt-0.5 uppercase tracking-wide'>{label}</span>
       <span className='text-sm text-gray-300'>{value}</span>
     </div>
   ) : null
@@ -220,7 +220,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
               {prevStage && (
                 <button
                   onClick={() => onStageChange(prospect, prevStage)}
-                  className='flex items-center gap-0.5 text-2xs text-gray-600 hover:text-gray-300 transition-colors'
+                  className='flex items-center gap-0.5 text-2xs text-gray-400 hover:text-gray-300 transition-colors'
                   title={`Back to ${prevStage}`}
                 >
                   <ChevronLeft size={12} />
@@ -345,7 +345,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
 
               {prospect.notes && (
                 <div className='border-t border-surface-600 pt-3'>
-                  <p className='text-2xs text-gray-600 uppercase tracking-wide mb-1'>Notes</p>
+                  <p className='text-2xs text-gray-400 uppercase tracking-wide mb-1'>Notes</p>
                   <p className='text-sm text-gray-400 whitespace-pre-wrap'>{prospect.notes}</p>
                 </div>
               )}
@@ -361,7 +361,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
                 <p className='text-2xs text-gray-500 uppercase tracking-wide font-medium'>Log Contact</p>
                 <div className='grid grid-cols-2 gap-2'>
                   <div>
-                    <label className='text-2xs text-gray-600 mb-1 block'>Method</label>
+                    <label className='text-2xs text-gray-400 mb-1 block'>Method</label>
                     <select
                       className={sel}
                       value={outMethod}
@@ -371,7 +371,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
                     </select>
                   </div>
                   <div>
-                    <label className='text-2xs text-gray-600 mb-1 block'>Outcome</label>
+                    <label className='text-2xs text-gray-400 mb-1 block'>Outcome</label>
                     <select
                       className={sel}
                       value={outOutcome}
@@ -439,7 +439,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
 
               {/* Outreach history */}
               <div>
-                <p className='text-2xs text-gray-600 uppercase tracking-wide mb-2'>Contact History</p>
+                <p className='text-2xs text-gray-400 uppercase tracking-wide mb-2'>Contact History</p>
                 {outreach.length === 0 ? (
                   <p className='text-sm text-gray-600 text-center py-4'>No contacts logged yet.</p>
                 ) : (
@@ -457,7 +457,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
                                 {e.outcome}
                               </span>
                             )}
-                            <span className='text-2xs text-gray-600 ml-auto'>{fmtDateTime(e.created_at)}</span>
+                            <span className='text-2xs text-gray-400 ml-auto'>{fmtDateTime(e.created_at)}</span>
                           </div>
                           {e.notes && (
                             <p className='text-xs text-gray-400 whitespace-pre-wrap'>{e.notes}</p>
@@ -504,7 +504,7 @@ export function ProspectDrawer({ prospect, onClose, onEdit, onDelete, onUpdate, 
                 {notes.map(n => (
                   <div key={n.id} className='bg-surface-700 border border-surface-500 rounded-lg p-3 group'>
                     <div className='flex items-center justify-between mb-1'>
-                      <span className='text-2xs text-gray-600'>
+                      <span className='text-2xs text-gray-400'>
                         {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
                       </span>
                       <button

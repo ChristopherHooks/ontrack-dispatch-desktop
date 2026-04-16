@@ -46,7 +46,7 @@ export function LaunchSprintPanel({ ops, companyName, firstLaunchDate, loading }
   const day     = dayNumber(firstLaunchDate)
   const urgent  = day > 7
   const dayLabel = urgent ? `Day ${day} — past 7-day target` : `Day ${day} of 7`
-  const dayColor = urgent ? 'text-red-400' : day >= 5 ? 'text-yellow-400' : 'text-blue-400'
+  const dayColor = urgent ? 'text-red-700 dark:text-red-400' : day >= 5 ? 'text-yellow-700 dark:text-yellow-400' : 'text-blue-700 dark:text-blue-400'
 
   // ── Milestone detection ──────────────────────────────────────────────────
   const setupDone  = companyName.trim().length > 0 && ops.totalBrokers >= 3
@@ -195,9 +195,9 @@ export function LaunchSprintPanel({ ops, companyName, firstLaunchDate, loading }
                 <div key={m.id} className='flex items-center shrink-0'>
                   <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                     m.done
-                      ? 'text-green-400 bg-green-500/10'
+                      ? 'text-green-700 dark:text-green-400 bg-green-500/10'
                       : isCurrent
-                        ? 'text-blue-300 bg-blue-500/15 ring-1 ring-blue-500/40'
+                        ? 'text-blue-700 dark:text-blue-300 bg-blue-500/15 ring-1 ring-blue-500/40'
                         : 'text-gray-600 bg-surface-600/50'
                   }`}>
                     {m.done

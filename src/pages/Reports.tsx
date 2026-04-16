@@ -59,7 +59,7 @@ function Sec({ title, icon }: { title: string; icon: React.ReactNode }) {
   return (
     <div className='flex items-center gap-2 mb-4'>
       <span className='text-orange-400'>{icon}</span>
-      <h2 className='text-sm font-semibold text-gray-200 uppercase tracking-wider'>{title}</h2>
+      <h2 className='text-sm font-semibold text-gray-100 uppercase tracking-wider'>{title}</h2>
     </div>
   )
 }
@@ -108,46 +108,46 @@ export function Reports() {
             value: data.brokerSummary[0]?.broker_name ?? '—',
             sub: data.brokerSummary[0] ? `${fmtMoney(data.brokerSummary[0].total_fee)} earned` : 'no data' },
         ].map(k => (
-          <div key={k.label} className='bg-surface-700 rounded-xl border border-surface-500 px-4 py-3'>
-            <p className='text-2xs text-gray-500 uppercase tracking-wider'>{k.label}</p>
+          <div key={k.label} className='bg-surface-700 rounded-xl border border-surface-400 px-4 py-3'>
+            <p className='text-2xs text-gray-400 uppercase tracking-wider'>{k.label}</p>
             <p className='text-lg font-bold font-mono text-green-400 mt-1 truncate'>{k.value}</p>
-            <p className='text-2xs text-gray-600 mt-0.5'>{k.sub}</p>
+            <p className='text-2xs text-gray-400 mt-0.5'>{k.sub}</p>
           </div>
         ))}
       </div>
 
       {/* 30-Day Cash Flow Outlook */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='30-Day Cash Flow Outlook' icon={<BarChart2 size={14} />} />
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
           {/* Bucket 1: Pending invoicing */}
-          <div className='rounded-xl border border-surface-400 bg-surface-600/40 px-4 py-3'>
-            <p className='text-2xs font-medium text-gray-500 uppercase tracking-wider mb-2'>Pending Invoicing</p>
-            <p className='text-xl font-bold font-mono text-yellow-400'>{fmtMoney(data.cashFlow.pendingDeliveredFee)}</p>
-            <p className='text-2xs text-gray-600 mt-1'>{data.cashFlow.pendingDeliveredCount} delivered load{data.cashFlow.pendingDeliveredCount !== 1 ? 's' : ''} not yet invoiced</p>
-            <p className='text-2xs text-gray-700 mt-0.5'>Estimated dispatch fee. Invoice to unlock payment.</p>
+          <div className='rounded-xl border bg-yellow-500/8 dark:bg-yellow-900/15 border-yellow-500/25 dark:border-yellow-700/30 px-4 py-3'>
+            <p className='text-2xs font-medium text-yellow-600 dark:text-yellow-400 uppercase tracking-wider mb-2'>Pending Invoicing</p>
+            <p className='text-xl font-bold font-mono text-yellow-600 dark:text-yellow-400'>{fmtMoney(data.cashFlow.pendingDeliveredFee)}</p>
+            <p className='text-2xs text-gray-500 dark:text-gray-400 mt-1'>{data.cashFlow.pendingDeliveredCount} delivered load{data.cashFlow.pendingDeliveredCount !== 1 ? 's' : ''} not yet invoiced</p>
+            <p className='text-2xs text-gray-500 mt-0.5'>Estimated dispatch fee. Invoice to unlock payment.</p>
           </div>
           {/* Bucket 2: Invoiced, awaiting payment */}
-          <div className='rounded-xl border border-surface-400 bg-surface-600/40 px-4 py-3'>
-            <p className='text-2xs font-medium text-gray-500 uppercase tracking-wider mb-2'>Invoiced — Awaiting Payment</p>
-            <p className='text-xl font-bold font-mono text-orange-400'>{fmtMoney(data.cashFlow.invoicesSentTotal)}</p>
-            <p className='text-2xs text-gray-600 mt-1'>{data.cashFlow.invoicesSentCount} invoice{data.cashFlow.invoicesSentCount !== 1 ? 's' : ''} sent or overdue</p>
-            <p className='text-2xs text-gray-700 mt-0.5'>Track payment in Invoices. Follow up on overdue accounts.</p>
+          <div className='rounded-xl border bg-orange-500/8 dark:bg-orange-900/15 border-orange-500/25 dark:border-orange-700/30 px-4 py-3'>
+            <p className='text-2xs font-medium text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-2'>Invoiced — Awaiting Payment</p>
+            <p className='text-xl font-bold font-mono text-orange-600 dark:text-orange-400'>{fmtMoney(data.cashFlow.invoicesSentTotal)}</p>
+            <p className='text-2xs text-gray-500 dark:text-gray-400 mt-1'>{data.cashFlow.invoicesSentCount} invoice{data.cashFlow.invoicesSentCount !== 1 ? 's' : ''} sent or overdue</p>
+            <p className='text-2xs text-gray-500 mt-0.5'>Track payment in Invoices. Follow up on overdue accounts.</p>
           </div>
           {/* Bucket 3: Paid this month */}
-          <div className='rounded-xl border border-surface-400 bg-surface-600/40 px-4 py-3'>
-            <p className='text-2xs font-medium text-gray-500 uppercase tracking-wider mb-2'>Collected This Month</p>
-            <p className='text-xl font-bold font-mono text-green-400'>{fmtMoney(data.cashFlow.paidThisMonthFee)}</p>
-            <p className='text-2xs text-gray-600 mt-1'>{data.cashFlow.paidThisMonthCount} invoice{data.cashFlow.paidThisMonthCount !== 1 ? 's' : ''} paid this calendar month</p>
-            <p className='text-2xs text-gray-700 mt-0.5'>Cash received in your account or confirmed paid.</p>
+          <div className='rounded-xl border bg-green-500/8 dark:bg-green-900/15 border-green-500/25 dark:border-green-700/30 px-4 py-3'>
+            <p className='text-2xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wider mb-2'>Collected This Month</p>
+            <p className='text-xl font-bold font-mono text-green-600 dark:text-green-400'>{fmtMoney(data.cashFlow.paidThisMonthFee)}</p>
+            <p className='text-2xs text-gray-500 dark:text-gray-400 mt-1'>{data.cashFlow.paidThisMonthCount} invoice{data.cashFlow.paidThisMonthCount !== 1 ? 's' : ''} paid this calendar month</p>
+            <p className='text-2xs text-gray-500 mt-0.5'>Cash received in your account or confirmed paid.</p>
           </div>
         </div>
         {(() => {
           const pipeline = data.cashFlow.pendingDeliveredFee + data.cashFlow.invoicesSentTotal + data.cashFlow.paidThisMonthFee
           if (pipeline === 0) return null
           return (
-            <p className='text-2xs text-gray-600 mt-4'>
-              Total pipeline this month: <span className='text-gray-300 font-mono font-semibold'>{fmtMoney(pipeline)}</span>
+            <p className='text-2xs text-gray-400 mt-4'>
+              Total pipeline this month: <span className='text-gray-200 font-mono font-semibold'>{fmtMoney(pipeline)}</span>
               {' '}(pending + outstanding + collected)
             </p>
           )
@@ -155,7 +155,7 @@ export function Reports() {
       </div>
 
       {/* Weekly revenue */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='Weekly Revenue (last 12 weeks)' icon={<TrendingUp size={14} />} />
         {data.weeklyRevenue.length === 0
           ? <p className='text-sm text-gray-600 italic'>No paid invoices in the last 12 weeks.</p>
@@ -163,7 +163,7 @@ export function Reports() {
           <div className='space-y-2'>
             {data.weeklyRevenue.map(w => (
               <div key={w.week} className='flex items-center gap-3'>
-                <p className='text-2xs text-gray-500 w-36 shrink-0 text-right'>{w.week_label}</p>
+                <p className='text-2xs text-gray-400 w-36 shrink-0 text-right'>{w.week_label}</p>
                 <div className='flex-1 bg-surface-600 rounded-full h-5 overflow-hidden'>
                   <div
                     className='h-full bg-orange-600/70 rounded-full transition-all'
@@ -179,7 +179,7 @@ export function Reports() {
       </div>
 
       {/* Monthly revenue */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='Monthly Revenue (last 6 months)' icon={<DollarSign size={14} />} />
         {data.monthlyRevenue.length === 0
           ? <p className='text-sm text-gray-600 italic'>No paid invoices in the last 6 months.</p>
@@ -187,7 +187,7 @@ export function Reports() {
           <div className='space-y-2'>
             {data.monthlyRevenue.map(m => (
               <div key={m.month} className='flex items-center gap-3'>
-                <p className='text-2xs text-gray-500 w-20 shrink-0 text-right'>{m.month_label}</p>
+                <p className='text-2xs text-gray-400 w-20 shrink-0 text-right'>{m.month_label}</p>
                 <div className='flex-1 bg-surface-600 rounded-full h-5 overflow-hidden'>
                   <div
                     className='h-full bg-green-600/70 rounded-full transition-all'
@@ -203,7 +203,7 @@ export function Reports() {
       </div>
 
       {/* Broker summary */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='Broker Performance' icon={<Building2 size={14} />} />
         {data.brokerSummary.length === 0
           ? <p className='text-sm text-gray-600 italic'>No completed loads yet.</p>
@@ -211,12 +211,12 @@ export function Reports() {
           <div className='overflow-x-auto'>
             <table className='w-full text-xs'>
               <thead>
-                <tr className='border-b border-surface-500'>
-                  <th className='text-left text-2xs text-gray-500 uppercase tracking-wider pb-2'>Broker</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Loads</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Gross</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Fee Earned</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Avg RPM</th>
+                <tr className='border-b border-surface-400'>
+                  <th className='text-left text-2xs text-gray-400 uppercase tracking-wider pb-2'>Broker</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Loads</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Gross</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Fee Earned</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Avg RPM</th>
                   <th className='pb-2 w-32'></th>
                 </tr>
               </thead>
@@ -242,7 +242,7 @@ export function Reports() {
       </div>
 
       {/* Invoice Aging */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='Accounts Receivable Aging' icon={<AlertCircle size={14} />} />
         {data.invoiceAging.length === 0
           ? <p className='text-sm text-gray-600 italic'>No outstanding invoices. All caught up.</p>
@@ -254,7 +254,7 @@ export function Reports() {
                 const rows = data.invoiceAging.filter(r => r.bucket === b)
                 const total = rows.reduce((s, r) => s + r.amount, 0)
                 return (
-                  <div key={b} className={`rounded-lg border px-3 py-2.5 ${rows.length > 0 ? BUCKET_BG[b] : 'bg-surface-600/30 border-surface-500'}`}>
+                  <div key={b} className={`rounded-lg border px-3 py-2.5 ${rows.length > 0 ? BUCKET_BG[b] : 'bg-surface-600/30 border-surface-400'}`}>
                     <p className={`text-2xs font-semibold uppercase tracking-wider mb-1 ${rows.length > 0 ? BUCKET_COLOR[b] : 'text-gray-600'}`}>{b} days</p>
                     <p className={`text-lg font-bold font-mono ${rows.length > 0 ? BUCKET_COLOR[b] : 'text-gray-700'}`}>{fmtMoney(total)}</p>
                     <p className='text-2xs text-gray-600 mt-0.5'>{rows.length} invoice{rows.length !== 1 ? 's' : ''}</p>
@@ -266,13 +266,13 @@ export function Reports() {
             <div className='overflow-x-auto'>
               <table className='w-full text-xs'>
                 <thead>
-                  <tr className='border-b border-surface-500'>
-                    <th className='text-left text-2xs text-gray-500 uppercase tracking-wider pb-2'>Invoice</th>
-                    <th className='text-left text-2xs text-gray-500 uppercase tracking-wider pb-2'>Broker</th>
-                    <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Amount</th>
-                    <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Sent</th>
-                    <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Days Out</th>
-                    <th className='text-left text-2xs text-gray-500 uppercase tracking-wider pb-2 pl-3'>Bucket</th>
+                  <tr className='border-b border-surface-400'>
+                    <th className='text-left text-2xs text-gray-400 uppercase tracking-wider pb-2'>Invoice</th>
+                    <th className='text-left text-2xs text-gray-400 uppercase tracking-wider pb-2'>Broker</th>
+                    <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Amount</th>
+                    <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Sent</th>
+                    <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Days Out</th>
+                    <th className='text-left text-2xs text-gray-400 uppercase tracking-wider pb-2 pl-3'>Bucket</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,7 +296,7 @@ export function Reports() {
       </div>
 
       {/* Lane Performance */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='Lane Performance' icon={<ArrowRight size={14} />} />
         <p className='text-2xs text-gray-600 mb-4'>Completed loads grouped by origin → destination state, sorted by average RPM. Identifies your strongest corridors.</p>
         {data.lanePerformance.length === 0
@@ -305,12 +305,12 @@ export function Reports() {
           <div className='overflow-x-auto'>
             <table className='w-full text-xs'>
               <thead>
-                <tr className='border-b border-surface-500'>
-                  <th className='text-left text-2xs text-gray-500 uppercase tracking-wider pb-2'>Lane</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Loads</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Avg RPM</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Best RPM</th>
-                  <th className='text-right text-2xs text-gray-500 uppercase tracking-wider pb-2'>Fee Earned</th>
+                <tr className='border-b border-surface-400'>
+                  <th className='text-left text-2xs text-gray-400 uppercase tracking-wider pb-2'>Lane</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Loads</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Avg RPM</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Best RPM</th>
+                  <th className='text-right text-2xs text-gray-400 uppercase tracking-wider pb-2'>Fee Earned</th>
                 </tr>
               </thead>
               <tbody>
@@ -338,7 +338,7 @@ export function Reports() {
       </div>
 
       {/* IFTA mileage */}
-      <div className='bg-surface-700 rounded-xl border border-surface-500 p-5'>
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
         <Sec title='IFTA Mileage by State' icon={<MapPin size={14} />} />
         <p className='text-2xs text-gray-600 mb-4'>
           Miles are attributed to each load's destination state — an approximation for IFTA reference only.
