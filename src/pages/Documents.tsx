@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   Plus, Search, Edit2, Trash2, FileText, X, Save, ExternalLink, FileDown,
   ClipboardList, Truck, Phone, DollarSign, BookOpen, Shield, Folder,
-  AlertCircle, Bookmark,
+  AlertCircle, Bookmark, Briefcase,
 } from 'lucide-react'
 import type { SopDocument, CreateSopDocumentDto, DocCategory } from '../types/models'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -14,7 +14,7 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   Drivers:    'Onboarding checklists, orientation materials, and driver policies.',
   Sales:      'Rate sheets, carrier packets, and sales call scripts.',
   Marketing:  'Post templates, hot lane pitches, and outreach copy.',
-  Brokers:    'Broker contact notes, preferred carriers lists, and lane history.',
+  Brokers:    'Load lifecycle, DAT posting, carrier vetting, inbound call scripts, and broker relationship SOPs.',
   Finance:    'Invoice templates, settlement worksheets, and accounting SOPs.',
   Template:   'Reusable document templates for common operations.',
   Reference:  'Rate benchmarks, terminology guides, and regulatory references.',
@@ -54,6 +54,7 @@ const WORKFLOW_GROUPS = [
     cats: [
       { name: 'Dispatch',  Icon: ClipboardList },
       { name: 'Drivers',   Icon: Truck },
+      { name: 'Brokers',   Icon: Briefcase },
       { name: 'Sales',     Icon: Phone },
       { name: 'Finance',   Icon: DollarSign },
     ],
