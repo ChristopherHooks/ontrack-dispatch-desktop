@@ -447,8 +447,17 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   // -- Dispatcher Board --
   ipcMain.handle('dispatcher:board',         () => getBoardRows(getDb()))
   ipcMain.handle('dispatch:availableLoads',   () => getAvailableLoads(getDb()))
-  ipcMain.handle('dispatch:assignLoad', (_e, payload: { loadId: number; driverId: number }) =>
-    assignLoadToDriver(getDb(), payload.loadId, payload.driverId))
+  ipcMain.handle('dispatch:assignLoad', (_e, payload: { loadId: number; driverId: number }) => {
+    const db     = getDb()
+    const result = assignLoadToDriver(db, payload.loadId, payload.driverId)
+    if (result.ok) {
+      // Ensure a load_offer record exists (find-or-create), then mark it accepted.
+      // Mirrors the pattern used in Loads.tsx and MorningDispatchBrief.
+      const offer = createOffer(db, payload.driverId, payload.loadId)
+      markAccepted(db, offer.id)
+    }
+    return result
+  })
 
   // -- Load Opportunity Scanner --
   ipcMain.handle('scanner:recommendLoads', (_e, payload: { driverId?: number }) =>
