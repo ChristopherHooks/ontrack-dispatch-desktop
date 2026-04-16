@@ -277,7 +277,38 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('loads:list',   (_e, status?: string) => listLoads(getDb(), status))
   ipcMain.handle('loads:get',    (_e, id: number) => getLoad(getDb(), id))
   ipcMain.handle('loads:create', (_e, dto: unknown) => createLoad(getDb(), dto as any))
-  ipcMain.handle('loads:update', (_e, id: number, dto: unknown) => updateLoad(getDb(), id, dto as any))
+  ipcMain.handle('loads:update', (_e, id: number, dto: unknown) => {
+    const db    = getDb()
+    const before = getLoad(db, id)
+    const patch  = dto as Record<string, unknown>
+
+    // Detect driver removal: load had a driver, dto explicitly clears it
+    const driverRemoved = before?.driver_id != null && patch.driver_id === null
+
+    // When removing a driver, also revert load status to Searching so the load
+    // re-enters the available pool. Only apply when status is still 'Booked'
+    // (i.e. the user didn't deliberately set a different target status in the form).
+    const finalPatch = driverRemoved && (!patch.status || patch.status === 'Booked')
+      ? { ...patch, status: 'Searching' }
+      : patch
+
+    const updated = updateLoad(db, id, finalPatch as any)
+
+    // Reset old driver status to Active — mirrors the inverse of assignLoadToDriver.
+    // Guard: only if the driver has no other active loads.
+    if (driverRemoved && updated) {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
+      const hasOtherLoad = db.prepare(
+        "SELECT id FROM loads WHERE driver_id = ? AND status IN ('Booked','Picked Up','In Transit') LIMIT 1"
+      ).get(before!.driver_id) as { id: number } | undefined
+      if (!hasOtherLoad) {
+        db.prepare("UPDATE drivers SET status = 'Active', updated_at = ? WHERE id = ?")
+          .run(now, before!.driver_id)
+      }
+    }
+
+    return updated
+  })
   ipcMain.handle('loads:delete', (_e, id: number) => deleteLoad(getDb(), id))
 
   // -- Load Board Screenshot Parser (vision) --

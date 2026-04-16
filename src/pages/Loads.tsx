@@ -64,6 +64,12 @@ export function Loads() {
   const handleSave = (saved: Load) => {
     setLoads(p => p.some(l => l.id === saved.id) ? p.map(l => l.id === saved.id ? saved : l) : [saved, ...p])
     if (selected?.id === saved.id) setSelected(saved)
+    // When a driver is unassigned, refresh drivers so the board reflects the status reset.
+    // The backend resets the old driver to Active; we need that change in local state.
+    const prev = loads.find(l => l.id === saved.id)
+    if (prev?.driver_id != null && saved.driver_id == null) {
+      window.api.drivers.list().then(setDrivers).catch(() => {})
+    }
     setModal(false); setEditLoad(null)
   }
   const handleDelete = async (load: Load) => {

@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-15 (Session 33)
+2026-04-15 (Session 35)
 
 ## Current Branch
 
@@ -16,6 +16,69 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 35 — Load Unassignment Fix (complete)
+
+Fixed two-layer bug where removing a driver from a load left the DB and UI in a
+partially reverted state. No schema changes. No new IPC channels. No refactors.
+
+**Root causes (3):**
+1. `updateLoad` (loadsRepo.ts) never touches the `drivers` table — old driver stayed
+   `'On Load'` in the DB even after `driver_id` was cleared on the load.
+2. `LoadModal` sends the current `status` field with the dto. With no explicit revert
+   logic, the load stayed `'Booked'` with `driver_id=null`, hiding it from both
+   `getAvailableLoads` (filters `status='Searching'`) and the dispatch board.
+3. `handleSave` in `Loads.tsx` only updated `loads` state, not `drivers`. The
+   embedded `DispatchBoard` continued showing the driver as `'On Load'`.
+
+**electron/main/ipcHandlers.ts** — `loads:update` handler expanded:
+- Fetches the load before update (`getLoad`)
+- Detects driver removal: `before.driver_id != null && patch.driver_id === null`
+- Injects `status: 'Searching'` into the dto when status is still `'Booked'`
+  (so the load re-enters the available pool without requiring a manual status change)
+- After `updateLoad`, resets old driver to `'Active'` if they have no other active loads
+  (mirrors the inverse of `assignLoadToDriver`)
+- `loadOffersAccepted` fix from Session 33 (dispatch:assignLoad) is untouched
+
+**src/pages/Loads.tsx** — `handleSave` extended:
+- After a save, checks if the previous load had a driver and the saved one does not
+- If so, calls `window.api.drivers.list().then(setDrivers)` to refresh drivers state
+- Keeps the dispatch board and drawer drivers prop in sync without a full reload
+
+tsc --noEmit: zero errors.
+
+### Session 34 — Driver Performance Tier System (complete)
+
+Lightweight A/B/C/UNRATED driver tier computed dynamically from existing scorecard data.
+No schema changes. No new IPC. Pure frontend computation. All additive.
+
+New file: `src/lib/driverTierService.ts` — `computeDriverTier(TierInput): DriverTierResult`.
+Exports: `DriverTier`, `DriverTierResult`, `TierInput`, `tierSortRank()`, `TIER_BADGE`,
+`TIER_LABEL`. Thresholds in one constant block (`T`). Tier logic:
+- UNRATED: resolved < 3 AND loads_booked < 2 (not enough data)
+- C: acceptance_rate < 40% OR no_response >= 3 OR avg_response_minutes > 120
+- A: all conditions met — acceptance >= 70%, response <= 60 min, no_response <= 1, loads >= 2
+- B: has data, passes C checks, does not meet all A conditions
+
+Types: `DriverTier`, `DriverTierResult`, `TierInput` re-exported from `src/types/models.ts`
+via `export type { ... } from '../lib/driverTierService'`.
+`MorningDispatchBriefRow` extended with 4 new fields: `accepted_count`, `declined_count`,
+`no_response_count`, `loads_booked` (all `number`, default 0).
+
+Backend: `electron/main/morningDispatchBrief.ts` now passes the 4 new fields from
+scorecard map into each `MorningDispatchBriefRow` (zero-default when no scorecard).
+
+UI — DriverDrawer: tier badge in header row (beside status badge), computed from `weeklyCard`.
+Shows "Tier A/B/C" or "Unrated" using `TIER_BADGE` token classes.
+
+UI — MorningDispatchBrief: tier badge in DriverCard header (beside driver name).
+Variable name `driverTierResult` used to avoid conflict with existing `tier` (load score tier).
+
+UI — Reports Driver Performance table: new "Tier" column (last column), sortable.
+`ScoreSort` extended with `'tier'`. Sort logic special-cased: uses `tierSortRank()` instead
+of numeric field access. `asc` sort = A-first (best to worst). Badge shows reason on hover via `title`.
+
+tsc --noEmit: zero errors.
 
 ### Session 33 — Dynamic Daily Workflow System (complete)
 

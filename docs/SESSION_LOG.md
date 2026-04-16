@@ -1,5 +1,90 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-15 — Session 35: Load Unassignment Fix
+
+### Work Completed
+
+Fixed the load unassignment flow so removing a driver fully reverts the
+driver/load relationship across the DB and all relevant UI surfaces.
+
+**Root causes identified:**
+Three layered bugs, all introduced by `updateLoad` being a generic field-updater
+with no business-logic awareness:
+1. `drivers.status` not reset to `'Active'` — the load update never touched the drivers table
+2. `loads.status` not reverted to `'Searching'` — the form dto included `status: 'Booked'`, which was written as-is
+3. `drivers` state in Loads.tsx not refreshed after save — `handleSave` only called `setLoads`, not `setDrivers`
+
+**electron/main/ipcHandlers.ts**
+- `loads:update` handler expanded from a one-liner to a full function
+- Reads existing load before update (`getLoad`)
+- Detects driver removal: `before.driver_id != null && patch.driver_id === null`
+- Mutates patch to include `status: 'Searching'` when status would otherwise remain `'Booked'`
+- After `updateLoad`, resets old driver to `'Active'` (guarded: only if no other Booked/Picked Up/In Transit loads remain for that driver)
+- The Session 33 `dispatch:assignLoad` fix (offer create+accept) is untouched
+
+**src/pages/Loads.tsx**
+- `handleSave` now detects driver removal by comparing previous load's `driver_id` to saved load's `driver_id`
+- If driver was removed, calls `window.api.drivers.list().then(setDrivers)` — non-blocking, catches errors silently
+- Keeps the embedded DispatchBoard and LoadDrawer's `drivers` prop in sync
+
+### Surfaces fixed
+- **Loads drawer** — Assignment section shows "Unassigned", status badge correctly reverts to "Searching", action bar no longer offers "Mark Picked Up" for an unassigned load
+- **Loads board (DispatchBoard embedded in Loads.tsx)** — driver status badge returns to available after driver list refresh
+- **Dispatcher Board (standalone page)** — driver correctly appears in "Needs Load" group on next load/refresh, load re-enters Available Loads panel
+
+### Validation
+- tsc --noEmit: zero errors
+- No schema changes
+- No new IPC channels
+- `dispatch:assignLoad` offer-tracking fix untouched
+
+---
+
+## 2026-04-15 — Session 34: Driver Performance Tier System
+
+### Work Completed
+
+Lightweight, data-driven driver tier system (A/B/C/UNRATED) computed on the
+frontend from existing scorecard fields. No schema changes, no new IPC.
+
+**src/lib/driverTierService.ts (new)**
+- `computeDriverTier(TierInput): DriverTierResult` — pure function.
+- UNRATED: insufficient data (< 3 resolved offers AND < 2 loads booked).
+- C: any single trigger — acceptance < 40%, no_response >= 3, avg_response > 120 min.
+- A: all conditions — acceptance >= 70%, avg_response <= 60 min, no_response <= 1,
+  loads >= 2.
+- B: has data, not A or C.
+- Exports: `TIER_BADGE` (Tailwind token classes), `TIER_LABEL`, `tierSortRank()`.
+
+**src/types/models.ts**
+- Re-exports `DriverTier`, `DriverTierResult`, `TierInput` from driverTierService.
+- `MorningDispatchBriefRow` extended with 4 fields: `accepted_count`, `declined_count`,
+  `no_response_count`, `loads_booked` (all `number`).
+
+**electron/main/morningDispatchBrief.ts**
+- Passes 4 new fields from scorecard map into each row. Zero-default when missing.
+
+**src/components/drivers/DriverDrawer.tsx**
+- Import added. Tier badge rendered in header (beside status badge) when `weeklyCard`
+  is available. Computed inline via IIFE to keep JSX clean.
+
+**src/components/operations/MorningDispatchBrief.tsx**
+- Import added. `driverTierResult` computed per DriverCard. Badge rendered beside
+  driver name. Separate name avoids collision with existing `tier` (load score).
+
+**src/pages/Reports.tsx**
+- Import added. `ScoreSort` extended with `'tier'`. Sort logic special-cases tier
+  using `tierSortRank()` instead of direct field access. New "Tier" column (last).
+  Badge shows reason on hover via HTML `title` attribute.
+
+### Validation
+- tsc --noEmit: zero errors
+- No schema changes
+- No new IPC channels
+- No existing functionality broken
+
+---
+
 ## 2026-04-15 — Session 33: Dynamic Daily Workflow System
 
 ### Work Completed
