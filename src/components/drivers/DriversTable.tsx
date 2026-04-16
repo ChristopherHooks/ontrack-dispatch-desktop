@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
-import type { Driver } from '../../types/models'
-import { DRIVER_STATUS_STYLES } from './constants'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, AlertTriangle, RefreshCw, Loader2, ChevronDown as DropIcon } from 'lucide-react'
+import type { Driver, DriverStatus } from '../../types/models'
+import { DRIVER_STATUS_STYLES, DRIVER_STATUSES } from './constants'
 import { openSaferMcWithCopy } from '../../lib/saferUrl'
 
 interface Props {
@@ -10,6 +11,93 @@ interface Props {
   onSort: (k: keyof Driver) => void
   onSelect: (d: Driver) => void; onEdit: (d: Driver) => void
   onFetchAuthority?: (d: Driver) => Promise<void>
+  onStatusChange?: (d: Driver, status: DriverStatus) => Promise<void>
+}
+
+// Inline status dropdown — mirrors the StatusDropdown pattern in LoadsTable.
+// 'On Load' → 'Active'/'Inactive' changes go through handleStatusChange in
+// Drivers.tsx which enforces the load-assignment consistency rule.
+function DriverStatusDropdown({ driver, onStatusChange }: {
+  driver: Driver
+  onStatusChange?: (d: Driver, s: DriverStatus) => Promise<void>
+}) {
+  const [open,    setOpen]    = useState(false)
+  const [busy,    setBusy]    = useState(false)
+  const [pos,     setPos]     = useState<{ top: number; left: number } | null>(null)
+  const btnRef   = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handle(e: MouseEvent) {
+      if (
+        panelRef.current  && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current    && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const cls = DRIVER_STATUS_STYLES[driver.status]
+
+  if (!onStatusChange) {
+    return <span className={`text-2xs px-2 py-0.5 rounded-full border ${cls}`}>{driver.status}</span>
+  }
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+    setOpen(o => !o)
+  }
+
+  const handleSelect = async (e: React.MouseEvent, status: DriverStatus) => {
+    e.stopPropagation()
+    if (status === driver.status) { setOpen(false); return }
+    setOpen(false)
+    setBusy(true)
+    try { await onStatusChange(driver, status) } finally { setBusy(false) }
+  }
+
+  return (
+    <div onClick={e => e.stopPropagation()}>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        disabled={busy}
+        className={`flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full border font-medium transition-colors hover:opacity-80 ${cls} ${busy ? 'opacity-50 cursor-wait' : ''}`}
+      >
+        {driver.status}
+        {!busy && <DropIcon size={9} className={`transition-transform ${open ? 'rotate-180' : ''}`} />}
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className='min-w-[130px] bg-surface-800 border border-surface-400 rounded-lg shadow-2xl overflow-hidden'
+        >
+          {DRIVER_STATUSES.map(s => (
+            <button
+              key={s}
+              onClick={e => handleSelect(e, s)}
+              className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${
+                s === driver.status
+                  ? 'opacity-50 cursor-default'
+                  : 'text-gray-100 hover:bg-surface-600 hover:text-white'
+              }`}
+            >
+              <span className={`inline-block w-2 h-2 rounded-full mr-2 ${DRIVER_STATUS_STYLES[s].split(' ')[0]}`} />
+              {s}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
 }
 
 const EXPIRY_WARN = 60 * 24 * 3600 * 1000
@@ -45,7 +133,7 @@ const COLS: { label: string; key: keyof Driver }[] = [
 ]
 const th = 'text-left text-2xs font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3 select-none cursor-pointer hover:text-gray-400 transition-colors whitespace-nowrap'
 
-export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onFetchAuthority }: Props) {
+export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onFetchAuthority, onStatusChange }: Props) {
   const [fetchingId, setFetchingId] = useState<number | null>(null)
 
   const handleFetch = async (e: React.MouseEvent, d: Driver) => {
@@ -76,7 +164,7 @@ export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSel
               <td className='pl-4 pr-3 py-2.5 font-medium text-gray-200 whitespace-nowrap'>{d.name}</td>
               <td className='pr-3 py-2.5 text-gray-400 text-xs max-w-[130px] truncate'>{d.company ?? '—'}</td>
               <td className='pr-3 py-2.5'>
-                <span className={`text-2xs px-2 py-0.5 rounded-full border ${DRIVER_STATUS_STYLES[d.status]}`}>{d.status}</span>
+                <DriverStatusDropdown driver={d} onStatusChange={onStatusChange} />
               </td>
               <td className='pr-3 py-2.5 font-mono text-xs'>
                 {d.mc_number ? (

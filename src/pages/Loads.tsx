@@ -72,6 +72,44 @@ export function Loads() {
     }
     setModal(false); setEditLoad(null)
   }
+
+  // Inline driver assignment / unassignment / reassignment from the Loads table.
+  // All three paths use existing IPC handlers — no new backend logic.
+  const handleDriverChange = async (load: Load, newDriverId: number | null) => {
+    if (newDriverId === load.driver_id) return
+
+    if (newDriverId === null) {
+      // Unassign: backend reverts load → Searching, driver → Active
+      const updated = await window.api.loads.update(load.id, { driver_id: null })
+      if (updated) {
+        setLoads(p => p.map(l => l.id === updated.id ? updated : l))
+        if (selected?.id === updated.id) setSelected(updated)
+        window.api.drivers.list().then(setDrivers).catch(() => {})
+      }
+    } else if (load.driver_id == null) {
+      // Fresh assignment via existing dispatch:assignLoad (handles offer tracking)
+      const result = await window.api.dispatcher.assignLoad({ loadId: load.id, driverId: newDriverId })
+      if (result.ok) {
+        const [newLoads, newDrivers] = await Promise.all([
+          window.api.loads.list(), window.api.drivers.list(),
+        ])
+        setLoads(newLoads); setDrivers(newDrivers)
+        if (selected?.id === load.id) setSelected(newLoads.find(l => l.id === load.id) ?? null)
+      }
+    } else {
+      // Reassign: unassign old (→ Searching + old driver → Active), then assign new
+      const unassigned = await window.api.loads.update(load.id, { driver_id: null })
+      if (!unassigned) return
+      const result = await window.api.dispatcher.assignLoad({ loadId: load.id, driverId: newDriverId })
+      if (result.ok) {
+        const [newLoads, newDrivers] = await Promise.all([
+          window.api.loads.list(), window.api.drivers.list(),
+        ])
+        setLoads(newLoads); setDrivers(newDrivers)
+        if (selected?.id === load.id) setSelected(newLoads.find(l => l.id === load.id) ?? null)
+      }
+    }
+  }
   const handleDelete = async (load: Load) => {
     await window.api.loads.delete(load.id)
     setLoads(p => p.filter(l => l.id !== load.id))
@@ -140,7 +178,7 @@ export function Loads() {
       </div>
       <LoadsToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} view={view} onView={setView} total={filtered.length} onAdd={openAdd} onRateHistory={() => setRateHistoryOpen(true)}/>
       {view === 'list'
-        ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onStatusChange={handleStatus}/>
+        ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onStatusChange={handleStatus} onDriverChange={handleDriverChange}/>
         : view === 'board'
         ? <DispatchBoard drivers={drivers} loads={loads} loading={loading} onLoadClick={setSelected}/>
         : <LoadCalendar loads={loads} drivers={drivers} onLoadClick={setSelected}/>

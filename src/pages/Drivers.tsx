@@ -43,6 +43,24 @@ export function Drivers() {
     if (selected?.id === drv.id) setSelected(null)
   }
   const handleStatus = async (drv: Driver, status: DriverStatus) => {
+    // Consistency guard: changing away from On Load risks leaving a live load
+    // with a ghost driver assignment. Check first, then confirm if a conflict exists.
+    if (drv.status === 'On Load' && status !== 'On Load') {
+      const allLoads = await window.api.loads.list()
+      const activeLoad = allLoads.find(l =>
+        l.driver_id === drv.id &&
+        ['Booked', 'Picked Up', 'In Transit'].includes(l.status)
+      )
+      if (activeLoad) {
+        const loadRef = activeLoad.load_id ?? `#${activeLoad.id}`
+        const confirmed = window.confirm(
+          `${drv.name} is still assigned to Load ${loadRef}.\n\nUnassign the load and mark driver ${status}?`
+        )
+        if (!confirmed) return
+        // Unassign the load (backend also reverts it to Searching)
+        await window.api.loads.update(activeLoad.id, { driver_id: null })
+      }
+    }
     const updated = await window.api.drivers.update(drv.id, { status })
     if (updated) {
       setDrivers(p => p.map(d => d.id === updated.id ? updated : d))
@@ -97,7 +115,7 @@ export function Drivers() {
       </div>
       <DriversToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} total={filtered.length} onAdd={openAdd} view={view} onView={setView}/>
       {view === 'list'
-        ? <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority}/>
+        ? <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority} onStatusChange={handleStatus}/>
         : view === 'calendar'
         ? <DriverAvailabilityCalendar drivers={filtered}/>
         : <DriverOnboardingPipeline drivers={filtered} onSelectDriver={setSelected}/>

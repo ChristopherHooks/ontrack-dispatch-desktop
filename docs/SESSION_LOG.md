@@ -1,5 +1,61 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-15 — Session 36: Inline Assignment + Consistency Pass
+
+### Work Completed
+
+Inline editing pass across Loads table and Drivers table, plus consistency
+enforcement for the driver On Load → Active transition.
+
+**src/components/loads/LoadsTable.tsx**
+- New `DriverDropdown` component. Portal-positioned (same pattern as the
+  existing `StatusDropdown`). Shows non-Inactive drivers + currently assigned
+  driver (even if On Load). Includes `(on load)` label for secondary drivers
+  so the dispatcher sees the risk. Busy state shows `…` during async call.
+- `onDriverChange` optional prop added. Static driver name text replaced
+  with `<DriverDropdown>`. `dMap` constant removed (no longer needed).
+
+**src/pages/Loads.tsx**
+- `handleDriverChange(load, newDriverId | null)` added.
+  Three branches, all reusing existing IPC:
+  1. Unassign (`null`): `loads.update(id, { driver_id: null })` → Session 35
+     backend reverts load to Searching and old driver to Active.
+  2. Fresh assign: `dispatcher.assignLoad` → Session 33 offer tracking fires.
+  3. Reassign (`driverA → driverB`): unassign first (temporarily Searching),
+     then `assignLoad` for new driver. Both loads and drivers re-fetched.
+- `handleDriverChange` passed to `<LoadsTable onDriverChange={...}>`.
+
+**src/components/drivers/DriversTable.tsx**
+- New `DriverStatusDropdown` component. Same portal pattern.
+  Shows all `DRIVER_STATUSES`; current status shown dimmed/disabled.
+- `onStatusChange` optional prop added. Static status badge replaced with
+  `<DriverStatusDropdown>`. Added `useRef`, `useEffect`, `createPortal`
+  imports; added `DriverStatus` and `DRIVER_STATUSES` imports.
+
+**src/pages/Drivers.tsx**
+- `handleStatus` extended with a pre-change consistency guard:
+  - Only triggers when `drv.status === 'On Load'` and target `!== 'On Load'`
+  - Calls `loads.list()` and finds any Booked/Picked Up/In Transit load for
+    this driver
+  - Shows `window.confirm(...)` naming the specific load ref
+  - On confirm: unassigns the load via `loads.update(activeLoad.id, { driver_id: null })`
+    (backend reverts load to Searching; driver status update follows immediately after)
+  - On cancel: early return, nothing changes
+- `handleStatus` now passed as `onStatusChange` to `<DriversTable>` (previously
+  was only used by `<DriverDrawer onStatusChange={handleStatus}>`).
+
+**DriverDrawer — Location field**: confirmed already fully implemented.
+`saveLocation()` → `drivers.update({ current_location })` → `onUpdate(updated)`
+→ `handleUpdate` in Drivers.tsx → `setDrivers` + `setSelected`. No changes needed.
+
+### Validation
+- tsc --noEmit: zero errors
+- No new IPC channels
+- No schema changes
+- All Session 33/34/35 fixes untouched
+
+---
+
 ## 2026-04-15 — Session 35: Load Unassignment Fix
 
 ### Work Completed

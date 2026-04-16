@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-15 (Session 35)
+2026-04-15 (Session 36)
 
 ## Current Branch
 
@@ -16,6 +16,47 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 36 — Inline Assignment + Consistency Pass (complete)
+
+Surgical inline-editing pass across Loads table, Drivers table, and Driver Drawer
+to enforce assignment consistency and reduce friction. No new IPC channels.
+No schema changes. No redesigns.
+
+**src/components/loads/LoadsTable.tsx**
+- `DriverDropdown` component added (portal, same pattern as `StatusDropdown`)
+- Shows non-Inactive drivers + currently assigned driver; "Unassigned" at top
+- "On Load" drivers shown with `(on load)` label so dispatcher knows the risk
+- `onDriverChange?: (l, driverId | null) => Promise<void>` prop added
+- Driver cell now renders `<DriverDropdown>` instead of static text
+
+**src/pages/Loads.tsx** — `handleDriverChange` added:
+- `null` → unassign: `loads.update(id, { driver_id: null })` (Session 35 backend reverts load+driver)
+- `null → driverId` → assign: `dispatcher.assignLoad` (Session 33 offer tracking fires)
+- `driverA → driverB` → reassign: unassign first (→ Searching), then `assignLoad` for new driver
+- All paths reload drivers state so Dispatch Board / Loads board stay in sync
+
+**src/components/drivers/DriversTable.tsx**
+- `DriverStatusDropdown` component added (portal, same pattern)
+- `onStatusChange?: (d, status) => Promise<void>` prop added
+- Status cell now renders `<DriverStatusDropdown>` instead of static badge
+
+**src/pages/Drivers.tsx** — `handleStatus` extended with consistency guard:
+- Before any `On Load → other` status change: calls `loads.list()` and looks for
+  an active load (Booked/Picked Up/In Transit) assigned to this driver
+- If found: shows `window.confirm(...)` naming the specific load ref
+- If confirmed: unassigns the load via `loads.update(id, { driver_id: null })`
+  (backend reverts load to Searching, no separate driver status reset needed
+  since the explicit status update immediately follows)
+- If declined: early return, nothing changes
+- Passed as `onStatusChange` to `DriversTable` AND continues to serve the
+  DriverDrawer status-change buttons
+
+**Driver Drawer — Location**: already fully implemented in previous sessions
+(inline text edit, pencil-on-hover, `saveLocation` → `drivers.update` → `onUpdate` →
+`handleUpdate` in Drivers.tsx propagates to DriversTable). No changes needed.
+
+tsc --noEmit: zero errors.
 
 ### Session 35 — Load Unassignment Fix (complete)
 
