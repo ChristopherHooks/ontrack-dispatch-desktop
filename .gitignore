@@ -15,3 +15,13 @@ dist/
 dist2/
 release/
 *.exe
+# Build output
+dist/
+dist2/
+release/
+
+# Binaries
+*.exe
+
+# Local AI / tooling
+.claude/
