@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, Building2, MapPin, DollarSign, BarChart2, AlertCircle, ArrowRight, Users, ChevronUp, ChevronDown } from 'lucide-react'
-import type { DriverWeeklyScorecard } from '../types/models'
+import type { DriverWeeklyScorecard, DriverFalloutCountRow } from '../types/models'
 import { badge as badgeTokens } from '../styles/uiTokens'
+import { computeDriverTier, tierSortRank, TIER_BADGE, TIER_LABEL } from '../lib/driverTierService'
 
 interface WeeklyRevenue  { week: string; week_label: string; dispatch_fee: number; load_count: number }
 interface MonthlyRevenue { month: string; month_label: string; dispatch_fee: number; load_count: number }
@@ -66,7 +67,7 @@ function Sec({ title, icon }: { title: string; icon: React.ReactNode }) {
   )
 }
 
-type ScoreSort = 'dispatcher_revenue' | 'avg_rpm' | 'acceptance_rate' | 'loads_booked'
+type ScoreSort = 'dispatcher_revenue' | 'avg_rpm' | 'acceptance_rate' | 'loads_booked' | 'tier'
 
 function acceptanceBadge(rate: number, noResp: number): string {
   if (rate >= 70) return badgeTokens.success
@@ -85,8 +86,9 @@ function rpmBadge(v: number | null): string {
 export function Reports() {
   const [data, setData]     = useState<ReportsData>(EMPTY)
   const [loading, setLoading] = useState(true)
-  const [scorecards, setScorecards] = useState<DriverWeeklyScorecard[]>([])
-  const [scoreSort, setScoreSort]   = useState<ScoreSort>('dispatcher_revenue')
+  const [scorecards, setScorecards]     = useState<DriverWeeklyScorecard[]>([])
+  const [falloutRows, setFalloutRows]   = useState<DriverFalloutCountRow[]>([])
+  const [scoreSort, setScoreSort]       = useState<ScoreSort>('dispatcher_revenue')
   const [scoreSortDir, setScoreSortDir] = useState<'desc' | 'asc'>('desc')
 
   useEffect(() => {
@@ -95,9 +97,23 @@ export function Reports() {
       setLoading(false)
     })
     window.api.drivers.allWeeklyScorecards().then(setScorecards).catch(() => {})
+    window.api.drivers.allFalloutCounts().then(setFalloutRows).catch(() => {})
   }, [])
 
+  const falloutMap = new Map(falloutRows.map(r => [r.driver_id, r.fallout_count]))
+
   const sortedScorecards = [...scorecards].sort((a, b) => {
+    if (scoreSort === 'tier') {
+      const toTierInput = (s: DriverWeeklyScorecard) => ({
+        accepted_count: s.accepted_count, declined_count: s.declined_count,
+        no_response_count: s.no_response_count, loads_booked: s.loads_booked,
+        acceptance_rate: s.acceptance_rate ?? 0, avg_response_minutes: s.avg_response_minutes,
+        fallout_count: falloutMap.get(s.driver_id) ?? 0,
+      })
+      const ar = tierSortRank(computeDriverTier(toTierInput(a)).tier)
+      const br = tierSortRank(computeDriverTier(toTierInput(b)).tier)
+      return scoreSortDir === 'asc' ? br - ar : ar - br
+    }
     const av = (a[scoreSort] as number | null) ?? -1
     const bv = (b[scoreSort] as number | null) ?? -1
     return scoreSortDir === 'desc' ? bv - av : av - bv
@@ -178,6 +194,7 @@ export function Reports() {
                     { key: null,                  label: 'Avg Resp' },
                     { key: null,                  label: 'Acc / Dec / NR' },
                     { key: null,                  label: 'Open' },
+                    { key: 'tier',                label: 'Tier' },
                   ] as Array<{ key: ScoreSort | null; label: string }>).map(({ key, label }) => (
                     <th
                       key={label}
@@ -200,6 +217,12 @@ export function Reports() {
                     if (m == null) return '—'
                     return m < 60 ? `${m.toFixed(0)}m` : `${(m / 60).toFixed(1)}h`
                   }
+                  const { tier, reason } = computeDriverTier({
+                    accepted_count: s.accepted_count, declined_count: s.declined_count,
+                    no_response_count: s.no_response_count, loads_booked: s.loads_booked,
+                    acceptance_rate: s.acceptance_rate ?? 0, avg_response_minutes: s.avg_response_minutes,
+                    fallout_count: falloutMap.get(s.driver_id) ?? 0,
+                  })
                   return (
                     <tr key={s.driver_id} className='border-b border-surface-600 last:border-0'>
                       <td className='py-2 text-gray-200 font-medium pr-3 whitespace-nowrap'>{s.driver_name}</td>
@@ -230,6 +253,14 @@ export function Reports() {
                         {s.open_offer_count > 0
                           ? <span className='text-orange-400 font-mono'>{s.open_offer_count}</span>
                           : <span className='text-gray-700'>—</span>}
+                      </td>
+                      <td className='py-2 text-right'>
+                        <span
+                          className={`text-2xs px-1.5 py-0.5 rounded font-bold ${TIER_BADGE[tier]}`}
+                          title={reason ?? undefined}
+                        >
+                          {TIER_LABEL[tier] !== '—' ? `Tier ${TIER_LABEL[tier]}` : 'Unrated'}
+                        </span>
                       </td>
                     </tr>
                   )

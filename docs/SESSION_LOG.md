@@ -1,5 +1,79 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-16 — Session 37: Driver Reliability / Fallout Tracking + Tier in Drivers Table
+
+### Work Completed
+
+Driver reliability metric added alongside existing acceptance rate (unchanged).
+New fallout tracking system captures driver removals from active loads. Tier badge
+surfaced in the main Drivers table. Fallout metrics surface in the Driver Drawer.
+
+**Migration 046 — `driver_fallout_log` table**
+- New table: `id, driver_id FK→drivers CASCADE, load_id FK→loads CASCADE,`
+  `load_status_at_removal TEXT, removed_at TEXT, notes TEXT, created_at TEXT`
+- Two indexes: `idx_fallout_driver`, `idx_fallout_load`
+- Applies automatically on next launch
+
+**New file: `electron/main/repositories/driverFalloutRepo.ts`**
+- `logFallout(db, driverId, loadId, loadStatus)` — insert on driver removal from active load
+- `getDriverFalloutStats(db, driverId)` — per-driver: `fallout_count`,
+  `accepted_not_completed_count` (Picked Up / In Transit removals), `completion_rate`
+- `getAllDriverFalloutCounts(db)` — batch query for all drivers (for table-level tier map)
+
+**Modified: `electron/main/repositories/index.ts`**
+- Added `export * from './driverFalloutRepo'`
+
+**Modified: `electron/main/ipcHandlers.ts`**
+- Imports: `logFallout`, `getDriverFalloutStats`, `getAllDriverFalloutCounts`
+- `loads:update` handler: calls `logFallout` when `driverRemoved && before.status in ['Booked','Picked Up','In Transit']`. Wrapped in try/catch — non-critical.
+- New handlers: `drivers:falloutStats`, `drivers:allFalloutCounts`
+
+**Modified: `electron/preload/index.ts`**
+- Added `falloutStats(driverId)` and `allFalloutCounts()` to drivers namespace
+
+**Modified: `src/types/models.ts`**
+- Added `DriverFalloutStats` and `DriverFalloutCountRow` interfaces
+
+**Modified: `src/types/global.d.ts`**
+- Imported `DriverFalloutStats`, `DriverFalloutCountRow`
+- Added `falloutStats` and `allFalloutCounts` to `window.api.drivers` type
+
+**Modified: `src/lib/driverTierService.ts`**
+- `TierInput` gains `fallout_count: number` field
+- New threshold constants: `A_FALLOUT: 1`, `C_FALLOUT: 3`
+- `computeDriverTier` logic: `fallout_count >= 3` → Tier C; `fallout_count <= 1` added to A conditions
+- Acceptance rate logic: unchanged
+
+**Modified: `src/pages/Reports.tsx`** — added `fallout_count: 0` to both `computeDriverTier` call sites
+
+**Modified: `src/components/operations/MorningDispatchBrief.tsx`** — added `fallout_count: 0`
+
+**Modified: `src/components/drivers/DriversTable.tsx`**
+- Imports `DriverTierResult`, `TIER_BADGE`, `TIER_LABEL` from driverTierService
+- New optional prop `tierMap?: Map<number, DriverTierResult>`
+- When present: adds non-sortable `Tier` column header + badge cell per row
+- Badge uses existing `TIER_BADGE` tokens; tooltip shows reason on hover
+
+**Modified: `src/pages/Drivers.tsx`**
+- New state: `tierMap: Map<number, DriverTierResult>`
+- `loadTierMap()`: fetches `allWeeklyScorecards()` + `allFalloutCounts()` in parallel,
+  builds map of `driver_id → DriverTierResult` (includes fallout_count per driver)
+- `useEffect` now calls both `reload()` and `loadTierMap()` on mount
+- `tierMap` passed to `DriversTable`
+
+**Modified: `src/components/drivers/DriverDrawer.tsx`**
+- Imports `DriverFalloutStats` type
+- New state: `falloutStats: DriverFalloutStats | null`
+- Fetches `window.api.drivers.falloutStats(driver.id)` alongside existing offers/scorecard
+- Tier badge in header now uses real `falloutStats.fallout_count` instead of 0
+- Load Behavior section: Reliability sub-block (shown when `fallout_count > 0`):
+  `Fallouts` count (red >=3, yellow >=1), `Mid-Trip` (accepted_not_completed_count),
+  `Completion %` rate (green >=90%, yellow >=75%, red <75%)
+
+tsc --noEmit: zero errors.
+
+---
+
 ## 2026-04-15 — Session 36: Inline Assignment + Consistency Pass
 
 ### Work Completed

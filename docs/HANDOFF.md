@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-15 (Session 36)
+2026-04-16 (Session 37)
 
 ## Current Branch
 
@@ -16,6 +16,56 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 37 — Driver Reliability / Fallout Tracking + Tier in Drivers Table (complete)
+
+New `driver_fallout_log` table (migration 046) tracks driver removals from active
+loads. Separate reliability metrics (`fallout_count`, `accepted_not_completed_count`,
+`completion_rate`) surface in the Driver Drawer without touching acceptance rate.
+Tier badge now visible in the main Drivers table. Tier logic conservatively
+incorporates fallout signal: 3+ fallouts → Tier C; more than 1 fallout blocks Tier A.
+
+**electron/main/schema/migrations.ts** — migration046: `driver_fallout_log` table + indexes
+
+**New file: `electron/main/repositories/driverFalloutRepo.ts`**
+- `logFallout`, `getDriverFalloutStats`, `getAllDriverFalloutCounts`
+
+**electron/main/ipcHandlers.ts**
+- `loads:update`: calls `logFallout` on active-load driver removal (try/catch, non-critical)
+- New: `drivers:falloutStats`, `drivers:allFalloutCounts`
+
+**electron/preload/index.ts** — `falloutStats`, `allFalloutCounts` in drivers namespace
+
+**src/types/models.ts** — `DriverFalloutStats`, `DriverFalloutCountRow` interfaces
+
+**src/types/global.d.ts** — types imported; two new driver api methods typed
+
+**src/lib/driverTierService.ts**
+- `TierInput.fallout_count` added
+- Thresholds: `C_FALLOUT: 3`, `A_FALLOUT: 1`
+- `computeDriverTier`: fallout_count checked before acceptance rate in C path;
+  `fallout_count <= 1` added to A conditions
+
+**src/components/drivers/DriversTable.tsx**
+- `tierMap?: Map<number, DriverTierResult>` prop
+- Tier column (non-sortable) with `TIER_BADGE` tokens and hover tooltip
+
+**src/pages/Drivers.tsx**
+- `loadTierMap()`: parallel fetch of scorecards + fallout counts → tier map
+- `tierMap` passed to `DriversTable`
+
+**src/components/drivers/DriverDrawer.tsx**
+- `falloutStats` state + fetch via `drivers.falloutStats(id)`
+- Tier header badge uses real fallout_count
+- Load Behavior section: Reliability block (Fallouts, Mid-Trip, Completion %)
+
+**Other callers fixed (fallout_count: 0 default):**
+- `src/pages/Reports.tsx` — both computeDriverTier call sites
+- `src/components/operations/MorningDispatchBrief.tsx`
+
+tsc --noEmit: zero errors.
+
+---
 
 ### Session 36 — Inline Assignment + Consistency Pass (complete)
 
@@ -913,18 +963,26 @@ None. Build is clean.
 
 ---
 
-## Files Touched in Most Recent Session (33)
+## Files Touched in Most Recent Session (37)
 
 ### New files:
-- `src/lib/dailyWorkflowEngine.ts`
-- `src/components/operations/DailyWorkflowPanel.tsx`
+- `electron/main/repositories/driverFalloutRepo.ts`
 
 ### Modified:
-- `electron/main/operations.ts` — added `overdueInvoices` count query + return field
-- `src/types/models.ts` — added `overdueInvoices: number` to `OperationsData`
-- `src/pages/Operations.tsx` — DailyWorkflowPanel replaces Morning Briefing; workflow state; scroll target wrapper; EMPTY constant; cleaned imports
-- `docs/HANDOFF.md` — session 33 entry
-- `docs/SESSION_LOG.md` — session 33 entry
+- `electron/main/schema/migrations.ts` — migration046 (driver_fallout_log)
+- `electron/main/repositories/index.ts` — export driverFalloutRepo
+- `electron/main/ipcHandlers.ts` — logFallout in loads:update; two new driver handlers
+- `electron/preload/index.ts` — falloutStats + allFalloutCounts in drivers namespace
+- `src/types/models.ts` — DriverFalloutStats + DriverFalloutCountRow interfaces
+- `src/types/global.d.ts` — new types imported; two driver api methods typed
+- `src/lib/driverTierService.ts` — fallout_count in TierInput; C/A threshold additions
+- `src/pages/Reports.tsx` — fallout_count: 0 default at both computeDriverTier sites
+- `src/components/operations/MorningDispatchBrief.tsx` — fallout_count: 0 default
+- `src/components/drivers/DriversTable.tsx` — tierMap prop + Tier column
+- `src/pages/Drivers.tsx` — loadTierMap(); tierMap state + prop pass-through
+- `src/components/drivers/DriverDrawer.tsx` — falloutStats state, fetch, Reliability block
+- `docs/HANDOFF.md` — session 37 entry
+- `docs/SESSION_LOG.md` — session 37 entry
 
 ---
 
