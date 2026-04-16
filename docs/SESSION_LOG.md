@@ -1,5 +1,119 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-15 — Session 30: Load Offer Tracking — Data Integrity Hardening
+
+### Work Completed
+
+Data integrity pass on the Load Offer Tracking System (Session 29). No redesign —
+all changes are additive or narrowly targeted at the three root causes: duplicate
+open offers, inaccurate acceptance_rate denominator, and no manual no_response path.
+
+**loadOffersRepo.ts — find-or-create guard**
+- `createOffer` now checks for an existing open offer (outcome IS NULL) for the same
+  (driver_id, load_id) before inserting. Returns the existing row if found.
+  This prevents duplicate open offers from panel reopen / React rerender without
+  blocking new offers when a previously-declined load is shown again.
+
+**loadOffersRepo.ts — mark functions hardened**
+- `markAccepted`, `markDeclined`, `markNoResponse` each add `AND outcome IS NULL`
+  to the WHERE clause. Resolved offers cannot be overwritten by a stale IPC call.
+
+**loadOffersRepo.ts — getDriverAcceptanceStats**
+- Added `open_offer_count` (SUM where outcome IS NULL)
+- `acceptance_rate` denominator changed from COUNT(*) to resolved-only count
+  (accepted + declined + no_response). NULLIF(resolved_count, 0) guards divide-by-zero.
+  When resolved_count = 0 (all open), rate coerces to 0 — never NULL in the return struct.
+
+**loadOffersRepo.ts — sweepNoResponse**
+- Added explicit comments explaining the three-layer safety (outcome IS NULL,
+  responded_at IS NULL, julianday arithmetic) so the intent is clear to future editors.
+
+**src/types/models.ts**
+- `LoadOfferStats`: added `open_offer_count: number` field with JSDoc explaining
+  resolved-only rate semantics.
+
+**src/pages/Loads.tsx — DispatchBoard**
+- Added `loadingOffers` boolean state; `openOfferPanel` sets it true before the
+  async fetch and false in `finally`, preventing double-fire from rapid button clicks.
+- Added `handleMarkNoResponse(al)`: calls `updateStatus(offerId, 'no_response')` and
+  dismisses the row — manual override without waiting for the 2-hour sweep.
+- Added "N/R" (No Response) button per offer row in the panel (Clock icon).
+- "Find Load" button disabled and shows "Loading..." while `loadingOffers` is true.
+
+**src/components/drivers/DriverDrawer.tsx — Load Behavior**
+- Breakdown row now shows `open_offer_count` in orange when > 0.
+- Acceptance Rate label appends "(excl. open)" when open offers exist, so the
+  dispatcher understands why the displayed rate may not sum to 100%.
+
+### Files Changed
+- `electron/main/repositories/loadOffersRepo.ts` — find-or-create, hardened marks, stats
+- `src/types/models.ts` — open_offer_count in LoadOfferStats
+- `src/pages/Loads.tsx` — loadingOffers guard, handleMarkNoResponse, N/R button
+- `src/components/drivers/DriverDrawer.tsx` — open_offer_count display
+- `docs/SESSION_LOG.md` — this entry
+- `docs/HANDOFF.md` — updated
+
+---
+
+## 2026-04-15 — Session 29: Load Offer Tracking System
+
+### Work Completed
+
+Full Load Offer Tracking System implemented across DB, repository, IPC, and UI layers.
+Every load offered to every driver is now recorded with outcome (accepted / declined / no_response)
+and decline reason. DispatchBoard gains a "Find Load" inline panel; DriverDrawer gains a
+Load Behavior stats section.
+
+**Migration 045**
+- `load_offers` table: id, driver_id (FK), load_id (FK), offered_at, responded_at, outcome CHECK,
+  decline_reason, created_at, updated_at
+- Indexes on driver_id, load_id, outcome
+
+**loadOffersRepo.ts (new)**
+- `createOffer(db, driverId, loadId)` — inserts pending offer
+- `markAccepted(db, offerId)` — sets outcome + responded_at
+- `markDeclined(db, offerId, reason?)` — sets outcome + reason + responded_at
+- `markNoResponse(db, offerId)` — sets outcome + responded_at
+- `getOffersByDriver(db, driverId)` — all offers newest first
+- `getDriverAcceptanceStats(db, driverId)` — total, accepted, declined, no_response, acceptance_rate, avg_response_minutes
+- `sweepNoResponse(db)` — bulk UPDATE for offers 2+ hours old with no outcome
+
+**IPC + Preload + Types**
+- 3 new handlers: `loadOffers:create`, `loadOffers:updateStatus`, `loadOffers:getDriverStats`
+- Preload: `window.api.loadOffers` namespace
+- `models.ts`: `LoadOffer`, `LoadOfferStats`, `LoadOfferOutcome`, `LOAD_OFFER_DECLINE_REASONS`
+- `global.d.ts`: full TypeScript declarations
+
+**DispatchBoard (Loads.tsx)**
+- "Find Load" button on Needs Load driver cards
+- Fetches available loads + creates offer records for each load shown
+- Assign button: calls `dispatcher.assignLoad` + `loadOffers.updateStatus('accepted')`
+- Skip button: opens decline reason dropdown; calls `loadOffers.updateStatus('declined', reason)`
+- Decline reasons: Rate too low, Too far, Bad lane, Driver unavailable, Other
+
+**DriverDrawer.tsx**
+- New "Load Behavior" section (hidden when total_offers = 0)
+- Shows: acceptance rate %, total offers, avg response time, breakdown (accepted / declined / no response)
+
+**Scheduler (no_response sweep)**
+- `sweepNoResponse()` called every tick (every minute)
+- Marks all offers with outcome=NULL and offered_at 2+ hours ago as no_response
+
+### Files Changed
+
+- `electron/main/schema/migrations.ts` — migration 045
+- `electron/main/repositories/loadOffersRepo.ts` — NEW
+- `electron/main/repositories/index.ts` — export added
+- `electron/main/ipcHandlers.ts` — import + 3 handlers
+- `electron/preload/index.ts` — loadOffers namespace
+- `src/types/models.ts` — LoadOffer, LoadOfferStats, LoadOfferOutcome, LOAD_OFFER_DECLINE_REASONS
+- `src/types/global.d.ts` — import + window.api.loadOffers declarations
+- `src/pages/Loads.tsx` — DispatchBoard offer panel
+- `src/components/drivers/DriverDrawer.tsx` — Load Behavior section
+- `electron/main/scheduler.ts` — sweepNoResponse every tick
+
+---
+
 ## 2026-04-15 — Session 28: Outreach Engine — DB wiring, performance panel, dashboard reminder, bug fix
 
 ### Work Completed

@@ -23,6 +23,7 @@ import type {
   DatPosting, CreateDatPostingDto, UpdateDatPostingDto,
   CarrierOffer, CreateCarrierOfferDto, UpdateCarrierOfferDto,
   BrokerCarrierVetting, CreateBrokerCarrierVettingDto,
+  LoadOffer, LoadOfferStats, LoadOfferOutcome,
 } from './models'
 
 interface CarrierBrokerApprovalRow {
@@ -329,6 +330,13 @@ declare global {
         get:    (loadId: number) => Promise<BrokerCarrierVetting | undefined>
         upsert: (dto: CreateBrokerCarrierVettingDto) => Promise<BrokerCarrierVetting>
         delete: (loadId: number) => Promise<boolean>
+      }
+
+      // -- Load Offer Tracking --
+      loadOffers: {
+        create:         (driverId: number, loadId: number) => Promise<LoadOffer>
+        updateStatus:   (offerId: number, outcome: LoadOfferOutcome, reason?: string) => Promise<LoadOffer | undefined>
+        getDriverStats: (driverId: number) => Promise<LoadOfferStats>
       }
 
       shell: {

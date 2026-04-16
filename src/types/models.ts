@@ -780,3 +780,42 @@ export interface BrokerCarrierVetting {
   created_at:              string
 }
 export type CreateBrokerCarrierVettingDto = Omit<BrokerCarrierVetting, 'id' | 'created_at'>
+
+// ---------------------------------------------------------------------------
+// Load Offer Tracking
+// ---------------------------------------------------------------------------
+
+export type LoadOfferOutcome = 'accepted' | 'declined' | 'no_response'
+
+export const LOAD_OFFER_DECLINE_REASONS = [
+  'Rate too low',
+  'Too far',
+  'Bad lane',
+  'Driver unavailable',
+  'Other',
+] as const
+export type LoadOfferDeclineReason = typeof LOAD_OFFER_DECLINE_REASONS[number]
+
+export interface LoadOffer {
+  id:             number
+  driver_id:      number
+  load_id:        number
+  offered_at:     string
+  responded_at:   string | null
+  outcome:        LoadOfferOutcome | null
+  decline_reason: string | null
+  created_at:     string
+  updated_at:     string
+}
+
+export interface LoadOfferStats {
+  total_offers:         number
+  accepted_count:       number
+  declined_count:       number
+  no_response_count:    number
+  /** Offers still open (outcome IS NULL) — not yet acted on by dispatcher or sweep. */
+  open_offer_count:     number
+  /** Acceptance rate based on resolved offers only (accepted / (accepted + declined + no_response)). */
+  acceptance_rate:      number
+  avg_response_minutes: number | null
+}

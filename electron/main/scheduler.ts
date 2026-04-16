@@ -1,6 +1,7 @@
 import { Notification } from 'electron'
 import type Database from 'better-sqlite3'
 import { importFmcsaLeads, writeImportMeta } from './fmcsaImport'
+import { sweepNoResponse } from './repositories/loadOffersRepo'
 
 export type JobName =
   | 'fmcsa-scraper'
@@ -328,6 +329,9 @@ async function tick(getDb: () => Database.Database): Promise<void> {
   try {
     db = getDb()
     checkLeadReminders(db)
+    // Sweep load offers that have had no response for 2+ hours
+    const swept = sweepNoResponse(db)
+    if (swept > 0) console.log('[Scheduler] no-response sweep: marked', swept, 'offer(s) as no_response')
   } catch { /* DB not ready yet — skip */ }
 
   for (const job of JOBS) {

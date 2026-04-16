@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-15 (Session 28)
+2026-04-15 (Session 30)
 
 ## Current Branch
 
@@ -16,6 +16,41 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 30 — Load Offer Tracking: Data Integrity Hardening (complete)
+
+Targeted hardening pass on the Session 29 Load Offer Tracking System. No redesign.
+
+Key changes: `createOffer` is now find-or-create (returns existing open offer for the same
+driver+load pair instead of inserting a duplicate). All three mark functions (`markAccepted`,
+`markDeclined`, `markNoResponse`) add `AND outcome IS NULL` to prevent overwriting resolved
+offers. `getDriverAcceptanceStats` bases acceptance_rate on resolved offers only, adds
+`open_offer_count`, and coerces NULL rate to 0. DispatchBoard adds a `loadingOffers` guard
+to prevent double-open, and a per-row "N/R" button for manual no_response without the 2-hour
+wait. DriverDrawer breakdown now shows open_offer_count in orange when non-zero.
+
+### Session 29 — Load Offer Tracking System (complete)
+
+Full Load Offer Tracking System. Every load shown to a driver on the DispatchBoard is now
+recorded with outcome and optional decline reason. DriverDrawer shows a Load Behavior
+panel with acceptance stats. A background sweep marks stale offers as no_response.
+
+Schema: migration 045 — `load_offers` table (driver_id FK, load_id FK, offered_at,
+responded_at, outcome CHECK, decline_reason). Three indexes.
+
+New repo: `electron/main/repositories/loadOffersRepo.ts` — createOffer, markAccepted,
+markDeclined, markNoResponse, getOffersByDriver, getDriverAcceptanceStats, sweepNoResponse.
+
+IPC: `loadOffers:create`, `loadOffers:updateStatus`, `loadOffers:getDriverStats`.
+
+DispatchBoard (Loads.tsx): "Find Load" button on Needs Load cards opens inline panel
+showing available loads. Each load has Assign (accepted) and Skip (declined + reason dropdown).
+
+DriverDrawer: "Load Behavior" section shows acceptance rate, offer count, avg response,
+accepted/declined/no_response breakdown. Hidden when no offers exist for the driver.
+
+Scheduler: `sweepNoResponse()` runs every tick; marks offers 2+ hours old with no outcome
+as no_response.
 
 ### Session 28 — Outreach Engine: DB wiring, performance panel, dashboard reminder, bug fix (complete)
 

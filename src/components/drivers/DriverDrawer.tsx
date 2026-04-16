@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer, TrendingUp } from 'lucide-react'
-import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument } from '../../types/models'
+import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument, LoadOfferStats } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -72,6 +72,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [allBrokers,setAllBrokers]           = useState<{ id:number; name:string }[]>([])
   const [apprForm,setApprForm]               = useState<{ broker_id:string; status:'Submitted'|'Approved'|'Denied'; notes:string; submitted_at:string; approved_at:string }>({ broker_id:'', status:'Submitted', notes:'', submitted_at:'', approved_at:'' })
   const [sopDocs,setSopDocs]                 = useState<SopDocument[]>([])
+  const [offerStats,setOfferStats]           = useState<LoadOfferStats | null>(null)
 
   useEffect(() => {
     // Sync whenever we switch to a different driver OR the saved value changes
@@ -115,6 +116,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
         setApprovals(apprvs as CarrierBrokerApprovalRow[])
         setAllBrokers((brkrs as { id:number; name:string }[]).map(b => ({ id:b.id, name:b.name })))
         window.api.documents.list().then(setSopDocs).catch(() => {})
+        window.api.loadOffers.getDriverStats(driver.id).then(setOfferStats).catch(() => {})
       }).catch(err => {
         console.error('DriverDrawer: data fetch error', err)
         // Fall back to core data only (works even when app window hasn't been fully reloaded)
@@ -685,6 +687,53 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+          {/* Load Behavior */}
+          {offerStats != null && offerStats.total_offers > 0 && (
+            <div className='px-5 py-4 border-t border-surface-600'>
+              <Sec title='Load Behavior'/>
+              <div className='grid grid-cols-2 gap-x-4 gap-y-3'>
+                <div>
+                  {/* Rate is based on resolved offers only; open offers are excluded */}
+                  <p className={typeTokens.label}>Acceptance Rate</p>
+                  <p className={`text-sm mt-0.5 font-mono font-semibold ${
+                    offerStats.acceptance_rate >= 70 ? 'text-green-400' :
+                    offerStats.acceptance_rate >= 40 ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>
+                    {offerStats.acceptance_rate.toFixed(1)}%
+                    {offerStats.open_offer_count > 0 && (
+                      <span className='text-2xs font-normal text-gray-600 ml-1'>(excl. open)</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className={typeTokens.label}>Total Offers</p>
+                  <p className={`text-sm mt-0.5 ${typeTokens.value}`}>{offerStats.total_offers}</p>
+                </div>
+                <div>
+                  <p className={typeTokens.label}>Avg Response</p>
+                  <p className={`text-sm mt-0.5 ${typeTokens.value}`}>
+                    {offerStats.avg_response_minutes != null
+                      ? offerStats.avg_response_minutes < 60
+                        ? `${offerStats.avg_response_minutes.toFixed(0)} min`
+                        : `${(offerStats.avg_response_minutes / 60).toFixed(1)} hr`
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className={typeTokens.label}>Breakdown</p>
+                  <div className='flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5'>
+                    <span className='text-2xs text-green-400'>{offerStats.accepted_count} accepted</span>
+                    <span className='text-2xs text-red-400'>{offerStats.declined_count} declined</span>
+                    <span className='text-2xs text-gray-500'>{offerStats.no_response_count} no response</span>
+                    {offerStats.open_offer_count > 0 && (
+                      <span className='text-2xs text-orange-500'>{offerStats.open_offer_count} open</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}

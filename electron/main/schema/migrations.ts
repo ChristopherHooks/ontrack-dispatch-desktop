@@ -1214,7 +1214,31 @@ const migration044: Migration = {
   },
 }
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038, migration039, migration040, migration041, migration042, migration043, migration044]
+const migration045: Migration = {
+  version: 45,
+  description: 'Create load_offers table for driver load offer tracking',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS load_offers (' +
+      '  id             INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  driver_id      INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,' +
+      '  load_id        INTEGER NOT NULL REFERENCES loads(id) ON DELETE CASCADE,' +
+      '  offered_at     TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  responded_at   TEXT,' +
+      '  outcome        TEXT CHECK(outcome IN (\'accepted\',\'declined\',\'no_response\')),' +
+      '  decline_reason TEXT,' +
+      '  created_at     TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  updated_at     TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE INDEX IF NOT EXISTS idx_load_offers_driver  ON load_offers(driver_id)')
+    db.exec('CREATE INDEX IF NOT EXISTS idx_load_offers_load    ON load_offers(load_id)')
+    db.exec('CREATE INDEX IF NOT EXISTS idx_load_offers_outcome ON load_offers(outcome)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (45)")
+  },
+}
+
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038, migration039, migration040, migration041, migration042, migration043, migration044, migration045]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

@@ -31,6 +31,7 @@ import {
   listDatPostings, getDatPosting, createDatPosting, updateDatPosting, deleteDatPosting,
   listCarrierOffers, getCarrierOffer, createCarrierOffer, updateCarrierOffer, deleteCarrierOffer, acceptCarrierOffer,
   getVetting, upsertVetting, deleteVetting,
+  createOffer, markAccepted, markDeclined, markNoResponse, getDriverAcceptanceStats,
 } from './repositories'
 import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
@@ -362,6 +363,20 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('brokerVetting:get',    (_e, loadId: number) => getVetting(getDb(), loadId))
   ipcMain.handle('brokerVetting:upsert', (_e, dto: unknown)   => upsertVetting(getDb(), dto as any))
   ipcMain.handle('brokerVetting:delete', (_e, loadId: number) => deleteVetting(getDb(), loadId))
+
+  // -- Load Offer Tracking --
+  ipcMain.handle('loadOffers:create',
+    (_e, driverId: number, loadId: number) => createOffer(getDb(), driverId, loadId))
+  ipcMain.handle('loadOffers:updateStatus',
+    (_e, offerId: number, outcome: string, reason?: string) => {
+      const db = getDb()
+      if (outcome === 'accepted')    return markAccepted(db, offerId)
+      if (outcome === 'declined')    return markDeclined(db, offerId, reason)
+      if (outcome === 'no_response') return markNoResponse(db, offerId)
+      throw new Error('Unknown outcome: ' + outcome)
+    })
+  ipcMain.handle('loadOffers:getDriverStats',
+    (_e, driverId: number) => getDriverAcceptanceStats(getDb(), driverId))
 
   // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))

@@ -338,6 +338,16 @@ contextBridge.exposeInMainWorld('api', {
     delete: (loadId: number) => ipcRenderer.invoke('brokerVetting:delete', loadId),
   },
 
+  // -- Load Offer Tracking --
+  loadOffers: {
+    create:         (driverId: number, loadId: number) =>
+      ipcRenderer.invoke('loadOffers:create', driverId, loadId),
+    updateStatus:   (offerId: number, outcome: string, reason?: string) =>
+      ipcRenderer.invoke('loadOffers:updateStatus', offerId, outcome, reason),
+    getDriverStats: (driverId: number) =>
+      ipcRenderer.invoke('loadOffers:getDriverStats', driverId),
+  },
+
   // -- Browser import (Claude in Chrome → OnTrack) --
   // Claude reads a DAT/Truckstop tab, scores the loads, and POSTs to
   // http://localhost:3001/api/loads/browser-import. The main process

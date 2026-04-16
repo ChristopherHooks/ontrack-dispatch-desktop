@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Bell } from 'lucide-react'
-import type { Load, LoadStatus, Driver, Broker, CreateLoadDto } from '../types/models'
+import { ChevronLeft, ChevronRight, Bell, Search, Check, XCircle, Clock } from 'lucide-react'
+import type { Load, LoadStatus, Driver, Broker, CreateLoadDto, AvailableLoad } from '../types/models'
+import { LOAD_OFFER_DECLINE_REASONS } from '../types/models'
 import { LoadsToolbar, type LoadFilters, type LoadView } from '../components/loads/LoadsToolbar'
 import { LoadsTable }  from '../components/loads/LoadsTable'
 import { LoadModal }   from '../components/loads/LoadModal'
@@ -262,6 +263,99 @@ interface BoardProps {
 }
 
 function DispatchBoard({ drivers, loads, loading, onLoadClick }: BoardProps) {
+  // Offer tracking state
+  const [offerPanelDriverId, setOfferPanelDriverId] = useState<number | null>(null)
+  const [availableLoads, setAvailableLoads]         = useState<AvailableLoad[]>([])
+  const [offerMap, setOfferMap]                     = useState<Record<number, number>>({})      // loadId → offerId
+  const [declineReasonMap, setDeclineReasonMap]     = useState<Record<number, string>>({})      // loadId → reason
+  const [declineOpenId, setDeclineOpenId]           = useState<number | null>(null)             // loadId with reason dropdown open
+  const [assigningLoadId, setAssigningLoadId]       = useState<number | null>(null)
+  const [dismissedLoadIds, setDismissedLoadIds]     = useState<Set<number>>(new Set())
+  const [assignError, setAssignError]               = useState<string | null>(null)
+  // Prevents double-fire: if panel is already loading/open for this driver, skip re-entry
+  const [loadingOffers, setLoadingOffers]           = useState(false)
+
+  const openOfferPanel = async (driverId: number) => {
+    // Guard: do not re-enter if we are already loading offers for this driver
+    if (loadingOffers) return
+    setLoadingOffers(true)
+    setOfferPanelDriverId(driverId)
+    setDismissedLoadIds(new Set())
+    setDeclineReasonMap({})
+    setDeclineOpenId(null)
+    setAssignError(null)
+    try {
+      const avail = await window.api.dispatcher.availableLoads()
+      setAvailableLoads(avail)
+      // Find-or-create offer records for each available load shown to this driver.
+      // The repo-level guard (createOffer) returns the existing open offer if one
+      // already exists for this (driver, load) pair, so reopening the panel is safe.
+      const entries = await Promise.all(
+        avail.map(async (al) => {
+          const offer = await window.api.loadOffers.create(driverId, al.load_id_pk)
+          return [al.load_id_pk, offer.id] as [number, number]
+        })
+      )
+      setOfferMap(Object.fromEntries(entries))
+    } catch (err) {
+      console.error('[DispatchBoard] openOfferPanel error:', err)
+    } finally {
+      setLoadingOffers(false)
+    }
+  }
+
+  const closeOfferPanel = () => {
+    setOfferPanelDriverId(null)
+    setAvailableLoads([])
+    setOfferMap({})
+    setDismissedLoadIds(new Set())
+    setDeclineReasonMap({})
+    setDeclineOpenId(null)
+    setAssignError(null)
+    setLoadingOffers(false)
+  }
+
+  const handleAssign = async (driverId: number, al: AvailableLoad) => {
+    setAssigningLoadId(al.load_id_pk)
+    setAssignError(null)
+    try {
+      const offerId = offerMap[al.load_id_pk]
+      const result  = await window.api.dispatcher.assignLoad({ loadId: al.load_id_pk, driverId })
+      if (!result.ok) {
+        setAssignError(result.error ?? 'Assignment failed.')
+        setAssigningLoadId(null)
+        return
+      }
+      if (offerId != null) {
+        await window.api.loadOffers.updateStatus(offerId, 'accepted')
+      }
+      closeOfferPanel()
+    } catch (err) {
+      setAssignError(String(err))
+      setAssigningLoadId(null)
+    }
+  }
+
+  const handleDecline = async (al: AvailableLoad) => {
+    const reason  = declineReasonMap[al.load_id_pk] ?? ''
+    const offerId = offerMap[al.load_id_pk]
+    if (offerId != null) {
+      await window.api.loadOffers.updateStatus(offerId, 'declined', reason || undefined)
+    }
+    setDismissedLoadIds(prev => new Set([...prev, al.load_id_pk]))
+    setDeclineOpenId(null)
+  }
+
+  /** Manual no_response: dispatcher marks the offer without waiting for the 2-hour sweep. */
+  const handleMarkNoResponse = async (al: AvailableLoad) => {
+    const offerId = offerMap[al.load_id_pk]
+    if (offerId != null) {
+      await window.api.loadOffers.updateStatus(offerId, 'no_response')
+    }
+    setDismissedLoadIds(prev => new Set([...prev, al.load_id_pk]))
+    setDeclineOpenId(null)
+  }
+
   if (loading) return (
     <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
       {Array.from({length:8}).map((_,i)=><div key={i} className='h-36 rounded-xl bg-surface-700 animate-pulse'/>)}
@@ -278,85 +372,216 @@ function DispatchBoard({ drivers, loads, loading, onLoadClick }: BoardProps) {
   const loadByDriver: Record<number, Load> = {}
   activeLoads.forEach(l => { if (l.driver_id != null) loadByDriver[l.driver_id] = l })
 
+  // Offer panel — shown as a full-width panel below the grid when a driver is selected
+  const offerPanelDriver = offerPanelDriverId != null
+    ? drivers.find(d => d.id === offerPanelDriverId) ?? null
+    : null
+  const visibleOfferLoads = availableLoads.filter(al => !dismissedLoadIds.has(al.load_id_pk))
+
   return (
-    <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
-      {drivers.map(d => {
-        const currentLoad = loadByDriver[d.id]
-        const needsLoad = d.status === 'Active' && !currentLoad
-        const rpm = currentLoad?.rate != null && currentLoad?.miles != null && currentLoad.miles > 0
-          ? currentLoad.rate / currentLoad.miles : null
-        const rpmOk = rpm == null || d.min_rpm == null || rpm >= d.min_rpm
+    <div className='space-y-4'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+        {drivers.map(d => {
+          const currentLoad = loadByDriver[d.id]
+          const needsLoad = d.status === 'Active' && !currentLoad
+          const rpm = currentLoad?.rate != null && currentLoad?.miles != null && currentLoad.miles > 0
+            ? currentLoad.rate / currentLoad.miles : null
+          const rpmOk = rpm == null || d.min_rpm == null || rpm >= d.min_rpm
 
-        const hrs = currentLoad ? hoursSinceUpdate(currentLoad) : null
-        const isInTransit = currentLoad?.status === 'In Transit'
-        const checkCallOverdue = isInTransit && hrs != null && hrs >= 4
-        const checkCallWarning = isInTransit && hrs != null && hrs >= 2 && hrs < 4
+          const hrs = currentLoad ? hoursSinceUpdate(currentLoad) : null
+          const isInTransit = currentLoad?.status === 'In Transit'
+          const checkCallOverdue = isInTransit && hrs != null && hrs >= 4
+          const checkCallWarning = isInTransit && hrs != null && hrs >= 2 && hrs < 4
+          const isPanelOpen = offerPanelDriverId === d.id
 
-        return (
-          <div key={d.id} className={[
-            'rounded-xl border p-4 transition-all',
-            d.status === 'Inactive' ? 'bg-surface-800 border-surface-600 opacity-50' :
-            needsLoad ? 'bg-orange-950/30 border-orange-700/40 shadow-card hover:border-orange-600/60' :
-            checkCallOverdue ? 'bg-red-950/20 border-red-700/40 shadow-card hover:border-red-600/60' :
-            'bg-surface-700 border-surface-400 shadow-card hover:shadow-card-hover',
-          ].join(' ')}>
-            {/* Driver header */}
-            <div className='flex items-start justify-between mb-3'>
-              <div className='flex-1 min-w-0'>
-                <p className='text-sm font-semibold text-gray-200 truncate'>{d.name}</p>
-                {d.company&&<p className='text-2xs text-gray-600 truncate'>{d.company}</p>}
+          return (
+            <div key={d.id} className={[
+              'rounded-xl border p-4 transition-all',
+              d.status === 'Inactive' ? 'bg-surface-800 border-surface-600 opacity-50' :
+              isPanelOpen ? 'bg-surface-700 border-orange-600/60 shadow-card' :
+              needsLoad ? 'bg-orange-950/30 border-orange-700/40 shadow-card hover:border-orange-600/60' :
+              checkCallOverdue ? 'bg-red-950/20 border-red-700/40 shadow-card hover:border-red-600/60' :
+              'bg-surface-700 border-surface-400 shadow-card hover:shadow-card-hover',
+            ].join(' ')}>
+              {/* Driver header */}
+              <div className='flex items-start justify-between mb-3'>
+                <div className='flex-1 min-w-0'>
+                  <p className='text-sm font-semibold text-gray-200 truncate'>{d.name}</p>
+                  {d.company&&<p className='text-2xs text-gray-600 truncate'>{d.company}</p>}
+                </div>
+                <span className={`text-2xs px-2 py-0.5 rounded-full border ml-2 shrink-0 ${DRIVER_STATUS_STYLES[d.status]}`}>{d.status}</span>
               </div>
-              <span className={`text-2xs px-2 py-0.5 rounded-full border ml-2 shrink-0 ${DRIVER_STATUS_STYLES[d.status]}`}>{d.status}</span>
-            </div>
-            {/* Equipment */}
-            <div className='flex items-center gap-2 mb-3'>
-              {d.truck_type&&<span className='text-2xs px-1.5 py-0.5 rounded bg-surface-600 text-gray-500'>{d.truck_type}</span>}
-              {d.trailer_type&&<span className='text-2xs px-1.5 py-0.5 rounded bg-surface-600 text-gray-500'>{d.trailer_type}</span>}
-            </div>
-            {d.home_base&&<p className='text-2xs text-gray-600 mb-3'>📍 {d.home_base}</p>}
-            {/* Load status */}
-            {needsLoad ? (
-              <div className='flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-orange-900/30 border border-orange-700/30'>
-                <div className='w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0'/>
-                <span className='text-2xs text-orange-400 font-medium'>Needs Load</span>
-                {d.min_rpm!=null&&<span className='text-2xs text-orange-600 ml-auto'>Min ${d.min_rpm.toFixed(2)}</span>}
+              {/* Equipment */}
+              <div className='flex items-center gap-2 mb-3'>
+                {d.truck_type&&<span className='text-2xs px-1.5 py-0.5 rounded bg-surface-600 text-gray-500'>{d.truck_type}</span>}
+                {d.trailer_type&&<span className='text-2xs px-1.5 py-0.5 rounded bg-surface-600 text-gray-500'>{d.trailer_type}</span>}
               </div>
-            ) : currentLoad ? (
-              <button onClick={()=>onLoadClick(currentLoad)} className='w-full text-left'>
-                <div className={`px-2 py-1.5 rounded-lg border ${LOAD_STATUS_STYLES[currentLoad.status]}`}>
-                  <div className='flex items-center justify-between mb-1'>
-                    <span className='text-2xs font-medium'>{currentLoad.status}</span>
-                    {rpm!=null&&<span className={`text-2xs font-mono font-semibold ${rpmOk?'text-green-400':'text-red-400'}`}>${rpm.toFixed(2)}/mi</span>}
+              {d.home_base&&<p className='text-2xs text-gray-600 mb-3'>{d.home_base}</p>}
+              {/* Load status */}
+              {needsLoad ? (
+                <div className='space-y-2'>
+                  <div className='flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-orange-900/30 border border-orange-700/30'>
+                    <div className='w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0'/>
+                    <span className='text-2xs text-orange-400 font-medium'>Needs Load</span>
+                    {d.min_rpm!=null&&<span className='text-2xs text-orange-600 ml-auto'>Min ${d.min_rpm.toFixed(2)}</span>}
                   </div>
-                  <p className='text-2xs text-current opacity-80 truncate'>
-                    {[currentLoad.origin_city,currentLoad.origin_state].filter(Boolean).join(', ')||'?'} → {[currentLoad.dest_city,currentLoad.dest_state].filter(Boolean).join(', ')||'?'}
-                  </p>
-                  {currentLoad.pickup_date&&<p className='text-2xs opacity-60 mt-0.5'>Pickup: {currentLoad.pickup_date}</p>}
-                  {/* Check-call countdown for In Transit loads */}
-                  {isInTransit && hrs != null && (
-                    <div className={`flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-2xs font-medium ${
-                      checkCallOverdue  ? 'bg-red-900/40 text-red-300 border border-red-700/40' :
-                      checkCallWarning  ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-700/30' :
-                                          'bg-surface-600/40 text-gray-500'
-                    }`}>
-                      <Bell size={9} className='shrink-0' />
-                      <span className='ml-0.5'>{
-                        checkCallOverdue
-                          ? `Check call overdue — ${Math.floor(hrs)}h since update`
-                          : checkCallWarning
-                          ? `Check call due soon — ${Math.floor(hrs)}h since update`
-                          : `Updated ${Math.floor(hrs)}h ago`
-                      }</span>
-                    </div>
+                  {!isPanelOpen && (
+                    <button
+                      disabled={loadingOffers}
+                      onClick={() => openOfferPanel(d.id)}
+                      className='w-full flex items-center justify-center gap-1.5 h-7 text-2xs font-medium text-gray-300 bg-surface-600 hover:bg-surface-500 border border-surface-400 hover:border-surface-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                    >
+                      <Search size={11} />
+                      {loadingOffers ? 'Loading...' : 'Find Load'}
+                    </button>
+                  )}
+                  {isPanelOpen && (
+                    <button
+                      onClick={closeOfferPanel}
+                      className='w-full flex items-center justify-center gap-1.5 h-7 text-2xs font-medium text-orange-400 bg-orange-900/20 hover:bg-orange-900/30 border border-orange-700/40 rounded-lg transition-colors'
+                    >
+                      Close
+                    </button>
                   )}
                 </div>
-              </button>
-            ) : d.status === 'Inactive' ? (
-              <p className='text-2xs text-gray-700 italic'>Inactive</p>
-            ) : null}
+              ) : currentLoad ? (
+                <button onClick={()=>onLoadClick(currentLoad)} className='w-full text-left'>
+                  <div className={`px-2 py-1.5 rounded-lg border ${LOAD_STATUS_STYLES[currentLoad.status]}`}>
+                    <div className='flex items-center justify-between mb-1'>
+                      <span className='text-2xs font-medium'>{currentLoad.status}</span>
+                      {rpm!=null&&<span className={`text-2xs font-mono font-semibold ${rpmOk?'text-green-400':'text-red-400'}`}>${rpm.toFixed(2)}/mi</span>}
+                    </div>
+                    <p className='text-2xs text-current opacity-80 truncate'>
+                      {[currentLoad.origin_city,currentLoad.origin_state].filter(Boolean).join(', ')||'?'} → {[currentLoad.dest_city,currentLoad.dest_state].filter(Boolean).join(', ')||'?'}
+                    </p>
+                    {currentLoad.pickup_date&&<p className='text-2xs opacity-60 mt-0.5'>Pickup: {currentLoad.pickup_date}</p>}
+                    {/* Check-call countdown for In Transit loads */}
+                    {isInTransit && hrs != null && (
+                      <div className={`flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-2xs font-medium ${
+                        checkCallOverdue  ? 'bg-red-900/40 text-red-300 border border-red-700/40' :
+                        checkCallWarning  ? 'bg-yellow-900/30 text-yellow-300 border border-yellow-700/30' :
+                                            'bg-surface-600/40 text-gray-500'
+                      }`}>
+                        <Bell size={9} className='shrink-0' />
+                        <span className='ml-0.5'>{
+                          checkCallOverdue
+                            ? `Check call overdue — ${Math.floor(hrs)}h since update`
+                            : checkCallWarning
+                            ? `Check call due soon — ${Math.floor(hrs)}h since update`
+                            : `Updated ${Math.floor(hrs)}h ago`
+                        }</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ) : d.status === 'Inactive' ? (
+                <p className='text-2xs text-gray-700 italic'>Inactive</p>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Offer Panel — rendered below the grid for the selected driver */}
+      {offerPanelDriver && (
+        <div className='rounded-xl border border-orange-700/40 bg-surface-800 p-4 space-y-3'>
+          <div className='flex items-center justify-between'>
+            <p className='text-sm font-semibold text-gray-200'>
+              Available Loads for {offerPanelDriver.name}
+            </p>
+            <button onClick={closeOfferPanel} className='text-2xs text-gray-500 hover:text-gray-300 transition-colors'>
+              Close
+            </button>
           </div>
-        )
-      })}
+          {assignError && (
+            <p className='text-2xs text-red-400 bg-red-900/20 border border-red-700/30 rounded-lg px-3 py-2'>{assignError}</p>
+          )}
+          {availableLoads.length === 0 ? (
+            <p className='text-sm text-gray-500 py-4 text-center'>No available loads right now. Add a Searching load to the board first.</p>
+          ) : visibleOfferLoads.length === 0 ? (
+            <p className='text-sm text-gray-500 py-4 text-center'>All available loads have been reviewed for this driver.</p>
+          ) : (
+            <div className='space-y-2'>
+              {visibleOfferLoads.map(al => {
+                const routeFrom = [al.origin_city, al.origin_state].filter(Boolean).join(', ') || '?'
+                const routeTo   = [al.dest_city,   al.dest_state  ].filter(Boolean).join(', ') || '?'
+                const rpm       = al.rate != null && al.miles != null && al.miles > 0
+                  ? (al.rate / al.miles).toFixed(2) : null
+                const isAssigning = assigningLoadId === al.load_id_pk
+                const isDeclineOpen = declineOpenId === al.load_id_pk
+
+                return (
+                  <div key={al.load_id_pk} className='flex flex-col gap-2 rounded-lg border border-surface-500 bg-surface-700 p-3'>
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='flex-1 min-w-0'>
+                        <p className='text-xs font-medium text-gray-200 truncate'>
+                          {routeFrom} &rarr; {routeTo}
+                        </p>
+                        <div className='flex items-center gap-2 mt-0.5 flex-wrap'>
+                          {al.pickup_date && <span className='text-2xs text-gray-500'>Pickup: {al.pickup_date}</span>}
+                          {al.miles != null && <span className='text-2xs text-gray-500'>{al.miles} mi</span>}
+                          {al.rate  != null && <span className='text-2xs text-green-400 font-mono'>${al.rate.toLocaleString()}</span>}
+                          {rpm      != null && <span className='text-2xs text-gray-600 font-mono'>${rpm}/mi</span>}
+                          {al.broker_name && <span className='text-2xs text-gray-600 truncate'>{al.broker_name}</span>}
+                        </div>
+                      </div>
+                      <div className='flex items-center gap-1.5 shrink-0'>
+                        <button
+                          disabled={isAssigning}
+                          onClick={() => handleAssign(offerPanelDriver.id, al)}
+                          className='flex items-center gap-1 h-7 px-2.5 text-2xs font-medium text-green-300 bg-green-900/30 hover:bg-green-900/50 border border-green-700/40 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                        >
+                          <Check size={11} />
+                          {isAssigning ? 'Assigning...' : 'Assign'}
+                        </button>
+                        <button
+                          disabled={isAssigning}
+                          onClick={() => setDeclineOpenId(isDeclineOpen ? null : al.load_id_pk)}
+                          className='flex items-center gap-1 h-7 px-2.5 text-2xs font-medium text-gray-400 hover:text-gray-200 bg-surface-600 hover:bg-surface-500 border border-surface-400 rounded-lg transition-colors disabled:opacity-50'
+                        >
+                          <XCircle size={11} />
+                          Skip
+                        </button>
+                        {/* Manual no_response — lets dispatcher resolve the offer without waiting 2 hours */}
+                        <button
+                          disabled={isAssigning}
+                          onClick={() => handleMarkNoResponse(al)}
+                          title='Mark as no response — driver did not respond to this offer'
+                          className='flex items-center gap-1 h-7 px-2 text-2xs font-medium text-gray-500 hover:text-gray-300 bg-surface-600 hover:bg-surface-500 border border-surface-400 rounded-lg transition-colors disabled:opacity-50'
+                        >
+                          <Clock size={11} />
+                          N/R
+                        </button>
+                      </div>
+                    </div>
+                    {/* Decline reason dropdown */}
+                    {isDeclineOpen && (
+                      <div className='flex items-center gap-2 pt-1 border-t border-surface-600'>
+                        <select
+                          value={declineReasonMap[al.load_id_pk] ?? ''}
+                          onChange={e => setDeclineReasonMap(prev => ({ ...prev, [al.load_id_pk]: e.target.value }))}
+                          className='flex-1 h-7 text-2xs bg-surface-600 border border-surface-400 text-gray-300 rounded-lg px-2 focus:outline-none focus:border-orange-500'
+                        >
+                          <option value=''>Select reason...</option>
+                          {LOAD_OFFER_DECLINE_REASONS.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleDecline(al)}
+                          className='h-7 px-3 text-2xs font-medium text-orange-300 bg-orange-900/30 hover:bg-orange-900/50 border border-orange-700/40 rounded-lg transition-colors'
+                        >
+                          Confirm Skip
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
