@@ -15,6 +15,7 @@ export interface OperationsData {
   overdueLeads:          number   // Leads with follow_up_date <= today, not Signed/Rejected
   todaysGroupCount:      number   // Marketing groups eligible to post in today
   outstandingInvoices:   number   // Draft, Sent, or Overdue invoices
+  overdueInvoices:       number   // Overdue invoices only (past payment terms)
   revenueThisMonth:      number   // Sum of dispatch_fee from Paid invoices this calendar month
   uninvoicedDelivered:   number   // Delivered loads with no invoice yet
 
@@ -92,6 +93,10 @@ export function getOperationsData(db: Database.Database): OperationsData {
 
   const outstandingInvoices = (db.prepare(
     "SELECT COUNT(*) AS c FROM invoices WHERE status IN ('Draft','Sent','Overdue')"
+  ).get() as { c: number }).c
+
+  const overdueInvoices = (db.prepare(
+    "SELECT COUNT(*) AS c FROM invoices WHERE status = 'Overdue'"
   ).get() as { c: number }).c
 
   const revenueThisMonth = ((db.prepare(
@@ -261,6 +266,7 @@ export function getOperationsData(db: Database.Database): OperationsData {
     overdueLeads,
     todaysGroupCount,
     outstandingInvoices,
+    overdueInvoices,
     revenueThisMonth,
     uninvoicedDelivered,
     staleLoads,

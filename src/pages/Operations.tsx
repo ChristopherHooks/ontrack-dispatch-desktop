@@ -4,7 +4,6 @@ import {
   Zap, AlertTriangle, Truck, Users, Megaphone,
   FileText, ChevronRight, ChevronDown, Clock, ArrowRight, X,
   CheckSquare, TrendingUp, Package, Star, Phone, Target, MapPin,
-  CheckCircle2, Circle, Receipt,
 } from 'lucide-react'
 import { renderMd } from '../lib/renderMd'
 import { computeLeadScore } from '../lib/leadScore'
@@ -13,6 +12,9 @@ import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import { LaunchSprintPanel } from '../components/operations/LaunchSprintPanel'
 import { MorningDispatchBrief } from '../components/operations/MorningDispatchBrief'
+import { DailyWorkflowPanel } from '../components/operations/DailyWorkflowPanel'
+import { computeDailyWorkflow } from '../lib/dailyWorkflowEngine'
+import type { DailyWorkflowTask } from '../lib/dailyWorkflowEngine'
 import { useSettingsStore } from '../store/settingsStore'
 import { badge as badgeTokens } from '../styles/uiTokens'
 import type {
@@ -43,7 +45,7 @@ interface NextAction {
 
 const EMPTY: OperationsData = {
   driversNeedingLoads: 0, loadsInTransit: 0,
-  overdueLeads: 0, todaysGroupCount: 0, outstandingInvoices: 0,
+  overdueLeads: 0, todaysGroupCount: 0, outstandingInvoices: 0, overdueInvoices: 0,
   revenueThisMonth: 0, uninvoicedDelivered: 0, staleLoads: [], expiringDocs: [],
   warmLeads: [], availableDrivers: [], hotProspects: [], todayTasks: [], completedToday: [],
   totalDrivers: 0, totalBrokers: 0, totalLeads: 0, hasSentOrPaidInvoice: false,
@@ -74,6 +76,7 @@ export function Operations() {
   const [compliance,      setCompliance]      = useState<DriverComplianceRow[]>([])
   const [morningBrief,    setMorningBrief]    = useState<MorningDispatchBriefRow[]>([])
   const [briefLoading,    setBriefLoading]    = useState(true)
+  const [workflowDone,    setWorkflowDone]    = useState<Set<string>>(new Set())
   const navigate         = useNavigate()
   const companyName      = useSettingsStore((s) => s.companyName)
   const firstLaunchDate  = useSettingsStore((s) => s.firstLaunchDate)
@@ -138,6 +141,35 @@ export function Operations() {
 
   const todayIso = new Date().toISOString().split('T')[0]
   const today    = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+  // ── Daily Workflow — computed from live operational data ───────────────────
+  const overdueCheckCalls = checkCalls.filter(c =>
+    c.scheduled_at && c.scheduled_at < new Date().toISOString()
+  ).length
+
+  const workflowTasks: DailyWorkflowTask[] = (!loading && !briefLoading)
+    ? computeDailyWorkflow(
+        {
+          driversNeedingLoads: ops.driversNeedingLoads,
+          loadsInTransit:      ops.loadsInTransit,
+          overdueCheckCalls,
+          totalCheckCalls:     checkCalls.length,
+          overdueLeads:        ops.overdueLeads,
+          uninvoicedDelivered: ops.uninvoicedDelivered,
+          overdueInvoices:     ops.overdueInvoices,
+          expiringDocs:        ops.expiringDocs.length,
+          staleLoads:          ops.staleLoads.length,
+          warmLeads:           ops.warmLeads.length,
+          hotProspects:        ops.hotProspects.length,
+          todaysGroupCount:    ops.todaysGroupCount,
+          morningBriefCount:   morningBrief.length,
+        },
+        workflowDone,
+      )
+    : []
+
+  const handleWorkflowDone   = (id: string) => setWorkflowDone(prev => new Set([...prev, id]))
+  const handleWorkflowUndone = (id: string) => setWorkflowDone(prev => { const next = new Set(prev); next.delete(id); return next })
 
   // ── Dispatch board ─────────────────────────────────────────────────────────
   const activeLoads = loads.filter(l => ['Booked', 'Picked Up', 'In Transit'].includes(l.status))
@@ -242,102 +274,22 @@ export function Operations() {
         loading={loading}
       />
 
-      {/* Morning Briefing — guided daily workflow */}
-      {!loading && (() => {
-        const overdueCheckCalls = checkCalls.filter(c => c.scheduled_at && c.scheduled_at < new Date().toISOString())
-        type BriefRow = { ok: boolean; label: string; detail: string; action: string; route: string; icon: React.ReactNode }
-        const rows: BriefRow[] = [
-          {
-            ok:     ops.driversNeedingLoads === 0,
-            label:  ops.driversNeedingLoads === 0 ? 'All drivers have loads' : `${ops.driversNeedingLoads} driver${ops.driversNeedingLoads !== 1 ? 's' : ''} need${ops.driversNeedingLoads === 1 ? 's' : ''} a load`,
-            detail: ops.driversNeedingLoads === 0 ? 'Nothing to do here.' : 'Find and book loads for available drivers.',
-            action: 'Find Loads',
-            route:  '/findloads',
-            icon:   <Truck size={13} />,
-          },
-          {
-            ok:     overdueCheckCalls.length === 0,
-            label:  overdueCheckCalls.length === 0 ? 'No overdue check calls' : `${overdueCheckCalls.length} check call${overdueCheckCalls.length !== 1 ? 's' : ''} overdue`,
-            detail: overdueCheckCalls.length === 0 ? 'All active drivers checked in.' : overdueCheckCalls.map(c => c.driver_name).join(', '),
-            action: 'Active Loads',
-            route:  '/activeloads',
-            icon:   <Phone size={13} />,
-          },
-          {
-            ok:     ops.overdueLeads === 0,
-            label:  ops.overdueLeads === 0 ? 'No overdue follow-ups' : `${ops.overdueLeads} lead${ops.overdueLeads !== 1 ? 's' : ''} past follow-up date`,
-            detail: ops.overdueLeads === 0 ? 'Lead pipeline is current.' : 'These leads need a call or status update.',
-            action: 'View Leads',
-            route:  '/leads?filter=overdue',
-            icon:   <Users size={13} />,
-          },
-          {
-            ok:     ops.uninvoicedDelivered === 0,
-            label:  ops.uninvoicedDelivered === 0 ? 'All delivered loads invoiced' : `${ops.uninvoicedDelivered} delivered load${ops.uninvoicedDelivered !== 1 ? 's' : ''} not invoiced`,
-            detail: ops.uninvoicedDelivered === 0 ? 'Nothing pending.' : 'Create invoices to get paid faster.',
-            action: 'Invoices',
-            route:  '/invoices',
-            icon:   <Receipt size={13} />,
-          },
-          {
-            ok:     ops.expiringDocs.length === 0,
-            label:  ops.expiringDocs.length === 0 ? 'All compliance documents current' : `${ops.expiringDocs.length} document${ops.expiringDocs.length !== 1 ? 's' : ''} expiring soon`,
-            detail: ops.expiringDocs.length === 0 ? 'CDL, insurance, and medical cards are current.' : ops.expiringDocs.map(d => `${d.driver_name} ${d.doc_type}`).join(', '),
-            action: 'Drivers',
-            route:  '/drivers',
-            icon:   <AlertTriangle size={13} />,
-          },
-          {
-            ok:     ops.staleLoads.length === 0,
-            label:  ops.staleLoads.length === 0 ? 'All loads progressing on schedule' : `${ops.staleLoads.length} load${ops.staleLoads.length !== 1 ? 's' : ''} past expected date`,
-            detail: ops.staleLoads.length === 0 ? 'No loads are stuck past their pickup or delivery dates.' : ops.staleLoads.map(l => `${l.load_id ?? `#${l.id}`} (${l.status}, ${l.days_past}d past)`).join(', '),
-            action: 'Loads',
-            route:  '/loads',
-            icon:   <Clock size={13} />,
-          },
-        ]
-        const allClear = rows.every(r => r.ok)
-        return (
-          <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card overflow-hidden'>
-            <div className='flex items-center justify-between px-5 py-3 border-b border-surface-500/50'>
-              <div className='flex items-center gap-2'>
-                <Zap size={13} className={allClear ? 'text-green-400' : 'text-orange-400'} />
-                <span className='text-sm font-semibold text-gray-100'>Morning Briefing</span>
-              </div>
-              {allClear && <span className='text-xs text-green-400 font-medium'>All clear</span>}
-            </div>
-            <div className='divide-y divide-surface-500/40'>
-              {rows.map((row, i) => (
-                <div key={i} className='flex items-center gap-3 px-5 py-3'>
-                  <div className={`shrink-0 ${row.ok ? 'text-green-500' : 'text-orange-400'}`}>
-                    {row.ok ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-                  </div>
-                  <div className={`shrink-0 ${row.ok ? 'text-gray-600' : 'text-gray-400'}`}>{row.icon}</div>
-                  <div className='flex-1 min-w-0'>
-                    <span className={`text-sm font-medium ${row.ok ? 'text-gray-500' : 'text-gray-200'}`}>{row.label}</span>
-                    <span className='text-xs text-gray-400 ml-2'>{row.detail}</span>
-                  </div>
-                  {!row.ok && (
-                    <button
-                      onClick={() => navigate(row.route)}
-                      className='shrink-0 flex items-center gap-1 px-3 py-1 text-xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
-                    >
-                      {row.action} <ArrowRight size={11} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })()}
+      {/* Daily Workflow — conditional profit-first task list */}
+      <DailyWorkflowPanel
+        tasks={workflowTasks}
+        onMarkDone={handleWorkflowDone}
+        onMarkUndone={handleWorkflowUndone}
+        loading={loading || briefLoading}
+      />
 
       {/* Morning Dispatch Brief — driver-first load planning */}
-      <MorningDispatchBrief
-        rows={morningBrief}
-        loading={briefLoading}
-        onAssigned={refreshMorningBrief}
-      />
+      <div id='morning-dispatch-brief'>
+        <MorningDispatchBrief
+          rows={morningBrief}
+          loading={briefLoading}
+          onAssigned={refreshMorningBrief}
+        />
+      </div>
 
       {/* Briefing strip — 6 KPI cards */}
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>

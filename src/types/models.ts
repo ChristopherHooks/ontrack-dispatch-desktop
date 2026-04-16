@@ -660,6 +660,7 @@ export interface OperationsData {
   overdueLeads:          number
   todaysGroupCount:      number
   outstandingInvoices:   number
+  overdueInvoices:       number
   uninvoicedDelivered:   number
   warmLeads:        Array<{ id: number; name: string; company: string | null; status: string; priority: string; follow_up_date: string | null }>
   availableDrivers: Array<{ id: number; name: string; truck_type: string | null; home_base: string | null; current_location: string | null }>

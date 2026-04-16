@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-15 (Session 32)
+2026-04-15 (Session 33)
 
 ## Current Branch
 
@@ -16,6 +16,30 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 33 — Dynamic Daily Workflow System (complete)
+
+Replaced the static Morning Briefing checklist on the Operations page with a
+conditional, profit-first Daily Workflow panel. No schema changes. All additive.
+
+New file: `src/lib/dailyWorkflowEngine.ts` — `computeDailyWorkflow(input, manuallyDone)`.
+Pure function. 11 tasks, 4 tiers. Each task is `actionable`, `not_applicable`
+(auto-skipped with reason), or `completed` (manually toggled per-session).
+Tasks with no underlying data are skipped automatically with a reason shown.
+
+New file: `src/components/operations/DailyWorkflowPanel.tsx` — renders the workflow.
+Grouped by tier (Revenue Now / Revenue Protection / Pipeline / Admin).
+Actionable: bold + orange badge + action button. Not-applicable: compact gray + reason.
+Completed: green check + strikethrough + click to undo.
+Scroll action: `#scroll:morning-dispatch-brief` scrolls in-page to the brief section.
+
+Backend: `overdueInvoices: number` added to `operations.ts` + `models.ts`
+(single COUNT query: `invoices WHERE status = 'Overdue'`). No new IPC channel needed
+since this field piggybacks on the existing `operations:data` response.
+
+Operations.tsx: static Morning Briefing removed, DailyWorkflowPanel wired in its place.
+MorningDispatchBrief wrapped in `<div id='morning-dispatch-brief'>` for scroll target.
+tsc --noEmit: zero errors.
 
 ### Session 32 — Morning Dispatch Brief (complete)
 
@@ -782,6 +806,21 @@ None. Build is clean.
 5. Driver document expiry push notifications (badge alerts exist, OS push does not)
 6. Real deadhead estimation — Load Match currently uses a placeholder (same city = 10mi, same state = 75mi, cross-state = 250mi); a real API (PC Miler, Google Maps) would improve match quality
 7. Surface broker_id and trailer_type in the UI — migration 017/018 added these columns; InvoiceModal and LoadModal do not yet expose them for editing
+
+---
+
+## Files Touched in Most Recent Session (33)
+
+### New files:
+- `src/lib/dailyWorkflowEngine.ts`
+- `src/components/operations/DailyWorkflowPanel.tsx`
+
+### Modified:
+- `electron/main/operations.ts` — added `overdueInvoices` count query + return field
+- `src/types/models.ts` — added `overdueInvoices: number` to `OperationsData`
+- `src/pages/Operations.tsx` — DailyWorkflowPanel replaces Morning Briefing; workflow state; scroll target wrapper; EMPTY constant; cleaned imports
+- `docs/HANDOFF.md` — session 33 entry
+- `docs/SESSION_LOG.md` — session 33 entry
 
 ---
 

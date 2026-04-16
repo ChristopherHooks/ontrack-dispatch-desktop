@@ -1,5 +1,57 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-15 — Session 33: Dynamic Daily Workflow System
+
+### Work Completed
+
+Replaced the static Morning Briefing checklist on the Operations page with a
+conditional, profit-first Daily Workflow panel. All changes additive — no schema
+changes, no new IPC channels beyond a single count field.
+
+**src/lib/dailyWorkflowEngine.ts (new)**
+- Pure function `computeDailyWorkflow(input, manuallyDone)` → `DailyWorkflowTask[]`.
+- 11 tasks across 4 tiers: revenue_now, revenue_protection, pipeline, admin.
+- Each task is either `actionable` (count > 0), `not_applicable` (auto-skipped with
+  a reason string), or `completed` (manually toggled by the dispatcher).
+- Profit-first ordering: book loads → check calls → invoice → AR → compliance →
+  lead follow-up → driver prospects → warm leads → stale cleanup → marketing.
+- Tasks that have no underlying data skip automatically. No checklist theater.
+
+**src/components/operations/DailyWorkflowPanel.tsx (new)**
+- Renders task groups by category with tier labels (Revenue Now, Revenue Protection,
+  Pipeline, Admin).
+- Actionable tasks: bold title, orange count badge, always-visible action button,
+  manual mark-done checkbox.
+- Not-applicable tasks: compact gray row with reason text — visible but non-intrusive.
+- Completed tasks: green checkmark, strikethrough title, click to undo.
+- Scroll action support: `#scroll:morning-dispatch-brief` scrolls to the
+  MorningDispatchBrief section without page navigation.
+
+**electron/main/operations.ts**
+- Added `overdueInvoices: number` count (invoices WHERE status = 'Overdue').
+- Added to `OperationsData` interface and return object.
+
+**src/types/models.ts**
+- Added `overdueInvoices: number` to `OperationsData` interface.
+
+**src/pages/Operations.tsx**
+- Removed static Morning Briefing (6-row checklist) — superseded by Daily Workflow.
+- Added `workflowDone: Set<string>` state for per-session manual completions.
+- Computed `overdueCheckCalls` from existing `checkCalls` state.
+- Calls `computeDailyWorkflow()` with all current operational data + manuallyDone set.
+- Wrapped `<MorningDispatchBrief>` in `<div id='morning-dispatch-brief'>` for scroll target.
+- Added imports: DailyWorkflowPanel, computeDailyWorkflow, DailyWorkflowTask.
+- Removed unused lucide-react imports (CheckCircle2, Circle, Receipt).
+- EMPTY constant updated with `overdueInvoices: 0`.
+
+### No-change list
+- No new IPC channels, no preload changes.
+- No schema migrations.
+- No changes to MorningDispatchBrief, Profit Radar, KPI strip, or any other page.
+- tsc --noEmit passes with zero errors.
+
+---
+
 ## 2026-04-15 — Session 32: Morning Dispatch Brief
 
 ### Work Completed
