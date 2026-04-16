@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer, TrendingUp } from 'lucide-react'
-import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument, LoadOfferStats } from '../../types/models'
+import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument, LoadOfferStats, DriverWeeklyScorecard } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
 import { openSaferMc } from '../../lib/saferUrl'
@@ -73,6 +73,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [apprForm,setApprForm]               = useState<{ broker_id:string; status:'Submitted'|'Approved'|'Denied'; notes:string; submitted_at:string; approved_at:string }>({ broker_id:'', status:'Submitted', notes:'', submitted_at:'', approved_at:'' })
   const [sopDocs,setSopDocs]                 = useState<SopDocument[]>([])
   const [offerStats,setOfferStats]           = useState<LoadOfferStats | null>(null)
+  const [weeklyCard,setWeeklyCard]           = useState<DriverWeeklyScorecard | null>(null)
 
   useEffect(() => {
     // Sync whenever we switch to a different driver OR the saved value changes
@@ -117,6 +118,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
         setAllBrokers((brkrs as { id:number; name:string }[]).map(b => ({ id:b.id, name:b.name })))
         window.api.documents.list().then(setSopDocs).catch(() => {})
         window.api.loadOffers.getDriverStats(driver.id).then(setOfferStats).catch(() => {})
+        window.api.drivers.weeklyScorecard(driver.id).then(setWeeklyCard).catch(() => {})
       }).catch(err => {
         console.error('DriverDrawer: data fetch error', err)
         // Fall back to core data only (works even when app window hasn't been fully reloaded)
@@ -332,6 +334,75 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
               </p>
             </div>
           )}
+          {/* This Week Scorecard */}
+          {weeklyCard != null && (
+            <div className='mx-5 mt-4 rounded-xl border border-surface-500 bg-surface-700 p-3'>
+              <div className='flex items-center gap-2 mb-2.5'>
+                <TrendingUp size={11} className='text-orange-400' />
+                <p className='text-xs font-semibold text-gray-300 uppercase tracking-wider'>This Week</p>
+                {weeklyCard.loads_trend_delta != null && weeklyCard.loads_trend_delta !== 0 && (
+                  <span className={`text-2xs font-medium ml-auto ${weeklyCard.loads_trend_delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {weeklyCard.loads_trend_delta > 0 ? '+' : ''}{weeklyCard.loads_trend_delta} vs last wk
+                  </span>
+                )}
+              </div>
+              <div className='grid grid-cols-3 gap-x-3 gap-y-2.5'>
+                <div>
+                  <p className='text-2xs text-gray-500'>Loads</p>
+                  <p className='text-sm font-semibold text-gray-200 mt-0.5'>{weeklyCard.loads_booked}</p>
+                </div>
+                <div>
+                  <p className='text-2xs text-gray-500'>Gross</p>
+                  <p className='text-sm font-mono text-gray-300 mt-0.5'>
+                    {weeklyCard.gross_revenue > 0 ? `$${weeklyCard.gross_revenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-2xs text-gray-500'>Disp. Cut</p>
+                  <p className={`text-sm font-mono font-semibold mt-0.5 ${weeklyCard.dispatcher_revenue > 0 ? 'text-green-400' : 'text-gray-600'}`}>
+                    {weeklyCard.dispatcher_revenue > 0
+                      ? `$${weeklyCard.dispatcher_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : '—'}
+                    {weeklyCard.revenue_trend_pct != null && (
+                      <span className={`text-2xs font-normal ml-1 ${weeklyCard.revenue_trend_pct >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                        {weeklyCard.revenue_trend_pct >= 0 ? '+' : ''}{weeklyCard.revenue_trend_pct}%
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {weeklyCard.avg_rpm != null && (
+                  <div>
+                    <p className='text-2xs text-gray-500'>Avg RPM</p>
+                    <p className={`text-sm font-mono font-semibold mt-0.5 ${weeklyCard.avg_rpm >= 3 ? 'text-green-400' : weeklyCard.avg_rpm >= 2.5 ? 'text-orange-400' : 'text-red-400'}`}>
+                      ${weeklyCard.avg_rpm.toFixed(2)}
+                    </p>
+                  </div>
+                )}
+                {(weeklyCard.accepted_count + weeklyCard.declined_count + weeklyCard.no_response_count) > 0 && (
+                  <div>
+                    <p className='text-2xs text-gray-500'>Acc. Rate</p>
+                    <p className={`text-sm font-mono font-semibold mt-0.5 ${
+                      weeklyCard.acceptance_rate >= 70 ? 'text-green-400' :
+                      weeklyCard.acceptance_rate >= 40 ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {weeklyCard.acceptance_rate.toFixed(1)}%
+                    </p>
+                  </div>
+                )}
+                {weeklyCard.avg_response_minutes != null && (
+                  <div>
+                    <p className='text-2xs text-gray-500'>Avg Resp</p>
+                    <p className='text-sm text-gray-300 mt-0.5'>
+                      {weeklyCard.avg_response_minutes < 60
+                        ? `${weeklyCard.avg_response_minutes.toFixed(0)}m`
+                        : `${(weeklyCard.avg_response_minutes / 60).toFixed(1)}h`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Carrier Setup Checklist */}
           {(() => {
             const done = DRIVER_SETUP_ITEMS.filter(s => setupChecks[s.id]).length

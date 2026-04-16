@@ -12,12 +12,13 @@ import { openSaferMc, openSaferDot } from '../lib/saferUrl'
 import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import { LaunchSprintPanel } from '../components/operations/LaunchSprintPanel'
+import { MorningDispatchBrief } from '../components/operations/MorningDispatchBrief'
 import { useSettingsStore } from '../store/settingsStore'
 import { badge as badgeTokens } from '../styles/uiTokens'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
   OperationsData, DriverOpportunity, GroupPerformance, BrokerLane, ProfitRadarData,
-  DriverComplianceRow,
+  DriverComplianceRow, MorningDispatchBriefRow,
 } from '../types/models'
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,8 @@ export function Operations() {
   const [editingGoal,     setEditingGoal]     = useState(false)
   const [goalInput,       setGoalInput]       = useState('')
   const [compliance,      setCompliance]      = useState<DriverComplianceRow[]>([])
+  const [morningBrief,    setMorningBrief]    = useState<MorningDispatchBriefRow[]>([])
+  const [briefLoading,    setBriefLoading]    = useState(true)
   const navigate         = useNavigate()
   const companyName      = useSettingsStore((s) => s.companyName)
   const firstLaunchDate  = useSettingsStore((s) => s.firstLaunchDate)
@@ -110,7 +113,19 @@ export function Operations() {
     window.api.drivers.compliance()
       .then((rows: DriverComplianceRow[]) => setCompliance(rows))
       .catch(() => {})
+
+    // Morning Dispatch Brief — fires independently, does not block main data render
+    window.api.operations.morningBrief()
+      .then((rows: MorningDispatchBriefRow[]) => { setMorningBrief(rows); setBriefLoading(false) })
+      .catch(() => setBriefLoading(false))
   }, [])
+
+  const refreshMorningBrief = () => {
+    setBriefLoading(true)
+    window.api.operations.morningBrief()
+      .then((rows: MorningDispatchBriefRow[]) => { setMorningBrief(rows); setBriefLoading(false) })
+      .catch(() => setBriefLoading(false))
+  }
 
   const saveGoal = async () => {
     const val = parseFloat(goalInput.replace(/[^0-9.]/g, ''))
@@ -316,6 +331,13 @@ export function Operations() {
           </div>
         )
       })()}
+
+      {/* Morning Dispatch Brief — driver-first load planning */}
+      <MorningDispatchBrief
+        rows={morningBrief}
+        loading={briefLoading}
+        onAssigned={refreshMorningBrief}
+      />
 
       {/* Briefing strip — 6 KPI cards */}
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>

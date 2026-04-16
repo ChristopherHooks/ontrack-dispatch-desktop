@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-15 (Session 30)
+2026-04-15 (Session 32)
 
 ## Current Branch
 
@@ -16,6 +16,47 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 32 — Morning Dispatch Brief (complete)
+
+Driver-first morning planning section on the Operations page. No schema changes. All additive.
+
+New service: `electron/main/morningDispatchBrief.ts` — `getMorningDispatchBrief(db)`.
+Reuses `getRecommendations` (loadScanner) unchanged, trims to top 3, enriches with
+driver current_location/min_rpm and scorecard behavior data.
+
+New component: `src/components/operations/MorningDispatchBrief.tsx` — collapsible
+driver cards with top-3 load suggestions, RPM/deadhead/score visual cues, Assign button.
+
+IPC: `operations:morningBrief`. Preload: `window.api.operations.morningBrief()`.
+Type: `MorningDispatchBriefRow` added to models.ts and global.d.ts.
+
+Operations page: section appears between Morning Briefing checklist and KPI strip.
+Fetch fires independently (non-blocking).
+
+load_offers integration: SuggestionRow creates an offer via `loadOffers.create`
+on mount (find-or-create, safe against re-render). Assign calls `dispatcher.assignLoad`
+then `loadOffers.updateStatus(offerId, 'accepted')`. Skip (X button) calls
+`loadOffers.updateStatus(offerId, 'declined')` and hides the row.
+Mirrors canonical Loads.tsx offer workflow exactly. No new IPC or schema.
+
+### Session 31 — Per-Driver Weekly Scorecard System (complete)
+
+Full per-driver weekly scorecard. No schema changes. All additive.
+
+New file: `electron/main/repositories/driverPerformanceRepo.ts` — two functions:
+`getDriverWeeklyScorecard(db, driverId)` (single driver, includes trend) and
+`getAllDriversWeeklyScorecards(db)` (all non-inactive drivers, no trend). Revenue
+from dispatch-mode loads with pickup_date in Mon–Sun window. Offer stats from
+load_offers with offered_at in same window. Same hardened acceptance_rate logic
+as Session 29/30 (resolved-only denominator).
+
+IPC: `drivers:weeklyScorecard` and `drivers:allWeeklyScorecards`.
+Preload: `window.api.drivers.weeklyScorecard(id)` and `window.api.drivers.allWeeklyScorecards()`.
+
+Reports page: new "Driver Performance — This Week" section — sortable table.
+DriverDrawer: new "This Week" compact panel (loads, gross, disp. cut, RPM, acceptance,
+response time) inserted after Current Load block.
 
 ### Session 30 — Load Offer Tracking: Data Integrity Hardening (complete)
 

@@ -1,5 +1,115 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-15 — Session 32: Morning Dispatch Brief
+
+### Work Completed
+
+Additive feature: Morning Dispatch Brief section on the Operations page.
+No schema changes. No rewrites of existing systems. All additive.
+
+**electron/main/morningDispatchBrief.ts (new)**
+- `getMorningDispatchBrief(db)`: assembles driver-first morning planning data.
+  Uses `getRecommendations` (loadScanner, unchanged) for eligible drivers + top 5 loads.
+  Trims to top 3 per driver. Enriches with current_location + min_rpm via a direct
+  driver query, and acceptance_rate / avg_response_minutes / dispatcher_revenue via
+  `getAllDriversWeeklyScorecards` (driverPerformanceRepo, unchanged).
+  Sort: has suggestions first -> best top score desc -> no-suggestion rows last.
+
+**src/types/models.ts**
+- Added `MorningDispatchBriefRow` interface with driver context fields and suggestions array.
+
+**electron/main/ipcHandlers.ts**
+- Added `operations:morningBrief` handler.
+
+**electron/preload/index.ts**
+- Added `morningBrief()` to the `operations` namespace.
+
+**src/types/global.d.ts**
+- Imported `MorningDispatchBriefRow`.
+- Added `morningBrief: () => Promise<MorningDispatchBriefRow[]>` to operations API type.
+
+**src/components/operations/MorningDispatchBrief.tsx (new)**
+- Section header with driver count.
+- DriverCard per eligible driver: name, location, min RPM, acceptance rate,
+  avg response time, weekly dispatcher revenue.
+- SuggestionRow per top-3 load: score indicator, lane (origin -> dest), RPM,
+  deadhead (orange if > 200 mi), gross rate, broker, pickup date, Assign button.
+- Assign calls `window.api.dispatcher.assignLoad({ loadId, driverId })` and marks
+  row as assigned on success. Refresh callback fires to re-pull the brief.
+- Empty states for: no eligible drivers, eligible driver but no suggestions.
+
+**src/pages/Operations.tsx**
+- Added `morningBrief` and `briefLoading` state.
+- Added `refreshMorningBrief` helper.
+- Fetch fires independently (does not block main data render).
+- `MorningDispatchBrief` component rendered between Morning Briefing checklist and KPI strip.
+
+**Session 32 addendum — load_offers integration patch:**
+
+`MorningDispatchBrief.tsx` SuggestionRow updated to mirror the canonical Loads.tsx
+offer workflow:
+- `useEffect` on mount calls `loadOffers.create(driverId, loadId)` (find-or-create —
+  safe against re-render/reopen) and stores `offerId` in local state.
+- `handleAssign` now calls `loadOffers.updateStatus(offerId, 'accepted')` after a
+  successful `dispatcher.assignLoad`. Matches Loads.tsx handleAssign exactly.
+- `handleSkip` added: calls `loadOffers.updateStatus(offerId, 'declined')` and hides
+  the row. X button added alongside Assign.
+- `X` icon imported from lucide-react. `LoadOffer` type imported from models.
+- `useEffect` added to React imports.
+- No new IPC channels, no schema changes, no repo changes.
+
+---
+
+## 2026-04-15 — Session 31: Per-Driver Weekly Scorecard System
+
+### Work Completed
+
+Additive feature: Per-Driver Weekly Scorecard. No schema changes. No existing
+behavior altered.
+
+**driverPerformanceRepo.ts (new)**
+- `getDriverWeeklyScorecard(db, driverId)`: returns scorecard for a single driver
+  covering the current Mon–Sun window. Includes revenue metrics (loads_booked,
+  gross_revenue, dispatcher_revenue, avg_rpm), offer behavior stats (accepted,
+  declined, no_response, open, acceptance_rate, avg_response_minutes), and
+  trend vs prior week (revenue_trend_pct, loads_trend_delta).
+- `getAllDriversWeeklyScorecards(db)`: single-query join across all non-Inactive
+  drivers. Returns rows sorted by dispatcher_revenue DESC, loads_booked DESC.
+  No trend data (all-drivers endpoint).
+- Week bounds computed in JS (getWeekBounds helper). Offer stats use the same
+  hardened acceptance_rate logic as getDriverAcceptanceStats (resolved-only
+  denominator, NULLIF guard).
+
+**repositories/index.ts**
+- Added export for driverPerformanceRepo.
+
+**src/types/models.ts**
+- Added DriverWeeklyScorecard interface.
+
+**electron/main/ipcHandlers.ts**
+- Added `drivers:weeklyScorecard` and `drivers:allWeeklyScorecards` handlers.
+
+**electron/preload/index.ts**
+- Added `weeklyScorecard(driverId)` and `allWeeklyScorecards()` to drivers namespace.
+
+**src/types/global.d.ts**
+- Imported DriverWeeklyScorecard.
+- Added method signatures to drivers API type block.
+
+**src/pages/Reports.tsx**
+- Added "Driver Performance — This Week" section after KPI strip.
+- Table: Driver, Loads, Gross, Disp. Cut, Avg RPM, Acc. Rate, Avg Resp,
+  Acc/Dec/NR breakdown, Open Offers.
+- Client-side sort on Loads, Disp. Cut, Avg RPM, Acc. Rate. Click header to toggle
+  direction. Default: Disp. Cut descending.
+- Uses existing badge/token system.
+
+**src/components/drivers/DriverDrawer.tsx**
+- Added `weeklyCard` state and fetch in useEffect.
+- Added "This Week" compact panel after Current Load, before Carrier Setup.
+- Shows: loads, gross, dispatcher cut + % trend vs last week, avg RPM, acceptance
+  rate, avg response time. All conditionally rendered — section hidden if null.
+
 ## 2026-04-15 — Session 30: Load Offer Tracking — Data Integrity Hardening
 
 ### Work Completed

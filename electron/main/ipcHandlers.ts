@@ -32,6 +32,7 @@ import {
   listCarrierOffers, getCarrierOffer, createCarrierOffer, updateCarrierOffer, deleteCarrierOffer, acceptCarrierOffer,
   getVetting, upsertVetting, deleteVetting,
   createOffer, markAccepted, markDeclined, markNoResponse, getDriverAcceptanceStats,
+  getDriverWeeklyScorecard, getAllDriversWeeklyScorecards,
 } from './repositories'
 import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
@@ -45,6 +46,7 @@ import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatche
 import { getRecommendations } from './loadScanner'
 import { getDashboardStats } from './dashboard'
 import { getOperationsData } from './operations'
+import { getMorningDispatchBrief } from './morningDispatchBrief'
 import { getProfitRadarData, getProfitRadarSummary } from './profitRadar'
 import {
   listTimelineEvents, addTimelineEvent, completeTimelineEvent, deleteTimelineEvent,
@@ -66,7 +68,8 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('dashboard:stats', () => getDashboardStats(getDb()))
 
   // -- Operations Control Panel --
-  ipcMain.handle('operations:data', () => getOperationsData(getDb()))
+  ipcMain.handle('operations:data',         () => getOperationsData(getDb()))
+  ipcMain.handle('operations:morningBrief', () => getMorningDispatchBrief(getDb()))
 
   // -- Reports --
   ipcMain.handle('reports:data', () => getReportsData(getDb()))
@@ -377,6 +380,12 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     })
   ipcMain.handle('loadOffers:getDriverStats',
     (_e, driverId: number) => getDriverAcceptanceStats(getDb(), driverId))
+
+  // -- Driver Performance Scorecards --
+  ipcMain.handle('drivers:weeklyScorecard',
+    (_e, driverId: number) => getDriverWeeklyScorecard(getDb(), driverId))
+  ipcMain.handle('drivers:allWeeklyScorecards',
+    () => getAllDriversWeeklyScorecards(getDb()))
 
   // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))

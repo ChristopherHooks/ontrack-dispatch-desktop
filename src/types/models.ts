@@ -683,6 +683,32 @@ export interface OperationsData {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Morning Dispatch Brief
+// ---------------------------------------------------------------------------
+
+export interface MorningDispatchBriefRow {
+  driver_id:               number
+  driver_name:             string
+  current_location:        string | null
+  min_rpm:                 number | null
+  acceptance_rate:         number | null
+  avg_response_minutes:    number | null
+  dispatcher_revenue_week: number | null
+  suggestions: Array<{
+    load_id:     number
+    origin:      string | null
+    destination: string | null
+    rpm:         number | null
+    deadhead:    number | null
+    gross_rate:  number | null
+    broker_name: string | null
+    pickup_date: string | null
+    pickup_time: string | null
+    score:       number | null
+  }>
+}
+
 // -- Profit Radar --
 export interface DriverOpportunity {
   driverId:  number
@@ -780,6 +806,31 @@ export interface BrokerCarrierVetting {
   created_at:              string
 }
 export type CreateBrokerCarrierVettingDto = Omit<BrokerCarrierVetting, 'id' | 'created_at'>
+
+// ---------------------------------------------------------------------------
+// Driver Weekly Scorecard
+// ---------------------------------------------------------------------------
+
+export interface DriverWeeklyScorecard {
+  driver_id:            number
+  driver_name:          string
+  // Load activity (dispatch-mode, current Mon–Sun, pickup_date in window)
+  loads_booked:         number
+  gross_revenue:        number
+  dispatcher_revenue:   number
+  avg_rpm:              number | null
+  // Offer behavior (load_offers, offered_at in same week window)
+  accepted_count:       number
+  declined_count:       number
+  no_response_count:    number
+  open_offer_count:     number
+  /** acceptance_rate: resolved offers only (open excluded from denominator) */
+  acceptance_rate:      number
+  avg_response_minutes: number | null
+  // Trends vs prior week (single-driver endpoint only)
+  revenue_trend_pct:    number | null | undefined
+  loads_trend_delta:    number | undefined
+}
 
 // ---------------------------------------------------------------------------
 // Load Offer Tracking

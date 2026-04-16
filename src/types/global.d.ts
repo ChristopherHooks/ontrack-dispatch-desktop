@@ -24,6 +24,8 @@ import type {
   CarrierOffer, CreateCarrierOfferDto, UpdateCarrierOfferDto,
   BrokerCarrierVetting, CreateBrokerCarrierVettingDto,
   LoadOffer, LoadOfferStats, LoadOfferOutcome,
+  DriverWeeklyScorecard,
+  MorningDispatchBriefRow,
 } from './models'
 
 interface CarrierBrokerApprovalRow {
@@ -51,7 +53,8 @@ declare global {
         stats: () => Promise<DashboardStats>
       }
       operations: {
-        data: () => Promise<unknown>
+        data:         () => Promise<unknown>
+        morningBrief: () => Promise<MorningDispatchBriefRow[]>
       }
       reports: {
         data: () => Promise<unknown>
@@ -97,8 +100,10 @@ declare global {
         create:             (dto: CreateDriverDto) => Promise<Driver>
         update:             (id: number, dto: UpdateDriverDto) => Promise<Driver | undefined>
         delete:             (id: number) => Promise<boolean>
-        fetchAuthorityDate: (driverId: number, mcNumber: string) => Promise<Driver | null>
-        compliance: () => Promise<DriverComplianceRow[]>
+        fetchAuthorityDate:  (driverId: number, mcNumber: string) => Promise<Driver | null>
+        compliance:          () => Promise<DriverComplianceRow[]>
+        weeklyScorecard:     (driverId: number) => Promise<DriverWeeklyScorecard>
+        allWeeklyScorecards: () => Promise<DriverWeeklyScorecard[]>
       }
       driverDocs: {
         list:           (driverId: number) => Promise<DriverDocument[]>

@@ -16,7 +16,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // -- Operations Control Panel --
   operations: {
-    data: () => ipcRenderer.invoke('operations:data'),
+    data:         () => ipcRenderer.invoke('operations:data'),
+    morningBrief: () => ipcRenderer.invoke('operations:morningBrief'),
   },
 
   // -- Reports --
@@ -60,8 +61,10 @@ contextBridge.exposeInMainWorld('api', {
     create:             (dto: unknown) => ipcRenderer.invoke('drivers:create', dto),
     update:             (id: number, dto: unknown) => ipcRenderer.invoke('drivers:update', id, dto),
     delete:             (id: number) => ipcRenderer.invoke('drivers:delete', id),
-    fetchAuthorityDate: (driverId: number, mcNumber: string) => ipcRenderer.invoke('drivers:fetchAuthorityDate', driverId, mcNumber),
-    compliance:         ()                                    => ipcRenderer.invoke('drivers:compliance'),
+    fetchAuthorityDate:    (driverId: number, mcNumber: string) => ipcRenderer.invoke('drivers:fetchAuthorityDate', driverId, mcNumber),
+    compliance:            ()                                    => ipcRenderer.invoke('drivers:compliance'),
+    weeklyScorecard:       (driverId: number)                    => ipcRenderer.invoke('drivers:weeklyScorecard', driverId),
+    allWeeklyScorecards:   ()                                    => ipcRenderer.invoke('drivers:allWeeklyScorecards'),
   },
 
   // -- Driver Documents --

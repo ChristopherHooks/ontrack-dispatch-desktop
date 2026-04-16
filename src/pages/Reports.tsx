@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, Building2, MapPin, DollarSign, BarChart2, AlertCircle, ArrowRight } from 'lucide-react'
+import { TrendingUp, Building2, MapPin, DollarSign, BarChart2, AlertCircle, ArrowRight, Users, ChevronUp, ChevronDown } from 'lucide-react'
+import type { DriverWeeklyScorecard } from '../types/models'
+import { badge as badgeTokens } from '../styles/uiTokens'
 
 interface WeeklyRevenue  { week: string; week_label: string; dispatch_fee: number; load_count: number }
 interface MonthlyRevenue { month: string; month_label: string; dispatch_fee: number; load_count: number }
@@ -64,16 +66,51 @@ function Sec({ title, icon }: { title: string; icon: React.ReactNode }) {
   )
 }
 
+type ScoreSort = 'dispatcher_revenue' | 'avg_rpm' | 'acceptance_rate' | 'loads_booked'
+
+function acceptanceBadge(rate: number, noResp: number): string {
+  if (rate >= 70) return badgeTokens.success
+  if (rate >= 40) return badgeTokens.caution
+  if (noResp > 3) return badgeTokens.danger
+  return badgeTokens.warning
+}
+
+function rpmBadge(v: number | null): string {
+  if (v == null)   return 'text-gray-500'
+  if (v >= 3.00)   return 'text-green-400 font-semibold'
+  if (v >= 2.50)   return 'text-orange-400'
+  return 'text-red-400'
+}
+
 export function Reports() {
   const [data, setData]     = useState<ReportsData>(EMPTY)
   const [loading, setLoading] = useState(true)
+  const [scorecards, setScorecards] = useState<DriverWeeklyScorecard[]>([])
+  const [scoreSort, setScoreSort]   = useState<ScoreSort>('dispatcher_revenue')
+  const [scoreSortDir, setScoreSortDir] = useState<'desc' | 'asc'>('desc')
 
   useEffect(() => {
     window.api.reports.data().then(d => {
       setData(d as ReportsData)
       setLoading(false)
     })
+    window.api.drivers.allWeeklyScorecards().then(setScorecards).catch(() => {})
   }, [])
+
+  const sortedScorecards = [...scorecards].sort((a, b) => {
+    const av = (a[scoreSort] as number | null) ?? -1
+    const bv = (b[scoreSort] as number | null) ?? -1
+    return scoreSortDir === 'desc' ? bv - av : av - bv
+  })
+
+  function toggleSort(col: ScoreSort) {
+    if (scoreSort === col) {
+      setScoreSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    } else {
+      setScoreSort(col)
+      setScoreSortDir('desc')
+    }
+  }
 
   if (loading) return (
     <div className='space-y-4 max-w-[1200px] animate-fade-in'>
@@ -114,6 +151,93 @@ export function Reports() {
             <p className='text-2xs text-gray-400 mt-0.5'>{k.sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Driver Performance — This Week */}
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5'>
+        <div className='flex items-center justify-between mb-1'>
+          <Sec title='Driver Performance — This Week' icon={<Users size={14} />} />
+        </div>
+        <p className='text-2xs text-gray-600 mb-4'>
+          Dispatch-mode loads with pickup this week (Mon–Sun). Offer stats from the same window. Sorted by Dispatcher Cut by default.
+        </p>
+        {scorecards.length === 0 ? (
+          <p className='text-sm text-gray-600 italic'>No driver activity recorded for this week yet.</p>
+        ) : (
+          <div className='overflow-x-auto'>
+            <table className='w-full text-xs'>
+              <thead>
+                <tr className='border-b border-surface-400'>
+                  <th className='text-left text-2xs text-gray-400 uppercase tracking-wider pb-2 pr-3'>Driver</th>
+                  {([
+                    { key: 'loads_booked',       label: 'Loads' },
+                    { key: null,                  label: 'Gross' },
+                    { key: 'dispatcher_revenue',  label: 'Disp. Cut' },
+                    { key: 'avg_rpm',             label: 'Avg RPM' },
+                    { key: 'acceptance_rate',     label: 'Acc. Rate' },
+                    { key: null,                  label: 'Avg Resp' },
+                    { key: null,                  label: 'Acc / Dec / NR' },
+                    { key: null,                  label: 'Open' },
+                  ] as Array<{ key: ScoreSort | null; label: string }>).map(({ key, label }) => (
+                    <th
+                      key={label}
+                      onClick={key ? () => toggleSort(key) : undefined}
+                      className={`text-right text-2xs text-gray-400 uppercase tracking-wider pb-2 select-none ${key ? 'cursor-pointer hover:text-gray-200' : ''}`}
+                    >
+                      <span className='inline-flex items-center gap-0.5 justify-end'>
+                        {label}
+                        {key && scoreSort === key && (
+                          scoreSortDir === 'desc' ? <ChevronDown size={10} /> : <ChevronUp size={10} />
+                        )}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedScorecards.map(s => {
+                  const fmtResp = (m: number | null) => {
+                    if (m == null) return '—'
+                    return m < 60 ? `${m.toFixed(0)}m` : `${(m / 60).toFixed(1)}h`
+                  }
+                  return (
+                    <tr key={s.driver_id} className='border-b border-surface-600 last:border-0'>
+                      <td className='py-2 text-gray-200 font-medium pr-3 whitespace-nowrap'>{s.driver_name}</td>
+                      <td className='py-2 text-right text-gray-400 font-mono'>{s.loads_booked}</td>
+                      <td className='py-2 text-right text-gray-400 font-mono'>{fmtMoney(s.gross_revenue)}</td>
+                      <td className='py-2 text-right text-green-400 font-mono font-semibold'>{fmtMoney(s.dispatcher_revenue)}</td>
+                      <td className={`py-2 text-right font-mono ${rpmBadge(s.avg_rpm)}`}>
+                        {s.avg_rpm != null ? `$${s.avg_rpm.toFixed(2)}` : '—'}
+                      </td>
+                      <td className='py-2 text-right'>
+                        {s.accepted_count + s.declined_count + s.no_response_count > 0 ? (
+                          <span className={`text-2xs px-1.5 py-0.5 rounded font-medium ${acceptanceBadge(s.acceptance_rate, s.no_response_count)}`}>
+                            {s.acceptance_rate.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className='text-gray-600'>—</span>
+                        )}
+                      </td>
+                      <td className='py-2 text-right text-gray-400 font-mono'>{fmtResp(s.avg_response_minutes)}</td>
+                      <td className='py-2 text-right'>
+                        <span className='text-green-400'>{s.accepted_count}</span>
+                        <span className='text-gray-600'> / </span>
+                        <span className='text-red-400'>{s.declined_count}</span>
+                        <span className='text-gray-600'> / </span>
+                        <span className='text-gray-500'>{s.no_response_count}</span>
+                      </td>
+                      <td className='py-2 text-right'>
+                        {s.open_offer_count > 0
+                          ? <span className='text-orange-400 font-mono'>{s.open_offer_count}</span>
+                          : <span className='text-gray-700'>—</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* 30-Day Cash Flow Outlook */}
