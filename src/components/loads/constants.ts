@@ -20,6 +20,17 @@ export const BROKER_LOAD_STATUSES: LoadStatus[] = ['Searching', 'Carrier Selecte
 // All statuses for filter dropdowns (both modes)
 export const ALL_LOAD_STATUSES: LoadStatus[] = [...LOAD_STATUSES, 'Carrier Selected']
 
+export const UNASSIGNMENT_REASON_OPTIONS = [
+  { value: 'mistaken_assignment',          label: 'Mistaken Assignment',          fallout: false },
+  { value: 'admin_correction',             label: 'Admin Correction',             fallout: false },
+  { value: 'broker_change',               label: 'Broker Change',                fallout: false },
+  { value: 'equipment_issue',              label: 'Equipment Issue',              fallout: false },
+  { value: 'compliance_issue',             label: 'Compliance Issue',             fallout: false },
+  { value: 'driver_backed_out',            label: 'Driver Backed Out',            fallout: true  },
+  { value: 'no_response_after_acceptance', label: 'No Response After Acceptance', fallout: true  },
+  { value: 'other',                        label: 'Other',                        fallout: false },
+] as const
+
 export const LOAD_STATUS_NEXT: Partial<Record<LoadStatus, LoadStatus>> = {
   Searching:          'Booked',
   Booked:             'Picked Up',

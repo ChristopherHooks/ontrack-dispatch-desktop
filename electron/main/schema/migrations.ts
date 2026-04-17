@@ -1238,7 +1238,37 @@ const migration045: Migration = {
   },
 }
 
-export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038, migration039, migration040, migration041, migration042, migration043, migration044, migration045]
+const migration046: Migration = {
+  version: 46,
+  description: 'Create driver_fallout_log table for tracking driver removal from active loads',
+  up: (db) => {
+    db.exec(
+      'CREATE TABLE IF NOT EXISTS driver_fallout_log (' +
+      '  id                     INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  driver_id              INTEGER NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,' +
+      '  load_id                INTEGER NOT NULL REFERENCES loads(id)  ON DELETE CASCADE,' +
+      '  load_status_at_removal TEXT NOT NULL,' +
+      '  removed_at             TEXT NOT NULL DEFAULT (datetime(\'now\')),' +
+      '  notes                  TEXT,' +
+      '  created_at             TEXT NOT NULL DEFAULT (datetime(\'now\'))' +
+      ')'
+    )
+    db.exec('CREATE INDEX IF NOT EXISTS idx_fallout_driver ON driver_fallout_log(driver_id)')
+    db.exec('CREATE INDEX IF NOT EXISTS idx_fallout_load   ON driver_fallout_log(load_id)')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (46)")
+  },
+}
+
+const migration047: Migration = {
+  version: 47,
+  description: 'Add unassignment_reason column to driver_fallout_log',
+  up: (db) => {
+    addColumnIfMissing(db, 'driver_fallout_log', 'unassignment_reason', 'TEXT')
+    db.exec("INSERT OR IGNORE INTO schema_version (version) VALUES (47)")
+  },
+}
+
+export const MIGRATIONS: Migration[] = [migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012, migration013, migration014, migration015, migration016, migration017, migration018, migration019, migration020, migration021, migration022, migration023, migration024, migration025, migration026, migration027, migration028, migration029, migration030, migration031, migration032, migration033, migration034, migration035, migration036, migration037, migration038, migration039, migration040, migration041, migration042, migration043, migration044, migration045, migration046, migration047]
 
 export function runMigrations(db: Database.Database): void {
   // Ensure schema_version table exists before checking applied versions

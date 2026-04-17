@@ -10,6 +10,13 @@
  *   Tier 4 (admin)              — stale loads, marketing
  */
 
+import {
+  activeLoadsRoute,
+  invoicesRoute,
+  leadsRoute,
+  loadsRoute,
+} from './routeIntents'
+
 export type WorkflowCategory   = 'revenue_now' | 'revenue_protection' | 'pipeline' | 'admin'
 export type WorkflowTaskStatus = 'actionable' | 'completed' | 'not_applicable'
 
@@ -28,19 +35,23 @@ export interface DailyWorkflowTask {
 
 // Input derived entirely from existing Operations data + checkCalls state
 export interface WorkflowInput {
-  driversNeedingLoads: number
-  loadsInTransit:      number
-  overdueCheckCalls:   number
-  totalCheckCalls:     number
-  overdueLeads:        number
-  uninvoicedDelivered: number
-  overdueInvoices:     number
-  expiringDocs:        number
-  staleLoads:          number
-  warmLeads:           number
-  hotProspects:        number
-  todaysGroupCount:    number
-  morningBriefCount:   number
+  driversNeedingLoads:           number
+  loadsInTransit:                number
+  overdueCheckCalls:             number
+  totalCheckCalls:               number
+  overdueLeads:                  number
+  uninvoicedDelivered:           number
+  overdueInvoices:               number
+  expiringDocs:                  number
+  staleLoads:                    number
+  warmLeads:                     number
+  hotProspects:                  number
+  todaysGroupCount:              number
+  morningBriefCount:             number
+  /** load_id_pk of the first overdue check call — used to deep-link directly to that load */
+  firstOverdueCheckCallLoadId?:  number
+  /** Name of the first idle driver — shown in book_loads task title when count === 1 */
+  firstIdleDriverName?:          string
 }
 
 export const CATEGORY_META: Record<WorkflowCategory, { label: string; tier: number }> = {
@@ -92,10 +103,15 @@ export function computeDailyWorkflow(
 
   // Book loads — show when active drivers have no current assignment
   if (input.driversNeedingLoads > 0) {
+    const oneDriver = input.driversNeedingLoads === 1 && input.firstIdleDriverName
     tasks.push({
       id: 'book_loads',
-      title: `Book loads — ${input.driversNeedingLoads} driver${input.driversNeedingLoads !== 1 ? 's' : ''} available`,
-      description: 'Active drivers with no current load assigned',
+      title: oneDriver
+        ? `Book load for ${input.firstIdleDriverName}`
+        : `Book loads — ${input.driversNeedingLoads} drivers available`,
+      description: oneDriver
+        ? `${input.firstIdleDriverName} is available and needs a load`
+        : 'Active drivers with no current load assigned',
       category: 'revenue_now', priority: 11,
       status: done('book_loads'),
       actionLabel: 'Find Loads', actionTarget: '/findloads',
@@ -118,7 +134,8 @@ export function computeDailyWorkflow(
       description: 'Active loads past their scheduled check-in time',
       category: 'revenue_now', priority: 12,
       status: done('check_calls'),
-      actionLabel: 'Active Loads', actionTarget: '/activeloads',
+      actionLabel: 'Active Loads',
+      actionTarget: activeLoadsRoute(input.firstOverdueCheckCallLoadId),
       count: input.overdueCheckCalls,
     })
   } else if (input.totalCheckCalls > 0) {
@@ -147,7 +164,7 @@ export function computeDailyWorkflow(
       description: 'Get paid faster — these are done and waiting for an invoice',
       category: 'revenue_protection', priority: 20,
       status: done('invoice_delivered'),
-      actionLabel: 'Invoices', actionTarget: '/invoices',
+      actionLabel: 'Invoices', actionTarget: invoicesRoute(true),
       count: input.uninvoicedDelivered,
     })
   } else {
@@ -209,7 +226,7 @@ export function computeDailyWorkflow(
       description: 'Call or update these leads now to keep the pipeline moving',
       category: 'pipeline', priority: 30,
       status: done('lead_followup'),
-      actionLabel: 'View Leads', actionTarget: '/leads?filter=overdue',
+      actionLabel: 'View Leads', actionTarget: leadsRoute('overdue'),
       count: input.overdueLeads,
     })
   } else {
@@ -249,7 +266,7 @@ export function computeDailyWorkflow(
       description: 'High/medium priority or follow-up within 3 days',
       category: 'pipeline', priority: 32,
       status: done('warm_leads'),
-      actionLabel: 'View Leads', actionTarget: '/leads',
+      actionLabel: 'View Leads', actionTarget: leadsRoute('upcoming'),
       count: input.warmLeads,
     })
   } else {
@@ -271,7 +288,7 @@ export function computeDailyWorkflow(
       description: 'Check status and update or escalate with the driver',
       category: 'admin', priority: 40,
       status: done('stale_loads'),
-      actionLabel: 'Loads', actionTarget: '/loads',
+      actionLabel: 'View Loads', actionTarget: loadsRoute({ stale: true }),
       count: input.staleLoads,
     })
   } else {

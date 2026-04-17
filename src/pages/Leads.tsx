@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { Users } from 'lucide-react'
 import type { Lead, LeadStatus, CsvImportResult, FmcsaImportResult, FmcsaImportStatus } from '../types/models'
 import { LeadsToolbar, type LeadFilters, DEFAULT_FILTERS } from '../components/leads/LeadsToolbar'
+import { parseLeadFilterParam } from '../lib/routeIntents'
 import { LeadsTable }  from '../components/leads/LeadsTable'
 import { LeadsKanban } from '../components/leads/LeadsKanban'
 import { LeadModal }        from '../components/leads/LeadModal'
@@ -32,9 +34,10 @@ export function Leads() {
   const [view,     setView]     = useState<'table' | 'kanban'>('table')
   const [search,   setSearch]   = useState('')
   const [filters,  setFilters]  = useState<LeadFilters>(() => {
-    const f = searchParams.get('filter')
+    const f = parseLeadFilterParam(searchParams)
     if (f === 'overdue')    return { ...DEFAULT_FILTERS, overdue: true }
     if (f === 'dueToday')   return { ...DEFAULT_FILTERS, followUpToday: true }
+    if (f === 'upcoming')   return { ...DEFAULT_FILTERS, upcoming: true }
     if (f === 'warm')       return { ...DEFAULT_FILTERS, warm: true }
     if (f === 'untouched')  return { ...DEFAULT_FILTERS, untouched: true }
     if (f === 'duplicates') return { ...DEFAULT_FILTERS, duplicates: true }
@@ -220,6 +223,7 @@ export function Leads() {
     if (filters.source)        r = r.filter(l => l.source   === filters.source)
     if (filters.overdue)       r = r.filter(l => l.follow_up_date != null && l.follow_up_date < today)
     if (filters.followUpToday) r = r.filter(l => l.follow_up_date === today)
+    if (filters.upcoming)      r = r.filter(l => l.follow_up_date != null && l.follow_up_date > today)
     if (filters.warm)          r = r.filter(l => l.status === 'Interested' || l.status === 'Call Back Later')
     if (filters.untouched)     r = r.filter(l => l.status === 'New' && (l.contact_attempt_count ?? 0) === 0)
     if (filters.duplicates)    r = r.filter(l => l.mc_number != null && duplicateMcNumbers.has(l.mc_number))
@@ -388,6 +392,25 @@ export function Leads() {
         csvImportBusy={csvImportBusy}
         onPaste={() => setShowPasteModal(true)}
       />
+
+      {/* Empty state — shown when CRM has no leads at all and not still loading */}
+      {!loading && leads.length === 0 && (
+        <div className='flex flex-col items-center gap-3 py-16 text-center rounded-xl border border-surface-500 bg-surface-800'>
+          <Users size={28} className='text-gray-600' />
+          <div>
+            <p className='text-sm font-medium text-gray-400'>No leads yet</p>
+            <p className='text-xs text-gray-600 mt-1'>
+              Add your first lead manually, import from FMCSA, or paste from a carrier search.
+            </p>
+          </div>
+          <button
+            onClick={openAdd}
+            className='mt-1 text-xs px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium transition-colors'
+          >
+            Add First Lead
+          </button>
+        </div>
+      )}
 
       {view === 'table'
         ? <LeadsTable

@@ -25,6 +25,8 @@ import type {
   BrokerCarrierVetting, CreateBrokerCarrierVettingDto,
   LoadOffer, LoadOfferStats, LoadOfferOutcome,
   DriverWeeklyScorecard,
+  DriverFalloutStats, DriverFalloutCountRow,
+  UnassignmentReason,
   MorningDispatchBriefRow,
 } from './models'
 
@@ -104,6 +106,8 @@ declare global {
         compliance:          () => Promise<DriverComplianceRow[]>
         weeklyScorecard:     (driverId: number) => Promise<DriverWeeklyScorecard>
         allWeeklyScorecards: () => Promise<DriverWeeklyScorecard[]>
+        falloutStats:        (driverId: number) => Promise<DriverFalloutStats>
+        allFalloutCounts:    () => Promise<DriverFalloutCountRow[]>
       }
       driverDocs: {
         list:           (driverId: number) => Promise<DriverDocument[]>
@@ -354,9 +358,11 @@ declare global {
         reseed:        () => Promise<{ ok: boolean }>
         seedMissing:   () => Promise<{ ok: boolean }>
         seedTasksOnly: () => Promise<{ ok: boolean }>
-        clearSeedData: () => Promise<{ ok: boolean }>
-        reseedDocs:    () => Promise<{ ok: boolean }>
-        reseedTasks:   () => Promise<{ ok: boolean }>
+        clearSeedData:  () => Promise<{ ok: boolean }>
+        reseedDocs:     () => Promise<{ ok: boolean }>
+        reseedTasks:    () => Promise<{ ok: boolean }>
+        addTestData:    () => Promise<{ counts: { brokers: number[]; drivers: number[]; loads: number[]; leads: number[] } }>
+        removeTestData: () => Promise<{ removed: number }>
       }
     }
   }

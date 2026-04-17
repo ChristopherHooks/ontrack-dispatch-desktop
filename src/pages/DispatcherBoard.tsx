@@ -311,6 +311,7 @@ export function DispatcherBoard() {
           {selectedDriverId != null && (
             <RecommendedLoadsPanel
               driverName={selectedDriverName ?? ''}
+              driverId={selectedDriverId}
               recommendations={recommendations}
               loading={recsLoading}
               onAssign={async (loadId) => {
@@ -709,14 +710,16 @@ function AssignmentModal({ load, driver, assigning, error, onCancel, onConfirm }
 // -- Recommended Loads Panel --
 interface RecommendedLoadsPanelProps {
   driverName:      string
+  driverId:        number
   recommendations: LoadRecommendation[]
   loading:         boolean
   onAssign:        (loadId: number) => Promise<void>
   onClose:         () => void
 }
 
-function RecommendedLoadsPanel({ driverName, recommendations, loading, onAssign, onClose }: RecommendedLoadsPanelProps) {
+function RecommendedLoadsPanel({ driverName, driverId, recommendations, loading, onAssign, onClose }: RecommendedLoadsPanelProps) {
   const [assigningId, setAssigningId] = useState<number | null>(null)
+  const [passedIds,   setPassedIds]   = useState<Set<number>>(new Set())
   return (
     <div className='w-72 bg-surface-800 border border-yellow-700/40 rounded-xl overflow-hidden'>
       <div className='px-3 py-2.5 border-b border-yellow-700/30 bg-surface-750'>
@@ -745,11 +748,19 @@ function RecommendedLoadsPanel({ driverName, recommendations, loading, onAssign,
               key={rec.load_id_pk}
               rec={rec}
               rank={i + 1}
+              passed={passedIds.has(rec.load_id_pk)}
               assigning={assigningId === rec.load_id_pk}
               onAssign={async () => {
                 setAssigningId(rec.load_id_pk)
                 try { await onAssign(rec.load_id_pk) }
                 finally { setAssigningId(null) }
+              }}
+              onPass={async () => {
+                try {
+                  const offer = await window.api.loadOffers.create(driverId, rec.load_id_pk)
+                  await window.api.loadOffers.updateStatus(offer.id, 'declined', 'passed_on_recommendation')
+                  setPassedIds(s => new Set([...s, rec.load_id_pk]))
+                } catch (_) { /* non-critical */ }
               }}
             />
           ))
@@ -763,15 +774,18 @@ function RecommendedLoadsPanel({ driverName, recommendations, loading, onAssign,
 interface RecommendationCardProps {
   rec:      LoadRecommendation
   rank:     number
+  passed:   boolean
   assigning: boolean
   onAssign: () => void
+  onPass:   () => Promise<void>
 }
 
-function RecommendationCard({ rec, rank, assigning, onAssign }: RecommendationCardProps) {
+function RecommendationCard({ rec, rank, passed, assigning, onAssign, onPass }: RecommendationCardProps) {
+  const [passing, setPassing] = useState(false)
   const origin = [rec.origin_city, rec.origin_state].filter(Boolean).join(', ')
   const dest   = [rec.dest_city,   rec.dest_state  ].filter(Boolean).join(', ')
   return (
-    <div className='rounded-lg border border-surface-400 bg-surface-700 p-2.5'>
+    <div className={`rounded-lg border p-2.5 transition-colors ${passed ? 'border-surface-600 bg-surface-800 opacity-50' : 'border-surface-400 bg-surface-700'}`}>
       <div className='flex items-start gap-2 mb-1.5'>
         <span className='shrink-0 w-5 h-5 rounded-full bg-surface-600 text-gray-400 text-2xs flex items-center justify-center font-mono font-bold'>
           {rank}
@@ -790,16 +804,30 @@ function RecommendationCard({ rec, rank, assigning, onAssign }: RecommendationCa
         <span className='text-gray-600'>{rec.deadhead_miles} dh</span>
         <span className='ml-auto font-mono text-yellow-500/80'>#{rec.score.toFixed(1)}</span>
       </div>
-      <button
-        onClick={onAssign}
-        disabled={assigning}
-        className='w-full flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded bg-orange-700/40 border border-orange-700/40 text-orange-300 hover:bg-orange-600/50 hover:text-orange-200 transition-colors disabled:opacity-50'
-      >
-        {assigning
-          ? <><Loader2 size={12} className='animate-spin' /> Assigning...</>
-          : <><Check size={12} /> Assign Load</>
-        }
-      </button>
+      {passed ? (
+        <p className='text-center text-2xs text-gray-600'>Passed — recorded as declined</p>
+      ) : (
+        <div className='flex gap-1.5'>
+          <button
+            onClick={async () => { setPassing(true); try { await onPass() } finally { setPassing(false) } }}
+            disabled={passing || assigning}
+            className='flex-1 flex items-center justify-center gap-1 py-1 text-xs rounded border border-surface-400 text-gray-500 hover:text-gray-300 hover:border-surface-300 transition-colors disabled:opacity-40'
+          >
+            {passing ? <Loader2 size={10} className='animate-spin' /> : <X size={10} />}
+            Pass
+          </button>
+          <button
+            onClick={onAssign}
+            disabled={assigning || passing}
+            className='flex-1 flex items-center justify-center gap-1.5 py-1 text-xs font-medium rounded bg-orange-700/40 border border-orange-700/40 text-orange-300 hover:bg-orange-600/50 hover:text-orange-200 transition-colors disabled:opacity-50'
+          >
+            {assigning
+              ? <><Loader2 size={12} className='animate-spin' /> Assigning...</>
+              : <><Check size={12} /> Assign</>
+            }
+          </button>
+        </div>
+      )}
     </div>
   )
 }

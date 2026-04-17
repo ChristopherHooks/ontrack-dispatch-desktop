@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, Phone, Edit2, Trash2, Plus, AlertTriangle, Paperclip, FileText, Pencil, Check, MapPin, ScrollText, CheckCircle2, Circle, ChevronDown, Printer, TrendingUp } from 'lucide-react'
-import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument, LoadOfferStats, DriverWeeklyScorecard } from '../../types/models'
+import type { Driver, DriverDocument, DriverDocType, DriverStatus, Load, Note, Invoice, SopDocument, LoadOfferStats, DriverWeeklyScorecard, DriverFalloutStats } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES, DOC_TYPES } from './constants'
 import { type as typeTokens, badge as badgeTokens } from '../../styles/uiTokens'
+import { computeDriverTier, TIER_BADGE, TIER_LABEL } from '../../lib/driverTierService'
 import { openSaferMc } from '../../lib/saferUrl'
 import { DispatchAgreementModal } from './DispatchAgreementModal'
 import { Term } from '../ui/Term'
@@ -73,6 +74,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
   const [apprForm,setApprForm]               = useState<{ broker_id:string; status:'Submitted'|'Approved'|'Denied'; notes:string; submitted_at:string; approved_at:string }>({ broker_id:'', status:'Submitted', notes:'', submitted_at:'', approved_at:'' })
   const [sopDocs,setSopDocs]                 = useState<SopDocument[]>([])
   const [offerStats,setOfferStats]           = useState<LoadOfferStats | null>(null)
+  const [falloutStats,setFalloutStats]       = useState<DriverFalloutStats | null>(null)
   const [weeklyCard,setWeeklyCard]           = useState<DriverWeeklyScorecard | null>(null)
 
   useEffect(() => {
@@ -118,6 +120,7 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
         setAllBrokers((brkrs as { id:number; name:string }[]).map(b => ({ id:b.id, name:b.name })))
         window.api.documents.list().then(setSopDocs).catch(() => {})
         window.api.loadOffers.getDriverStats(driver.id).then(setOfferStats).catch(() => {})
+        window.api.drivers.falloutStats(driver.id).then(setFalloutStats).catch(() => {})
         window.api.drivers.weeklyScorecard(driver.id).then(setWeeklyCard).catch(() => {})
       }).catch(err => {
         console.error('DriverDrawer: data fetch error', err)
@@ -284,6 +287,22 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
             {driver.company&&<p className='text-sm text-gray-500 truncate mt-0.5'>{driver.company}</p>}
             <div className='flex items-center gap-2 mt-2'>
               <span className={`text-2xs px-2 py-0.5 rounded-full border ${DRIVER_STATUS_STYLES[driver.status]}`}>{driver.status}</span>
+              {weeklyCard != null && (() => {
+                const { tier } = computeDriverTier({
+                  accepted_count:       weeklyCard.accepted_count,
+                  declined_count:       weeklyCard.declined_count,
+                  no_response_count:    weeklyCard.no_response_count,
+                  loads_booked:         weeklyCard.loads_booked,
+                  acceptance_rate:      weeklyCard.acceptance_rate ?? 0,
+                  avg_response_minutes: weeklyCard.avg_response_minutes,
+                  fallout_count:        falloutStats?.fallout_count ?? 0,
+                })
+                return (
+                  <span className={`text-2xs px-1.5 py-0.5 rounded font-bold ${TIER_BADGE[tier]}`}>
+                    {TIER_LABEL[tier] !== '—' ? `Tier ${TIER_LABEL[tier]}` : 'Unrated'}
+                  </span>
+                )
+              })()}
               {driver.min_rpm!=null&&<span className='text-2xs text-gray-500'>Min RPM: <span className='text-green-400 font-mono font-semibold'>${driver.min_rpm.toFixed(2)}</span></span>}
             </div>
           </div>
@@ -806,6 +825,34 @@ export function DriverDrawer({ driver, onClose, onEdit, onStatusChange, onDelete
                   </div>
                 </div>
               </div>
+              {/* Fallout / Reliability — shown when any fallout data exists */}
+              {falloutStats != null && falloutStats.fallout_count > 0 && (
+                <div className='mt-3 pt-3 border-t border-surface-600'>
+                  <p className={`${typeTokens.label} mb-2`}>Reliability</p>
+                  <div className='grid grid-cols-3 gap-x-4 gap-y-2'>
+                    <div>
+                      <p className={typeTokens.microLabel}>Fallouts</p>
+                      <p className={`text-sm font-semibold mt-0.5 ${falloutStats.fallout_count >= 3 ? 'text-red-400' : falloutStats.fallout_count >= 1 ? 'text-yellow-400' : 'text-gray-300'}`}>
+                        {falloutStats.fallout_count}
+                      </p>
+                    </div>
+                    <div>
+                      <p className={typeTokens.microLabel}>Mid-Trip</p>
+                      <p className={`text-sm font-semibold mt-0.5 ${falloutStats.accepted_not_completed_count > 0 ? 'text-orange-400' : 'text-gray-300'}`}>
+                        {falloutStats.accepted_not_completed_count}
+                      </p>
+                    </div>
+                    {falloutStats.completion_rate != null && (
+                      <div>
+                        <p className={typeTokens.microLabel}>Completion</p>
+                        <p className={`text-sm font-mono font-semibold mt-0.5 ${falloutStats.completion_rate >= 90 ? 'text-green-400' : falloutStats.completion_rate >= 75 ? 'text-yellow-400' : 'text-red-400'}`}>
+                          {falloutStats.completion_rate}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {/* Notes */}

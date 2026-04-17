@@ -33,6 +33,7 @@ import {
   getVetting, upsertVetting, deleteVetting,
   createOffer, markAccepted, markDeclined, markNoResponse, getDriverAcceptanceStats,
   getDriverWeeklyScorecard, getAllDriversWeeklyScorecards,
+  logFallout, getDriverFalloutStats, getAllDriverFalloutCounts,
 } from './repositories'
 import { claudeComplete } from './claudeApi'
 import { createBackup, listBackups, stageRestore } from './backup'
@@ -41,7 +42,7 @@ import { globalSearch } from './search'
 import { importFmcsaLeads, writeImportMeta, readImportStatus, backfillLeadData } from './fmcsaImport'
 import { getAuthorityDateByMc } from './fmcsaApi'
 import { importLeadsFromCsv, importLeadsFromText } from './csvLeadImport'
-import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData, reseedDocuments, reseedTasks } from './seed'
+import { runSeedIfEmpty, resetAndReseed, seedMissingItems, seedTasksAndDocsOnly, clearNonTaskSeedData, reseedDocuments, reseedTasks, addTestData, removeTestData } from './seed'
 import { getBoardRows, getAvailableLoads, assignLoadToDriver } from './dispatcherBoard'
 import { getRecommendations } from './loadScanner'
 import { getDashboardStats } from './dashboard'
@@ -282,17 +283,54 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     const before = getLoad(db, id)
     const patch  = dto as Record<string, unknown>
 
+    // Extract unassignment_reason before handing patch to updateLoad.
+    // This field is not a load column — it only drives fallout logging.
+    const unassignmentReason = typeof patch.unassignment_reason === 'string'
+      ? patch.unassignment_reason
+      : undefined
+    const cleanPatch = { ...patch }
+    delete cleanPatch.unassignment_reason
+
     // Detect driver removal: load had a driver, dto explicitly clears it
-    const driverRemoved = before?.driver_id != null && patch.driver_id === null
+    const driverRemoved = before?.driver_id != null && cleanPatch.driver_id === null
 
     // When removing a driver, also revert load status to Searching so the load
     // re-enters the available pool. Only apply when status is still 'Booked'
     // (i.e. the user didn't deliberately set a different target status in the form).
-    const finalPatch = driverRemoved && (!patch.status || patch.status === 'Booked')
-      ? { ...patch, status: 'Searching' }
-      : patch
+    const finalPatch = driverRemoved && (!cleanPatch.status || cleanPatch.status === 'Booked')
+      ? { ...cleanPatch, status: 'Searching' }
+      : cleanPatch
 
     const updated = updateLoad(db, id, finalPatch as any)
+
+    // Log fallout when driver is removed from an active load (before delivery).
+    // Reason is stored for every removal; fallout_count only increments for
+    // driver-fault reasons (see driverFalloutRepo.ts / FALLOUT_REASONS).
+    if (driverRemoved && updated && before?.status && ['Booked', 'Picked Up', 'In Transit'].includes(before.status)) {
+      try { logFallout(db, before.driver_id as number, id, before.status, unassignmentReason) } catch (_) { /* non-critical */ }
+    }
+
+    // Reflect driver-fault unassignment reasons in load_offers so the Load Behavior
+    // breakdown counters stay accurate. A new offer row is inserted (the original
+    // accepted offer is left untouched) to represent the post-acceptance outcome.
+    if (driverRemoved && updated && unassignmentReason) {
+      try {
+        const t = new Date().toISOString().slice(0, 19).replace('T', ' ')
+        if (unassignmentReason === 'no_response_after_acceptance') {
+          db.prepare(
+            'INSERT INTO load_offers' +
+            '  (driver_id, load_id, outcome, offered_at, responded_at, decline_reason, created_at, updated_at)' +
+            '  VALUES (?, ?, ?, ?, ?, NULL, ?, ?)'
+          ).run(before!.driver_id, id, 'no_response', t, t, t, t)
+        } else if (unassignmentReason === 'driver_backed_out') {
+          db.prepare(
+            'INSERT INTO load_offers' +
+            '  (driver_id, load_id, outcome, offered_at, responded_at, decline_reason, created_at, updated_at)' +
+            '  VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(before!.driver_id, id, 'declined', t, t, 'driver_backed_out', t, t)
+        }
+      } catch (_) { /* non-critical */ }
+    }
 
     // Reset old driver status to Active — mirrors the inverse of assignLoadToDriver.
     // Guard: only if the driver has no other active loads.
@@ -417,6 +455,12 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
     (_e, driverId: number) => getDriverWeeklyScorecard(getDb(), driverId))
   ipcMain.handle('drivers:allWeeklyScorecards',
     () => getAllDriversWeeklyScorecards(getDb()))
+
+  // -- Driver Fallout / Reliability --
+  ipcMain.handle('drivers:falloutStats',
+    (_e, driverId: number) => getDriverFalloutStats(getDb(), driverId))
+  ipcMain.handle('drivers:allFalloutCounts',
+    () => getAllDriverFalloutCounts(getDb()))
 
   // -- Invoices --
   ipcMain.handle('invoices:list',   (_e, status?: string) => listInvoices(getDb(), status))
@@ -600,6 +644,8 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('dev:clearSeedData', () => { clearNonTaskSeedData(getDb()); return { ok: true } })
   ipcMain.handle('dev:reseedDocs',    () => { reseedDocuments(getDb());      return { ok: true } })
   ipcMain.handle('dev:reseedTasks',   () => { reseedTasks(getDb());          return { ok: true } })
+  ipcMain.handle('dev:addTestData',    () => addTestData(getDb()))
+  ipcMain.handle('dev:removeTestData', () => removeTestData(getDb()))
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Truck, MapPin, ArrowRight, Clock, TrendingUp, AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import type { MorningDispatchBriefRow, LoadOffer } from '../../types/models'
+import { computeDriverTier, TIER_BADGE, TIER_LABEL } from '../../lib/driverTierService'
 
 // ---------------------------------------------------------------------------
 // MorningDispatchBrief
@@ -199,6 +200,16 @@ function DriverCard({ row, onAssigned }: DriverCardProps) {
   const bestScore      = row.suggestions[0]?.score ?? null
   const tier           = scoreTier(bestScore)
 
+  const driverTierResult = computeDriverTier({
+    accepted_count:       row.accepted_count,
+    declined_count:       row.declined_count,
+    no_response_count:    row.no_response_count,
+    loads_booked:         row.loads_booked,
+    acceptance_rate:      row.acceptance_rate ?? 0,
+    avg_response_minutes: row.avg_response_minutes,
+    fallout_count:        0,
+  })
+
   return (
     <div className='border border-surface-400 rounded-xl overflow-hidden bg-surface-700 shadow-card'>
       {/* Driver header */}
@@ -213,6 +224,9 @@ function DriverCard({ row, onAssigned }: DriverCardProps) {
         <div className='flex-1 min-w-0'>
           <div className='flex items-center gap-2 flex-wrap'>
             <span className='text-sm font-semibold text-gray-100'>{row.driver_name}</span>
+            <span className={`text-2xs px-1.5 py-0.5 rounded font-bold ${TIER_BADGE[driverTierResult.tier]}`}>
+              {TIER_LABEL[driverTierResult.tier] !== '—' ? `Tier ${TIER_LABEL[driverTierResult.tier]}` : 'Unrated'}
+            </span>
             {row.current_location && (
               <span className='flex items-center gap-1 text-xs text-gray-400'>
                 <MapPin size={10} className='shrink-0' />{row.current_location}

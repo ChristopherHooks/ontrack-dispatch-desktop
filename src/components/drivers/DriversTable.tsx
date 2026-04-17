@@ -4,6 +4,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, AlertTrian
 import type { Driver, DriverStatus } from '../../types/models'
 import { DRIVER_STATUS_STYLES, DRIVER_STATUSES } from './constants'
 import { openSaferMcWithCopy } from '../../lib/saferUrl'
+import { type DriverTierResult, TIER_BADGE, TIER_LABEL } from '../../lib/driverTierService'
 
 interface Props {
   drivers: Driver[]; loading: boolean
@@ -12,6 +13,7 @@ interface Props {
   onSelect: (d: Driver) => void; onEdit: (d: Driver) => void
   onFetchAuthority?: (d: Driver) => Promise<void>
   onStatusChange?: (d: Driver, status: DriverStatus) => Promise<void>
+  tierMap?: Map<number, DriverTierResult>
 }
 
 // Inline status dropdown — mirrors the StatusDropdown pattern in LoadsTable.
@@ -133,7 +135,7 @@ const COLS: { label: string; key: keyof Driver }[] = [
 ]
 const th = 'text-left text-2xs font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3 select-none cursor-pointer hover:text-gray-400 transition-colors whitespace-nowrap'
 
-export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onFetchAuthority, onStatusChange }: Props) {
+export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onFetchAuthority, onStatusChange, tierMap }: Props) {
   const [fetchingId, setFetchingId] = useState<number | null>(null)
 
   const handleFetch = async (e: React.MouseEvent, d: Driver) => {
@@ -155,6 +157,7 @@ export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSel
                 {c.label} <SI col={c.key} sk={sortKey} sd={sortDir} />
               </th>
             ))}
+            {tierMap && <th className='text-left text-2xs font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3 whitespace-nowrap select-none'>Tier</th>}
             <th className='w-16 pb-2' />
           </tr>
         </thead>
@@ -199,6 +202,20 @@ export function DriversTable({ drivers, loading, sortKey, sortDir, onSort, onSel
               <td className='pr-3 py-2.5 text-xs'><ExpCell date={d.cdl_expiry} /></td>
               <td className='pr-3 py-2.5 text-xs'><ExpCell date={d.insurance_expiry} /></td>
               <td className='pr-3 py-2.5 text-xs'><ExpCell date={d.medical_card_expiry ?? null} /></td>
+              {tierMap && (() => {
+                const tr = tierMap.get(d.id)
+                if (!tr) return <td className='pr-3 py-2.5'><span className='text-2xs text-gray-700'>—</span></td>
+                return (
+                  <td className='pr-3 py-2.5'>
+                    <span
+                      className={`text-2xs px-1.5 py-0.5 rounded font-bold ${TIER_BADGE[tr.tier]}`}
+                      title={tr.reason ?? `Tier ${TIER_LABEL[tr.tier]}`}
+                    >
+                      {TIER_LABEL[tr.tier] !== '—' ? `Tier ${TIER_LABEL[tr.tier]}` : 'Unrated'}
+                    </span>
+                  </td>
+                )
+              })()}
               <td className='pr-3 py-2.5'>
                 <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
                   <button onClick={e=>{e.stopPropagation();onEdit(d)}} className='p-1 rounded hover:bg-surface-500 text-gray-500 hover:text-orange-400 transition-colors'><Edit2 size={12} /></button>

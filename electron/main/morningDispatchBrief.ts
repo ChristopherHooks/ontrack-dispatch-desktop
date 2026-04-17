@@ -56,6 +56,10 @@ export function getMorningDispatchBrief(db: Database.Database): MorningDispatchB
       acceptance_rate:         sc?.acceptance_rate != null ? sc.acceptance_rate : null,
       avg_response_minutes:    sc?.avg_response_minutes ?? null,
       dispatcher_revenue_week: sc?.dispatcher_revenue ?? null,
+      accepted_count:          sc?.accepted_count  ?? 0,
+      declined_count:          sc?.declined_count  ?? 0,
+      no_response_count:       sc?.no_response_count ?? 0,
+      loads_booked:            sc?.loads_booked    ?? 0,
       suggestions: top3.map(r => ({
         load_id:     r.load_id_pk,
         origin:      r.origin_city && r.origin_state

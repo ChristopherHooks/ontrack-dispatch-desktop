@@ -1,5 +1,118 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-16 — Session 39: Find Loads Overhaul + CRM Seed Fix
+
+### Work Completed
+
+#### Part 1 — Find Loads: Replaced Claude-prompt UX with deterministic lane planning
+
+Overhauled `src/pages/FindLoads.tsx`. The old `PlanningModal` (copy-commands-to-Claude workflow)
+has been removed entirely. The page now has a real dispatch planning surface:
+
+**New components added inside FindLoads.tsx:**
+- `SuggestedLanesPanel` — shows 2-8 scored outbound lane suggestions for the selected driver.
+  Appears automatically in the empty state. Toggled via "Search Strategy" button when results
+  are loaded. Strategy tabs: All Lanes, Best Volume, Short Runs, Toward Home.
+- `LaneSuggestionCard` — individual lane card. Shows origin → destination, reason tags, est.
+  miles, "Fill DAT" and "Truckstop" buttons. Each button opens the load board and copies a
+  structured search context (`Origin | Dest | Equip | Min RPM`) to clipboard.
+- `ImportOptionsPanel` — collapsible secondary panel replacing the old "Two ways to import"
+  primary card. Import instructions are now secondary to the lane suggestions.
+
+**Controls row changes:**
+- "Plan the Week" button removed.
+- "Search Strategy" button added — toggles `SuggestedLanesPanel` when results are present.
+  Panel is always shown in the empty state.
+
+**New data files:**
+- `src/data/freightMarkets.ts` — 35 U.S. freight markets with city/metro alias resolution.
+  `resolveMarket(location)` converts any free-form city/state string to a `MarketKey`.
+- `src/data/freightLanes.ts` — Static outbound lane map for all 35 markets. Each entry has
+  priority (1-10), estimated miles, trip category, and reason tags.
+
+**New service:**
+- `src/services/laneSuggestionService.ts` — `getSuggestedLanes()` function. Resolves driver
+  location to a market key, pulls static lane entries, applies scoring (base priority +
+  toward-home bonus + historical frequency + historical avg RPM + strategy modifier), and
+  returns ranked suggestions. Fully deterministic and local — no AI, no external calls.
+
+#### Part 2 — CRM Seed Fix
+
+**`electron/main/seed.ts`** — Removed `seedLeads(db)` call from `runSeedIfEmpty()`.
+CRM now starts empty on any fresh install. Personal lead data is never pre-populated.
+The `seedLeads` function still exists but is not called by any startup path.
+Leads must be added via the import tools (FMCSA, CSV, manual entry).
+
+Note: `resetAndReseed` (dev-only IPC tool) also calls `runSeedIfEmpty` and therefore
+no longer seeds leads either. Dev environments also start with an empty CRM.
+
+#### TypeScript
+
+Zero errors across all changed files and the full project `tsc --noEmit`.
+
+---
+
+## 2026-04-16 — Session 38: Reason-Based Unassignment Tracking
+
+### Work Completed
+
+Unassignment reasons now recorded on every driver removal from an active load.
+Only driver-fault reasons (`driver_backed_out`, `no_response_after_acceptance`) count
+toward `fallout_count` and tier degradation. All other reasons are stored for audit
+but have zero tier impact.
+
+**Migration 047 — `unassignment_reason` column** (`electron/main/schema/migrations.ts`)
+- `addColumnIfMissing(db, 'driver_fallout_log', 'unassignment_reason', 'TEXT')`
+- NULL reason treated as fallout for backward compatibility with existing rows.
+
+**Modified: `electron/main/repositories/driverFalloutRepo.ts`**
+- `logFallout` signature: added `unassignmentReason?` and `notes?` params. Always inserts.
+- All SQL queries now filter: `WHERE unassignment_reason IS NULL OR unassignment_reason IN ('driver_backed_out','no_response_after_acceptance')`
+- Added `total_unassignments` and `neutral_unassignments` to `DriverFalloutStats`
+- Added `FALLOUT_REASONS` Set export for reference
+
+**Modified: `electron/main/ipcHandlers.ts`**
+- `loads:update` handler: extracts `unassignment_reason` from patch before DB write.
+  Strips it from `cleanPatch` so it never reaches the loads table.
+  Passes reason to `logFallout`.
+
+**Modified: `src/types/models.ts`**
+- Added `UNASSIGNMENT_REASONS` const array (8 entries, each with `value`, `label`, `fallout` flag)
+- Added `UnassignmentReason` type
+- Extended `DriverFalloutStats` with `total_unassignments` and `neutral_unassignments`
+- `UpdateLoadDto` now includes `unassignment_reason?: string`
+
+**Modified: `src/types/global.d.ts`**
+- Added `DriverFalloutStats`, `DriverFalloutCountRow`, `UnassignmentReason` imports
+- Added `falloutStats` and `allFalloutCounts` to `window.api.drivers` type
+
+**Modified: `src/components/loads/constants.ts`**
+- Added `UNASSIGNMENT_REASON_OPTIONS` const array (mirrors models.ts `UNASSIGNMENT_REASONS`)
+
+**Modified: `src/components/loads/LoadsTable.tsx`** — `DriverDropdown` reason phase
+- Added `phase: 'list' | 'reason'` state
+- When "Unassigned" clicked with a driver assigned: shows reason sub-panel (not immediate call)
+- Reason panel: back arrow, 8 reason buttons, fallout reasons labeled `(fallout)`
+- On reason select: calls `onDriverChange(load, null, reason)`
+- Reassign path (driverA → driverB): auto-passes `'admin_correction'`
+- `onDriverChange` prop signature: `(l, driverId, reason?) => Promise<void>`
+
+**Modified: `src/pages/Loads.tsx`**
+- `handleDriverChange` gains `reason?: string` param
+- Unassign path: passes `{ driver_id: null, unassignment_reason: reason }` to `loads.update`
+- Reassign path: passes `unassignment_reason: reason ?? 'admin_correction'`
+
+**Modified: `src/pages/Drivers.tsx`**
+- Added `UNASSIGNMENT_REASON_OPTIONS` import from `../components/loads/constants`
+- Added `pendingUnassign` state: `{ drv, status, activeLoad } | null`
+- `handleStatus`: On Load → other path no longer uses `window.confirm`; sets `pendingUnassign`
+- New `handleConfirmUnassign(reason)`: unassigns with reason, then updates driver status
+- JSX: overlay modal with 8 reason buttons + cancel; shown when `pendingUnassign` is set
+
+tsc --noEmit: zero errors.
+
+---
+
 ## 2026-04-16 — Session 37: Driver Reliability / Fallout Tracking + Tier in Drivers Table
 
 ### Work Completed

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { parseLoadMatchDriverParam } from '../lib/routeIntents'
 import {
   Truck, MapPin, CheckSquare, Square, Check, Loader2,
   Package, Building2, ArrowRight, ArrowRightLeft, TrendingUp,
@@ -137,11 +138,8 @@ export function LoadMatch() {
       .then((recs: ScannerRecommendation[]) => {
         setAllRecs(recs)
         setLoading(false)
-        const paramId = searchParams.get('driverId')
-        if (paramId) {
-          const id = parseInt(paramId, 10)
-          if (recs.some(r => r.driver_id === id)) setSelectedDriverId(id)
-        }
+        const id = parseLoadMatchDriverParam(searchParams)
+        if (id && recs.some(r => r.driver_id === id)) setSelectedDriverId(id)
       })
       .catch(() => setLoading(false))
 

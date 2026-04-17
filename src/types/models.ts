@@ -158,7 +158,8 @@ export interface Load {
   has_vetting?: 0 | 1
 }
 export type CreateLoadDto = Omit<Load, "id" | "created_at" | "updated_at" | "has_accepted_offer" | "has_vetting">
-export type UpdateLoadDto = Partial<CreateLoadDto>
+/** unassignment_reason is stripped in the IPC handler before DB write; used only for fallout logging. */
+export type UpdateLoadDto = Partial<CreateLoadDto> & { unassignment_reason?: string }
 
 export type AccessorialType = 'Detention' | 'Lumper' | 'FSC' | 'Layover' | 'TONU' | 'Other'
 
@@ -688,6 +689,9 @@ export interface OperationsData {
 // Morning Dispatch Brief
 // ---------------------------------------------------------------------------
 
+// Re-export tier types so consumers can import from a single models file
+export type { DriverTier, DriverTierResult, TierInput } from '../lib/driverTierService'
+
 export interface MorningDispatchBriefRow {
   driver_id:               number
   driver_name:             string
@@ -696,6 +700,11 @@ export interface MorningDispatchBriefRow {
   acceptance_rate:         number | null
   avg_response_minutes:    number | null
   dispatcher_revenue_week: number | null
+  // Tier computation inputs — passed through from scorecard
+  accepted_count:          number
+  declined_count:          number
+  no_response_count:       number
+  loads_booked:            number
   suggestions: Array<{
     load_id:     number
     origin:      string | null
@@ -831,6 +840,46 @@ export interface DriverWeeklyScorecard {
   // Trends vs prior week (single-driver endpoint only)
   revenue_trend_pct:    number | null | undefined
   loads_trend_delta:    number | undefined
+}
+
+// ---------------------------------------------------------------------------
+// Unassignment Reasons
+// ---------------------------------------------------------------------------
+
+export const UNASSIGNMENT_REASONS = [
+  { value: 'mistaken_assignment',          label: 'Mistaken Assignment',         fallout: false },
+  { value: 'admin_correction',             label: 'Admin Correction',            fallout: false },
+  { value: 'broker_change',                label: 'Broker Change',               fallout: false },
+  { value: 'equipment_issue',              label: 'Equipment Issue',             fallout: false },
+  { value: 'compliance_issue',             label: 'Compliance Issue',            fallout: false },
+  { value: 'driver_backed_out',            label: 'Driver Backed Out',           fallout: true  },
+  { value: 'no_response_after_acceptance', label: 'No Response After Acceptance', fallout: true  },
+  { value: 'other',                        label: 'Other',                       fallout: false },
+] as const
+
+export type UnassignmentReason = typeof UNASSIGNMENT_REASONS[number]['value']
+
+// ---------------------------------------------------------------------------
+// Driver Fallout / Reliability
+// ---------------------------------------------------------------------------
+
+export interface DriverFalloutStats {
+  /** Driver-fault removals only (fallout-counting reasons). */
+  fallout_count:                number
+  /** Subset of fallout_count: removed while load was Picked Up or In Transit. */
+  accepted_not_completed_count: number
+  /** Completion rate = completed / (completed + fallout_count). null when no data. */
+  completion_rate:              number | null
+  /** All recorded unassignments regardless of reason. */
+  total_unassignments:          number
+  /** Non-penalised removals (admin/neutral reasons). */
+  neutral_unassignments:        number
+}
+
+export interface DriverFalloutCountRow {
+  driver_id:                    number
+  fallout_count:                number
+  accepted_not_completed_count: number
 }
 
 // ---------------------------------------------------------------------------

@@ -11,11 +11,13 @@ export interface LeadFilters {
   warm:          boolean  // status in [Interested, Call Back Later]
   untouched:     boolean  // status = New AND contact_attempt_count = 0
   duplicates:    boolean  // mc_number appears on more than one lead
+  upcoming:      boolean  // follow_up_date is in the future (scheduled follow-ups)
 }
 
 export const DEFAULT_FILTERS: LeadFilters = {
   status: '', priority: '', source: '', overdue: false,
   followUpToday: false, warm: false, untouched: false, duplicates: false,
+  upcoming: false,
 }
 
 interface Props {
@@ -64,9 +66,10 @@ export function LeadsToolbar({
   const hasFilters =
     filters.status !== '' || filters.priority !== '' ||
     filters.source !== '' || filters.overdue ||
-    filters.followUpToday || filters.warm || filters.untouched || filters.duplicates
+    filters.followUpToday || filters.warm || filters.untouched || filters.duplicates ||
+    filters.upcoming
 
-  const toggle = (key: 'followUpToday' | 'warm' | 'untouched' | 'duplicates') => {
+  const toggle = (key: 'followUpToday' | 'warm' | 'untouched' | 'duplicates' | 'upcoming') => {
     onFilters({ ...filters, [key]: !filters[key] })
   }
 
@@ -176,6 +179,7 @@ export function LeadsToolbar({
 
         {/* Quick filter chips */}
         <QuickChip label='Due Today'   active={filters.followUpToday} onClick={() => toggle('followUpToday')} />
+        <QuickChip label='Upcoming'    active={filters.upcoming}      onClick={() => toggle('upcoming')} />
         <QuickChip label='Warm'        active={filters.warm}          onClick={() => toggle('warm')} />
         <QuickChip label='Untouched'   active={filters.untouched}     onClick={() => toggle('untouched')} />
         {duplicateCount > 0 && (

@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-16 (Session 37)
+2026-04-16 (Session 39)
 
 ## Current Branch
 
@@ -16,6 +16,62 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 39 — Find Loads Overhaul + CRM Seed Fix (complete)
+
+**Find Loads page** (`src/pages/FindLoads.tsx`):
+- Removed `PlanningModal` (copy-to-Claude flow). No longer exists.
+- Added `SuggestedLanesPanel` — shows scored outbound lane cards in the empty state.
+  Strategy tabs: All Lanes, Best Volume, Short Runs, Toward Home.
+- Added `LaneSuggestionCard` — lane card with Fill DAT / Truckstop buttons.
+  Buttons open the load board and copy structured search context to clipboard.
+- Added `ImportOptionsPanel` — import instructions collapsed to secondary section.
+- "Plan the Week" button → "Search Strategy" (toggles panel when results are loaded).
+
+**New static data** (no AI, no external calls):
+- `src/data/freightMarkets.ts` — 35 U.S. freight markets, city alias resolver.
+- `src/data/freightLanes.ts` — Outbound lane map: priority, miles, trip category, tags.
+- `src/services/laneSuggestionService.ts` — Scoring engine (priority + home + history).
+
+**CRM seed fix** (`electron/main/seed.ts`):
+- `seedLeads(db)` removed from `runSeedIfEmpty()`.
+- Fresh installs and dev reseeds start with an empty CRM.
+- Personal lead data is never pre-populated automatically.
+
+### Session 38 — Reason-Based Unassignment Tracking (complete)
+
+Every driver removal from an active load now records a reason. Only driver-fault
+reasons (`driver_backed_out`, `no_response_after_acceptance`) count toward
+`fallout_count` and tier degradation.
+
+**Migration 047** — adds `unassignment_reason TEXT` to `driver_fallout_log` via
+`addColumnIfMissing`. NULL treated as fallout for backward compat.
+
+**`driverFalloutRepo.ts`** — `logFallout` gains `unassignmentReason?` param;
+all SQL queries filter by reason. Added `total_unassignments` + `neutral_unassignments`.
+
+**`ipcHandlers.ts`** — `loads:update` strips `unassignment_reason` from the dto
+before the DB write, passes it to `logFallout`.
+
+**`models.ts`** — `UNASSIGNMENT_REASONS` const array (8 entries, each with `value`,
+`label`, `fallout` flag). `UpdateLoadDto` includes `unassignment_reason?: string`.
+
+**`src/components/loads/constants.ts`** — `UNASSIGNMENT_REASON_OPTIONS` added.
+
+**`LoadsTable.tsx` DriverDropdown** — two-phase UI: driver list → reason sub-panel
+(when unassigning a currently-assigned driver). Back arrow, 8 reasons with `(fallout)`
+label on driver-fault ones. Reassign path auto-passes `'admin_correction'`.
+
+**`Loads.tsx`** — `handleDriverChange(load, driverId, reason?)` threads reason
+through both unassign and reassign paths.
+
+**`Drivers.tsx`** — `pendingUnassign` state replaces `window.confirm` for the
+On Load → other status change path. Overlay modal shows 8 reason buttons + Cancel.
+`handleConfirmUnassign(reason)` does the load unassign + driver status update.
+
+tsc --noEmit: zero errors.
+
+---
 
 ### Session 37 — Driver Reliability / Fallout Tracking + Tier in Drivers Table (complete)
 
@@ -963,7 +1019,24 @@ None. Build is clean.
 
 ---
 
-## Files Touched in Most Recent Session (37)
+## Files Touched in Most Recent Session (38)
+
+### Modified:
+- `electron/main/schema/migrations.ts` — migration047 (unassignment_reason column)
+- `electron/main/repositories/driverFalloutRepo.ts` — reason-aware logFallout + stats queries
+- `electron/main/ipcHandlers.ts` — strip + pass unassignment_reason in loads:update
+- `src/types/models.ts` — UNASSIGNMENT_REASONS, UnassignmentReason, UpdateLoadDto
+- `src/types/global.d.ts` — DriverFalloutStats extended; UnassignmentReason import
+- `src/components/loads/constants.ts` — UNASSIGNMENT_REASON_OPTIONS added
+- `src/components/loads/LoadsTable.tsx` — DriverDropdown reason phase UI
+- `src/pages/Loads.tsx` — handleDriverChange reason param + threading
+- `src/pages/Drivers.tsx` — pendingUnassign state + overlay modal; handleConfirmUnassign
+- `docs/HANDOFF.md` — session 38 entry
+- `docs/SESSION_LOG.md` — session 38 entry
+
+---
+
+## Files Touched in Session (37)
 
 ### New files:
 - `electron/main/repositories/driverFalloutRepo.ts`

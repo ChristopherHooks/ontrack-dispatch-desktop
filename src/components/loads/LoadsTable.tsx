@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, ArrowRight, ChevronDown as DropIcon } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, ArrowRight, ChevronDown as DropIcon, ChevronLeft } from 'lucide-react'
 import type { Load, Driver, LoadStatus } from '../../types/models'
-import { LOAD_STATUS_STYLES, LOAD_STATUSES } from './constants'
+import { LOAD_STATUS_STYLES, LOAD_STATUSES, UNASSIGNMENT_REASON_OPTIONS } from './constants'
 
 interface Props {
   loads: Load[]; drivers: Driver[]; loading: boolean
@@ -10,7 +10,7 @@ interface Props {
   onSort: (k: keyof Load) => void
   onSelect: (l: Load) => void; onEdit: (l: Load) => void
   onStatusChange?: (l: Load, status: LoadStatus) => Promise<void>
-  onDriverChange?: (l: Load, driverId: number | null) => Promise<void>
+  onDriverChange?: (l: Load, driverId: number | null, reason?: string) => Promise<void>
 }
 
 // Inline driver assignment / reassignment / unassignment dropdown.
@@ -18,9 +18,10 @@ interface Props {
 // if On Load). "Unassigned" clears the driver.
 function DriverDropdown({ load, drivers, onDriverChange }: {
   load: Load; drivers: Driver[]
-  onDriverChange?: (l: Load, driverId: number | null) => Promise<void>
+  onDriverChange?: (l: Load, driverId: number | null, reason?: string) => Promise<void>
 }) {
   const [open,    setOpen]    = useState(false)
+  const [phase,   setPhase]   = useState<'list' | 'reason'>('list')
   const [busy,    setBusy]    = useState(false)
   const [pos,     setPos]     = useState<{ top: number; left: number } | null>(null)
   const btnRef  = useRef<HTMLButtonElement>(null)
@@ -32,7 +33,7 @@ function DriverDropdown({ load, drivers, onDriverChange }: {
       if (
         panelRef.current  && !panelRef.current.contains(e.target as Node) &&
         btnRef.current    && !btnRef.current.contains(e.target as Node)
-      ) setOpen(false)
+      ) { setOpen(false); setPhase('list') }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -60,15 +61,31 @@ function DriverDropdown({ load, drivers, onDriverChange }: {
       const r = btnRef.current.getBoundingClientRect()
       setPos({ top: r.bottom + 4, left: r.left })
     }
+    if (open) { setPhase('list') }
     setOpen(o => !o)
   }
 
-  const handleSelect = async (e: React.MouseEvent, driverId: number | null) => {
+  const handleSelectDriver = async (e: React.MouseEvent, driverId: number | null) => {
     e.stopPropagation()
-    if (driverId === load.driver_id) { setOpen(false); return }
+    if (driverId === load.driver_id) { setOpen(false); setPhase('list'); return }
+    // Unassigning a currently-assigned driver → show reason picker
+    if (driverId === null && load.driver_id != null) {
+      setPhase('reason')
+      return
+    }
+    // Reassigning to a different driver → auto-reason admin_correction
     setOpen(false)
+    setPhase('list')
     setBusy(true)
-    try { await onDriverChange(load, driverId) } finally { setBusy(false) }
+    try { await onDriverChange(load, driverId, driverId == null ? undefined : 'admin_correction') } finally { setBusy(false) }
+  }
+
+  const handleSelectReason = async (e: React.MouseEvent, reason: string) => {
+    e.stopPropagation()
+    setOpen(false)
+    setPhase('list')
+    setBusy(true)
+    try { await onDriverChange(load, null, reason) } finally { setBusy(false) }
   }
 
   return (
@@ -89,36 +106,62 @@ function DriverDropdown({ load, drivers, onDriverChange }: {
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className='min-w-[160px] max-h-60 overflow-y-auto bg-surface-800 border border-surface-400 rounded-lg shadow-2xl'
+          className='min-w-[200px] max-h-72 overflow-y-auto bg-surface-800 border border-surface-400 rounded-lg shadow-2xl'
         >
-          {/* Unassigned option */}
-          <button
-            onClick={e => handleSelect(e, null)}
-            className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-              load.driver_id == null
-                ? 'text-yellow-500 opacity-50 cursor-default'
-                : 'text-yellow-500 hover:bg-surface-600'
-            }`}
-          >
-            Unassigned
-          </button>
-          {eligible.length > 0 && <div className='border-t border-surface-600 my-0.5' />}
-          {eligible.map(d => (
-            <button
-              key={d.id}
-              onClick={e => handleSelect(e, d.id)}
-              className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                d.id === load.driver_id
-                  ? 'text-gray-200 font-semibold opacity-60 cursor-default'
-                  : 'text-gray-200 hover:bg-surface-600'
-              }`}
-            >
-              {d.name}
-              {d.status === 'On Load' && d.id !== load.driver_id && (
-                <span className='text-2xs text-gray-500 ml-1'>(on load)</span>
+          {phase === 'list' ? (
+            <>
+              {/* Unassigned option — only shown when a driver is assigned */}
+              {load.driver_id != null && (
+                <>
+                  <button
+                    onClick={e => handleSelectDriver(e, null)}
+                    className='w-full text-left px-3 py-2 text-xs text-yellow-500 hover:bg-surface-600 transition-colors'
+                  >
+                    Unassigned
+                  </button>
+                  <div className='border-t border-surface-600 my-0.5' />
+                </>
               )}
-            </button>
-          ))}
+              {eligible.map(d => (
+                <button
+                  key={d.id}
+                  onClick={e => handleSelectDriver(e, d.id)}
+                  className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                    d.id === load.driver_id
+                      ? 'text-gray-200 font-semibold opacity-60 cursor-default'
+                      : 'text-gray-200 hover:bg-surface-600'
+                  }`}
+                >
+                  {d.name}
+                  {d.status === 'On Load' && d.id !== load.driver_id && (
+                    <span className='text-2xs text-gray-500 ml-1'>(on load)</span>
+                  )}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className='flex items-center gap-1 px-3 py-2 border-b border-surface-600'>
+                <button
+                  onClick={e => { e.stopPropagation(); setPhase('list') }}
+                  className='text-gray-500 hover:text-gray-300 transition-colors'
+                >
+                  <ChevronLeft size={12} />
+                </button>
+                <span className='text-2xs text-gray-400 uppercase tracking-wider'>Reason for removal</span>
+              </div>
+              {UNASSIGNMENT_REASON_OPTIONS.map(r => (
+                <button
+                  key={r.value}
+                  onClick={e => handleSelectReason(e, r.value)}
+                  className='w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-surface-600 transition-colors'
+                >
+                  {r.label}
+                  {r.fallout && <span className='text-2xs text-red-400 ml-1'>(fallout)</span>}
+                </button>
+              ))}
+            </>
+          )}
         </div>,
         document.body
       )}

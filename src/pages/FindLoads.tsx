@@ -1,15 +1,20 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { parseDriverIdParam } from '../lib/routeIntents'
 import {
   FileSpreadsheet, Loader2, AlertCircle, ArrowRight,
   CheckCircle2, XCircle, ChevronDown, ChevronUp, Plus,
   Phone, TrendingUp, Globe, Radio, MapPin,
   Copy, Check, Calculator, ExternalLink,
-  Bookmark, BookmarkCheck, Calendar, Users, Navigation,
+  Bookmark, BookmarkCheck, Users, Navigation, Home,
+  Compass,
 } from 'lucide-react'
 import type { Driver, Load, Broker } from '../types/models'
 import type { ScoredLoad, ParseScreenshotResult } from '../types/global'
 import type { DriverLaneFitRow } from '../types/models'
+import { getSuggestedLanes, tagLabel, tagStyle } from '../services/laneSuggestionService'
+import type { LaneSuggestion, SearchStrategy } from '../services/laneSuggestionService'
+import { resolveMarket, getMarket } from '../data/freightMarkets'
 
 // ---------------------------------------------------------------------------
 // Formatters
@@ -417,132 +422,354 @@ function LaneFitPanel({ driverId, driverName }: { driverId: number; driverName: 
 }
 
 // ---------------------------------------------------------------------------
-// Plan the Week modal
+// Lane Suggestion Card
+// Clicking selects the lane and expands a structured search preset.
+// Each preset field has its own copy button. Open DAT / Truckstop
+// opens the board and copies the full preset string to clipboard.
 // ---------------------------------------------------------------------------
 
-function PlanningModal({
-  drivers, allLoads, onClose,
+function copyText(text: string, setCopied: (v: boolean) => void) {
+  navigator.clipboard.writeText(text).then(() => {
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }).catch(() => {})
+}
+
+function FieldCopyRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className='flex items-center justify-between gap-2 py-0.5'>
+      <span className='text-2xs text-gray-600 w-14 shrink-0'>{label}</span>
+      <span className='text-2xs text-gray-300 flex-1 font-mono'>{value}</span>
+      <button
+        onClick={() => copyText(value, setCopied)}
+        title={`Copy ${label}`}
+        className='text-2xs px-1.5 py-0.5 rounded border border-surface-500 text-gray-600 hover:text-gray-300 hover:border-surface-400 transition-colors shrink-0'
+      >
+        {copied ? <Check size={9} /> : <Copy size={9} />}
+      </button>
+    </div>
+  )
+}
+
+function LaneSuggestionCard({
+  lane, driver, isSelected, onSelect,
 }: {
-  drivers: Driver[]
-  allLoads: Load[]
-  onClose: () => void
+  lane:       LaneSuggestion
+  driver:     Driver
+  isSelected: boolean
+  onSelect:   () => void
 }) {
-  const [copied, setCopied] = useState<number | null>(null)
+  const [datCopied, setDatCopied] = useState(false)
+  const [tsCopied,  setTsCopied ] = useState(false)
+  const [allCopied, setAllCopied] = useState(false)
 
-  function dropCityForDriver(driver: Driver): string {
-    const active = allLoads.find(l =>
-      l.driver_id === driver.id &&
-      ['In Transit', 'Picked Up', 'Booked'].includes(l.status)
-    )
-    if (active?.dest_city) return [active.dest_city, active.dest_state].filter(Boolean).join(', ')
-    if (driver.current_location) return driver.current_location
-    return driver.home_base ?? 'Unknown'
+  const destCity  = lane.destLabel.split(',')[0]
+  const destState = lane.destLabel.split(',')[1]?.trim() ?? ''
+  const equip     = [driver.trailer_type, driver.trailer_length].filter(Boolean).join(' ')
+
+  // Ordered preset fields — what the dispatcher enters into DAT/Truckstop manually
+  const presetFields: { label: string; value: string }[] = [
+    { label: 'Origin',  value: lane.originLabel },
+    { label: 'Dest',    value: lane.destLabel },
+    ...(equip ? [{ label: 'Equip', value: equip }] : []),
+    ...(driver.min_rpm != null ? [{ label: 'Min RPM', value: `$${driver.min_rpm.toFixed(2)}/mi` }] : []),
+    { label: '~Miles',  value: `${lane.estimatedMiles.toLocaleString()} mi` },
+  ]
+
+  function buildFullPreset() {
+    return presetFields.map(f => `${f.label}: ${f.value}`).join(' | ')
   }
 
-  function makeCommand(driver: Driver): string {
-    const city = dropCityForDriver(driver)
-    return (
-      `Import loads from my ${driver.trailer_type ?? 'DAT/Truckstop'} tab for ${driver.name}` +
-      (driver.min_rpm ? `, min $${driver.min_rpm.toFixed(2)}/mi` : '') +
-      `, currently dropping in ${city}`
-    )
+  // Opens the board and copies the full preset to clipboard so the dispatcher
+  // can paste it as a reference while entering search fields manually.
+  function openBoard(url: string, setCopied: (v: boolean) => void) {
+    window.api.shell.openExternal(url)
+    copyText(buildFullPreset(), setCopied)
   }
 
-  function copyCmd(idx: number, cmd: string) {
-    navigator.clipboard.writeText(cmd).then(() => {
-      setCopied(idx)
-      setTimeout(() => setCopied(null), 2000)
-    }).catch(() => {})
-  }
-
-  const activeDrivers = drivers.filter(d => d.status !== 'Inactive')
+  const visibleTags = lane.tags.slice(0, 3)
 
   return (
     <div
-      className='fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6'
-      onClick={onClose}
+      className={[
+        'rounded-xl border flex flex-col gap-2 transition-all',
+        isSelected
+          ? 'border-orange-500/70 bg-surface-700 p-3 ring-1 ring-orange-600/20'
+          : 'border-surface-400 bg-surface-700 p-3 hover:border-surface-300 cursor-pointer',
+      ].join(' ')}
+      onClick={!isSelected ? onSelect : undefined}
     >
-      <div
-        className='bg-surface-800 border border-surface-400 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col'
-        onClick={e => e.stopPropagation()}
-      >
-        <div className='flex items-center justify-between px-6 py-4 border-b border-surface-600 shrink-0'>
-          <div>
-            <h2 className='text-base font-semibold text-gray-100'>Weekly Load Planning</h2>
-            <p className='text-xs text-gray-500 mt-0.5'>
-              Copy each command into Claude in Chrome to score loads for every driver at once
+
+      {/* Route header — always visible */}
+      <div className='flex items-center gap-1.5 min-w-0'>
+        <span className='text-xs font-medium text-gray-400 shrink-0'>{lane.originLabel.split(',')[0]}</span>
+        <ArrowRight size={11} className='text-gray-600 shrink-0' />
+        <span className='text-sm font-semibold text-orange-300 truncate'>{destCity}</span>
+        {destState && <span className='text-2xs text-gray-500 shrink-0'>{destState}</span>}
+        {lane.towardHome && (
+          <Home size={11} className='text-blue-400 shrink-0 ml-auto' title='Toward home base' />
+        )}
+      </div>
+
+      {/* Tags + miles */}
+      <div className='flex items-center gap-1 flex-wrap'>
+        {visibleTags.map(tag => (
+          <span key={tag} className={`text-2xs px-1.5 py-0 rounded border ${tagStyle(tag)}`}>
+            {tagLabel(tag)}
+          </span>
+        ))}
+        <span className='text-2xs text-gray-600 ml-auto shrink-0'>
+          ~{lane.estimatedMiles.toLocaleString()} mi
+        </span>
+      </div>
+
+      {/* Expanded: active preset fields + external board actions */}
+      {isSelected && (
+        <>
+          {/* Active preset header */}
+          <div className='border-t border-surface-600 pt-2 space-y-0.5'>
+            <div className='flex items-center justify-between mb-1.5'>
+              <div className='flex items-center gap-1.5'>
+                <span className='inline-block w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0' />
+                <p className='text-2xs text-orange-400 font-semibold uppercase tracking-wide'>Active Preset</p>
+              </div>
+              <button
+                onClick={() => onSelect()}
+                title='Clear preset'
+                className='text-2xs text-gray-600 hover:text-gray-300 transition-colors'
+              >
+                Clear ×
+              </button>
+            </div>
+            {presetFields.map(f => (
+              <FieldCopyRow key={f.label} label={f.label} value={f.value} />
+            ))}
+          </div>
+
+          {/* Copy all + external board actions */}
+          <div className='border-t border-surface-600 pt-2 space-y-2'>
+            {/* Copy All — standalone row */}
+            <button
+              onClick={() => copyText(buildFullPreset(), setAllCopied)}
+              className={`w-full flex items-center justify-center gap-1.5 text-2xs py-1.5 rounded border transition-colors ${
+                allCopied
+                  ? 'bg-green-900/30 border-green-700/50 text-green-400'
+                  : 'bg-surface-600 border-surface-500 text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {allCopied ? <><Check size={9} /> Preset Copied</> : <><Copy size={9} /> Copy Full Preset</>}
+            </button>
+            {/* Open external boards — each copies the preset to clipboard */}
+            <div className='flex gap-1.5'>
+              <button
+                onClick={() => openBoard('https://one.dat.com/search-loads', setDatCopied)}
+                className={`flex items-center justify-center gap-1 text-2xs px-2 py-1 rounded border transition-colors flex-1 ${
+                  datCopied
+                    ? 'bg-green-900/30 border-green-700/50 text-green-400'
+                    : 'bg-surface-600 border-surface-500 text-gray-400 hover:text-gray-200'
+                }`}
+                title='Open DAT and copy preset to clipboard'
+              >
+                {datCopied ? <><Check size={9} /> Copied</> : <><ExternalLink size={9} /> Open DAT</>}
+              </button>
+              <button
+                onClick={() => openBoard('https://www.truckstop.com/public/load-search/', setTsCopied)}
+                className={`flex items-center justify-center gap-1 text-2xs px-2 py-1 rounded border transition-colors flex-1 ${
+                  tsCopied
+                    ? 'bg-green-900/30 border-green-700/50 text-green-400'
+                    : 'bg-surface-600 border-surface-500 text-gray-400 hover:text-gray-200'
+                }`}
+                title='Open Truckstop and copy preset to clipboard'
+              >
+                {tsCopied ? <><Check size={9} /> Copied</> : <><ExternalLink size={9} /> Truckstop</>}
+              </button>
+            </div>
+            <p className='text-2xs text-gray-700 text-center leading-tight'>
+              Open the board, paste or enter the preset fields above
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className='text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1'
-          >
-            Close
-          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Suggested Lanes Panel
+// ---------------------------------------------------------------------------
+
+const STRATEGY_LABELS: Record<SearchStrategy, string> = {
+  all:    'All Lanes',
+  volume: 'Best Volume',
+  short:  'Short Runs',
+  home:   'Toward Home',
+}
+
+function SuggestedLanesPanel({
+  driver, allLoads, selectedLane, onSelectLane,
+}: {
+  driver:        Driver
+  allLoads:      Load[]
+  selectedLane:  LaneSuggestion | null
+  onSelectLane:  (lane: LaneSuggestion | null) => void
+}) {
+  const [strategy, setStrategy] = useState<SearchStrategy>('all')
+
+  const originKey    = resolveMarket(driver.current_location)
+  const originMarket = originKey ? getMarket(originKey) : null
+
+  const suggestions: LaneSuggestion[] = useMemo(() => getSuggestedLanes({
+    currentLocation: driver.current_location,
+    homeBase:        driver.home_base,
+    trailerType:     driver.trailer_type,
+    driverId:        driver.id,
+    historicalLoads: allLoads,
+    strategy,
+    limit: 8,
+  }), [driver, allLoads, strategy])
+
+  // When driver changes, clear the selected lane
+  const prevDriverId = useRef(driver.id)
+  useEffect(() => {
+    if (prevDriverId.current !== driver.id) {
+      onSelectLane(null)
+      prevDriverId.current = driver.id
+    }
+  }, [driver.id, onSelectLane])
+
+  function toggleLane(lane: LaneSuggestion) {
+    onSelectLane(selectedLane?.destMarket === lane.destMarket ? null : lane)
+  }
+
+  return (
+    <div className='rounded-xl border border-surface-400 bg-surface-800 p-4 space-y-3'>
+
+      {/* Header */}
+      <div className='flex items-start justify-between gap-3 flex-wrap'>
+        <div className='flex items-center gap-2'>
+          <Compass size={14} className='text-orange-400 shrink-0' />
+          <span className='text-sm font-medium text-gray-200'>Suggested Search Lanes</span>
+          {originMarket
+            ? <span className='text-xs text-gray-500'>from {originMarket.label}</span>
+            : driver.current_location
+              ? <span className='text-xs text-orange-500'>
+                  Location not recognized — update in Drivers page
+                </span>
+              : <span className='text-xs text-gray-600'>Set driver location to see suggestions</span>
+          }
         </div>
 
-        <div className='overflow-y-auto p-6 space-y-3'>
-          {activeDrivers.length === 0 && (
-            <p className='text-sm text-gray-500 text-center py-8'>No active drivers found.</p>
-          )}
-
-          {activeDrivers.map((driver, i) => {
-            const city = dropCityForDriver(driver)
-            const cmd  = makeCommand(driver)
-            const activeLoad = allLoads.find(l =>
-              l.driver_id === driver.id &&
-              ['In Transit', 'Picked Up', 'Booked'].includes(l.status)
-            )
-
-            return (
-              <div key={driver.id} className='rounded-xl border border-surface-500 bg-surface-700 p-4 space-y-2.5'>
-                <div className='flex items-start justify-between gap-3'>
-                  <div className='space-y-0.5'>
-                    <div className='flex items-center gap-2 flex-wrap'>
-                      <span className='text-sm font-medium text-gray-100'>{driver.name}</span>
-                      <span className={`text-2xs px-2 py-0.5 rounded-full ${
-                        driver.status === 'On Load'
-                          ? 'bg-blue-900/30 text-blue-400'
-                          : 'bg-green-900/30 text-green-400'
-                      }`}>{driver.status}</span>
-                    </div>
-                    <p className='text-xs text-gray-500'>
-                      {[driver.trailer_type, driver.trailer_length].filter(Boolean).join(' · ')}
-                      {driver.min_rpm ? ` · Min $${driver.min_rpm.toFixed(2)}/mi` : ''}
-                    </p>
-                    {activeLoad && (
-                      <p className='text-2xs text-blue-400'>
-                        On load — drops{' '}
-                        {[activeLoad.dest_city, activeLoad.dest_state].filter(Boolean).join(', ')}
-                        {activeLoad.delivery_date ? ` by ${activeLoad.delivery_date}` : ''}
-                      </p>
-                    )}
-                  </div>
-                  <div className='flex items-center gap-1.5 text-xs shrink-0'>
-                    <MapPin size={11} className='text-orange-400' />
-                    <span className='text-orange-300 font-medium'>{city}</span>
-                  </div>
-                </div>
-
-                <div className='flex items-center gap-2'>
-                  <code className='flex-1 min-w-0 text-2xs bg-surface-800 border border-surface-600 rounded-lg px-3 py-1.5 text-gray-300 font-mono truncate block'>
-                    {cmd}
-                  </code>
-                  <button
-                    onClick={() => copyCmd(i, cmd)}
-                    className='flex items-center gap-1 text-2xs px-2.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium transition-colors shrink-0'
-                  >
-                    {copied === i
-                      ? <><Check size={10} /> Copied</>
-                      : <><Copy size={10} /> Copy</>
-                    }
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+        {/* Strategy filter tabs */}
+        <div className='flex gap-1.5 flex-wrap'>
+          {(Object.keys(STRATEGY_LABELS) as SearchStrategy[]).map(s => (
+            <button
+              key={s}
+              onClick={() => setStrategy(s)}
+              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
+                strategy === s
+                  ? 'bg-orange-600 border-orange-500 text-white'
+                  : 'bg-surface-700 border-surface-500 text-gray-400 hover:text-gray-200 hover:border-surface-400'
+              }`}
+            >
+              {STRATEGY_LABELS[s]}
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Lane grid */}
+      {!originKey ? (
+        <div className='flex flex-col items-center gap-2 py-6 text-center'>
+          <Navigation size={18} className='text-gray-600' />
+          <p className='text-sm text-gray-500'>No location set for this driver.</p>
+          <p className='text-xs text-gray-600'>
+            Set a current location on the Drivers page to unlock lane suggestions.
+          </p>
+        </div>
+      ) : suggestions.length === 0 ? (
+        <p className='text-xs text-gray-500 text-center py-4'>
+          No lanes match this strategy. Switch to "All Lanes".
+        </p>
+      ) : (
+        <div className='grid grid-cols-2 gap-2'>
+          {suggestions.map((lane, i) => (
+            <LaneSuggestionCard
+              key={i}
+              lane={lane}
+              driver={driver}
+              isSelected={selectedLane?.destMarket === lane.destMarket}
+              onSelect={() => toggleLane(lane)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Driver context footer */}
+      <div className='flex items-center gap-3 pt-1.5 border-t border-surface-600 flex-wrap'>
+        {driver.current_location && (
+          <div className='flex items-center gap-1 text-2xs text-gray-500'>
+            <MapPin size={10} className='text-orange-400' />
+            <span>{driver.current_location}</span>
+          </div>
+        )}
+        {driver.trailer_type && (
+          <span className='text-2xs text-gray-600'>
+            {[driver.trailer_type, driver.trailer_length].filter(Boolean).join(' ')}
+          </span>
+        )}
+        {driver.min_rpm != null && (
+          <span className='text-2xs text-gray-600'>Min ${driver.min_rpm.toFixed(2)}/mi</span>
+        )}
+        {driver.home_base && (
+          <div className='flex items-center gap-1 text-2xs text-gray-600'>
+            <Home size={9} />
+            <span>{driver.home_base}</span>
+          </div>
+        )}
+        {!selectedLane && originKey && (
+          <span className='text-2xs text-gray-700 ml-auto'>
+            Click a lane to open its search preset
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Import Options Panel — collapsible, shown in empty state as secondary info
+// ---------------------------------------------------------------------------
+
+function ImportOptionsPanel() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className='rounded-xl border border-surface-500 bg-surface-800'>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className='w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-500 hover:text-gray-300 transition-colors'
+      >
+        <span>How to import loads from DAT / Truckstop</span>
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && (
+        <div className='px-4 pb-4 border-t border-surface-600 pt-3 space-y-3 text-sm text-gray-500'>
+          <div>
+            <p className='text-gray-400 font-medium mb-1'>Import from Browser (recommended)</p>
+            <p>
+              Click "Import from Browser" above, then tell Claude which tab to read. Works
+              directly with DAT and Truckstop — no export or conversion needed.
+            </p>
+          </div>
+          <div className='border-t border-surface-600 pt-3'>
+            <p className='text-gray-400 font-medium mb-1'>Import XLSX</p>
+            <p>
+              Export search results from DAT or Truckstop as a spreadsheet, then click
+              "Import XLSX" to select the file and score loads automatically.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -571,6 +798,7 @@ function buildBrokerIntel(brokers: Broker[], loads: Load[]): BrokerIntelMap {
 
 export function FindLoads() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [drivers,          setDrivers         ] = useState<Driver[]>([])
   const [brokers,          setBrokers         ] = useState<Broker[]>([])
@@ -587,7 +815,8 @@ export function FindLoads() {
   const [resultTimestamp,  setResultTimestamp ] = useState<Date | null>(null)
   const [compareDriverId,  setCompareDriverId ] = useState<number | null>(null)
   const [bookmarked,       setBookmarked      ] = useState<Set<number>>(new Set())
-  const [showPlanning,     setShowPlanning    ] = useState(false)
+  const [showStrategy,     setShowStrategy    ] = useState(false)
+  const [selectedLane,     setSelectedLane    ] = useState<LaneSuggestion | null>(null)
   const [cmdCopied,        setCmdCopied       ] = useState(false)
   const [datCopied,        setDatCopied       ] = useState(false)
 
@@ -648,8 +877,16 @@ export function FindLoads() {
   }
 
   useEffect(() => {
-    if (drivers.length && !driverId) setDriverId(drivers[0].id)
-  }, [drivers, driverId])
+    if (drivers.length && !driverId) {
+      const id = parseDriverIdParam(searchParams)
+      if (id) {
+        const match = drivers.find(d => d.id === id)
+        setDriverId(match ? id : drivers[0].id)
+      } else {
+        setDriverId(drivers[0].id)
+      }
+    }
+  }, [drivers, driverId, searchParams])
 
   // Default CPM from driver profile
   useEffect(() => {
@@ -738,13 +975,28 @@ export function FindLoads() {
     window.api.shell.openExternal('https://one.dat.com/search-loads')
     // DAT uses localStorage state — URL params don't exist. Copy search context
     // to clipboard so the user can reference it when filling in the DAT form.
-    const parts: string[] = []
-    if (dropCity) parts.push(dropCity)
-    if (selectedDriver?.trailer_type) parts.push(selectedDriver.trailer_type)
-    if (selectedDriver?.trailer_length) parts.push(selectedDriver.trailer_length)
-    if (selectedDriver?.min_rpm) parts.push(`Min $${selectedDriver.min_rpm.toFixed(2)}/mi`)
-    if (parts.length) {
-      navigator.clipboard.writeText(parts.join(' | ')).then(() => {
+    // If a lane is selected, use its preset; otherwise fall back to driver context.
+    let clipText: string
+    if (selectedLane) {
+      const equip = [selectedDriver?.trailer_type, selectedDriver?.trailer_length].filter(Boolean).join(' ')
+      const parts: string[] = [
+        `Origin: ${selectedLane.originLabel}`,
+        `Dest: ${selectedLane.destLabel}`,
+        ...(equip ? [`Equip: ${equip}`] : []),
+        ...(selectedDriver?.min_rpm != null ? [`Min RPM: $${selectedDriver.min_rpm.toFixed(2)}/mi`] : []),
+        `~Miles: ${selectedLane.estimatedMiles.toLocaleString()} mi`,
+      ]
+      clipText = parts.join(' | ')
+    } else {
+      const parts: string[] = []
+      if (dropCity) parts.push(dropCity)
+      if (selectedDriver?.trailer_type) parts.push(selectedDriver.trailer_type)
+      if (selectedDriver?.trailer_length) parts.push(selectedDriver.trailer_length)
+      if (selectedDriver?.min_rpm) parts.push(`Min $${selectedDriver.min_rpm.toFixed(2)}/mi`)
+      clipText = parts.join(' | ')
+    }
+    if (clipText) {
+      navigator.clipboard.writeText(clipText).then(() => {
         setDatCopied(true)
         setTimeout(() => setDatCopied(false), 3000)
       }).catch(() => {})
@@ -868,13 +1120,18 @@ export function FindLoads() {
           <span>{datCopied ? 'Copied' : 'DAT'}</span>
         </button>
 
-        {/* Plan the Week */}
+        {/* Plan the Week — opens Suggested Lanes / search strategy panel */}
         <button
-          onClick={() => setShowPlanning(true)}
-          className='flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200 text-sm border border-surface-400 transition-colors'
-          title='Generate search commands for all active drivers'
+          onClick={() => setShowStrategy(s => !s)}
+          className={[
+            'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors',
+            showStrategy
+              ? 'bg-orange-700/30 border-orange-600/50 text-orange-300'
+              : 'bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200 border-surface-400',
+          ].join(' ')}
+          title='Open lane planning — see suggested search corridors for this driver'
         >
-          <Calendar size={13} />
+          <Compass size={13} />
           <span>Plan the Week</span>
         </button>
 
@@ -887,6 +1144,32 @@ export function FindLoads() {
           </span>
         )}
       </div>
+
+      {/* Active preset banner — shown when a lane is applied */}
+      {selectedLane && (
+        <div className='flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-500/50 bg-orange-900/15 text-xs flex-wrap'>
+          <span className='inline-block w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0' />
+          <span className='text-orange-300 font-semibold shrink-0'>Active Preset</span>
+          <span className='text-gray-500 shrink-0'>—</span>
+          <span className='text-gray-200 font-medium'>
+            {selectedLane.originLabel.split(',')[0]}
+          </span>
+          <ArrowRight size={10} className='text-gray-500 shrink-0' />
+          <span className='text-gray-200 font-medium'>{selectedLane.destLabel}</span>
+          <span className='text-gray-500'>~{selectedLane.estimatedMiles.toLocaleString()} mi</span>
+          <span className='text-gray-700 hidden sm:inline'>·</span>
+          <span className='text-gray-600 text-2xs hidden sm:inline'>
+            DAT button copies this preset · Open lane card to copy individual fields
+          </span>
+          <button
+            onClick={() => setSelectedLane(null)}
+            title='Clear active preset'
+            className='ml-auto text-gray-500 hover:text-gray-300 transition-colors shrink-0 px-1'
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Rate Calculator — always visible, collapsed by default */}
       <RateCalculator />
@@ -956,33 +1239,34 @@ export function FindLoads() {
         )
       )}
 
-      {/* Empty state — workflow hint + lane history */}
-      {!result && !error && !loading && !browserListening && (
+      {/* Suggested lanes panel — shown in empty state (always) and when toggled with results */}
+      {!result && !error && !loading && !browserListening && selectedDriver && (
         <div className='space-y-4'>
-          <div className='rounded-xl border border-surface-500 bg-surface-700 p-5 space-y-3'>
-            <p className='text-sm font-medium text-gray-300'>Two ways to import loads</p>
-            <div className='space-y-3 text-sm text-gray-500'>
-              <div>
-                <p className='text-gray-400 font-medium mb-1'>Import from Browser (recommended)</p>
-                <p>
-                  Click "Import from Browser" above, then tell Claude which tab to read. Works
-                  directly with DAT and Truckstop — no export or conversion needed.
-                </p>
-              </div>
-              <div className='border-t border-surface-600 pt-3'>
-                <p className='text-gray-400 font-medium mb-1'>Import XLSX</p>
-                <p>
-                  Export search results from DAT or Truckstop as a spreadsheet, then click
-                  "Import XLSX" to select the file.
-                </p>
-              </div>
-            </div>
-          </div>
+          <SuggestedLanesPanel
+            driver={selectedDriver}
+            allLoads={allLoads}
+            selectedLane={selectedLane}
+            onSelectLane={setSelectedLane}
+          />
 
-          {driverId && selectedDriver && (
+          {/* Lane fit history (historical corridors from past loads) */}
+          {driverId && (
             <LaneFitPanel driverId={driverId} driverName={selectedDriver.name} />
           )}
+
+          {/* Import options — secondary, collapsible */}
+          <ImportOptionsPanel />
         </div>
+      )}
+
+      {/* Suggested lanes strip when results are loaded and strategy panel is toggled */}
+      {result && showStrategy && selectedDriver && (
+        <SuggestedLanesPanel
+          driver={selectedDriver}
+          allLoads={allLoads}
+          selectedLane={selectedLane}
+          onSelectLane={setSelectedLane}
+        />
       )}
 
       {/* Error */}
@@ -1280,15 +1564,6 @@ export function FindLoads() {
           )}
 
         </div>
-      )}
-
-      {/* Plan the Week modal */}
-      {showPlanning && (
-        <PlanningModal
-          drivers={drivers}
-          allLoads={allLoads}
-          onClose={() => setShowPlanning(false)}
-        />
       )}
 
     </div>

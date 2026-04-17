@@ -33,6 +33,10 @@ export function Settings() {
   const [taskReseedBusy, setTaskReseedBusy] = useState(false)
   const [taskReseedMsg,  setTaskReseedMsg]  = useState('')
   const [taskReseedConfirm, setTaskReseedConfirm] = useState(false)
+  const [testAddBusy,    setTestAddBusy]    = useState(false)
+  const [testRemoveBusy, setTestRemoveBusy] = useState(false)
+  const [testRemoveConfirm, setTestRemoveConfirm] = useState(false)
+  const [testMsg,        setTestMsg]        = useState<{ text: string; ok: boolean } | null>(null)
 
   // Business Info local edit state
   const [bizCompany,     setBizCompany]     = useState(companyName)
@@ -168,6 +172,42 @@ export function Settings() {
       setSeedMsg('Clear failed. Check the console for details.')
     } finally {
       setClearBusy(false)
+    }
+  }
+
+  async function handleAddTestData() {
+    setTestAddBusy(true)
+    setTestMsg(null)
+    try {
+      const result = await window.api.dev.addTestData()
+      const c = result.counts
+      setTestMsg({
+        ok: true,
+        text: `Test data added — ${c.brokers.length} brokers, ${c.drivers.length} drivers, ${c.loads.length} loads, ${c.leads.length} leads. All named [TEST] for easy identification.`,
+      })
+    } catch (e) {
+      setTestMsg({ ok: false, text: 'Failed to add test data: ' + String(e) })
+    } finally {
+      setTestAddBusy(false)
+    }
+  }
+
+  async function handleRemoveTestData() {
+    if (!testRemoveConfirm) { setTestRemoveConfirm(true); return }
+    setTestRemoveConfirm(false)
+    setTestRemoveBusy(true)
+    setTestMsg(null)
+    try {
+      const result = await window.api.dev.removeTestData()
+      if (result.removed === 0) {
+        setTestMsg({ ok: false, text: 'No test data found. Add test data first, or it may already have been removed.' })
+      } else {
+        setTestMsg({ ok: true, text: `Test data removed — ${result.removed} records deleted. Your real data was not touched.` })
+      }
+    } catch (e) {
+      setTestMsg({ ok: false, text: 'Failed to remove test data: ' + String(e) })
+    } finally {
+      setTestRemoveBusy(false)
     }
   }
 
@@ -437,6 +477,63 @@ export function Settings() {
                   {clearBusy ? 'Removing…' : 'Remove Sample Data'}
                 </button>
               )}
+            </div>
+            {/* Testing */}
+            <div className='bg-surface-600 border border-surface-400 rounded-lg p-4 space-y-2 sm:col-span-2'>
+              <div className='flex items-center gap-2 mb-0.5'>
+                <p className='text-xs font-semibold text-gray-300'>Test Data</p>
+                <span className='text-2xs px-1.5 py-0 rounded border border-blue-700/40 bg-blue-900/10 text-blue-400'>
+                  Testing only
+                </span>
+              </div>
+              <p className='text-xs text-gray-500'>
+                Adds dummy brokers, drivers, loads, and leads — all named <span className='font-mono text-gray-400'>[TEST]</span> — for testing
+                workflows without touching your real data. IDs are tracked so only the test rows are removed.
+              </p>
+              {testMsg && (
+                <div className={`flex items-start gap-2 text-xs px-3 py-2 rounded-lg border ${
+                  testMsg.ok
+                    ? 'bg-green-900/20 border-green-700/40 text-green-300'
+                    : 'bg-red-900/20 border-red-700/40 text-red-300'
+                }`}>
+                  <CheckCircle size={13} className='shrink-0 mt-0.5' />
+                  <span>{testMsg.text}</span>
+                </div>
+              )}
+              <div className='flex items-center gap-2 pt-1 flex-wrap'>
+                <button
+                  onClick={handleAddTestData}
+                  disabled={testAddBusy || testRemoveBusy}
+                  className='text-xs px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/40 text-blue-300 rounded-lg transition-colors disabled:opacity-50'
+                >
+                  {testAddBusy ? 'Adding…' : 'Add Test Data'}
+                </button>
+                {testRemoveConfirm ? (
+                  <div className='flex items-center gap-2'>
+                    <span className='text-2xs text-yellow-400'>Remove all [TEST] records?</span>
+                    <button
+                      onClick={handleRemoveTestData}
+                      className='text-2xs px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded transition-colors'
+                    >
+                      Yes, remove
+                    </button>
+                    <button
+                      onClick={() => setTestRemoveConfirm(false)}
+                      className='text-2xs text-gray-500 hover:text-gray-300'
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRemoveTestData}
+                    disabled={testAddBusy || testRemoveBusy}
+                    className='text-xs px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 text-red-300 rounded-lg transition-colors disabled:opacity-50'
+                  >
+                    {testRemoveBusy ? 'Removing…' : 'Remove Test Data'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

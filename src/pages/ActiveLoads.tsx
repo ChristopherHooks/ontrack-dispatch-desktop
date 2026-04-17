@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { parseLoadIdParam } from '../lib/routeIntents'
 import {
   Activity, Truck, CheckCircle, Clock, Circle, Phone, MessageSquare,
   ChevronRight, RefreshCw, Plus, AlertTriangle, FileText, ArrowRight,
@@ -168,6 +169,7 @@ function TimelineRow({ event, onComplete, onDelete }: {
 
 export function ActiveLoads() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [loads,        setLoads]        = useState<ActiveLoadRow[]>([])
   const [selected,     setSelected]     = useState<ActiveLoadRow | null>(null)
@@ -232,6 +234,16 @@ export function ActiveLoads() {
     }
     setSelected(row)
   }
+
+  // Auto-select a specific load when navigated with ?load_id=X
+  useEffect(() => {
+    const id = parseLoadIdParam(searchParams)
+    if (!id || !loads.length) return
+    const match = loads.find(r => r.id === id)
+    if (match && selected?.id !== id) handleSelect(match)
+  // handleSelect is stable within the render; loads/searchParams drive re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loads, searchParams])
 
   const handleComplete = async (eventId: number) => {
     await window.api.timeline.completeEvent(eventId)

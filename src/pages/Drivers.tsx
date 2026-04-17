@@ -7,6 +7,9 @@ import { DriverDrawer }  from '../components/drivers/DriverDrawer'
 import { DriverAvailabilityCalendar } from '../components/drivers/DriverAvailabilityCalendar'
 import { DriverOnboardingPipeline } from '../components/drivers/DriverOnboardingPipeline'
 import { Export1099Modal } from '../components/drivers/Export1099Modal'
+import { computeDriverTier, type DriverTierResult } from '../lib/driverTierService'
+import { UNASSIGNMENT_REASON_OPTIONS } from '../components/loads/constants'
+import type { Load } from '../types/models'
 
 export function Drivers() {
   const [drivers,  setDrivers]  = useState<Driver[]>([])
@@ -20,13 +23,41 @@ export function Drivers() {
   const [modal,    setModal]    = useState(false)
   const [view,     setView]     = useState<DriverView>('list')
   const [show1099, setShow1099] = useState(false)
+  const [tierMap,  setTierMap]  = useState<Map<number, DriverTierResult>>(new Map())
+  const [pendingUnassign, setPendingUnassign] = useState<{ drv: Driver; status: DriverStatus; activeLoad: Load } | null>(null)
 
   const reload = async () => {
     setLoading(true)
     try     { setDrivers(await window.api.drivers.list()) }
     finally { setLoading(false) }
   }
-  useEffect(() => { reload() }, [])
+
+  const loadTierMap = async () => {
+    try {
+      const [cards, falloutRows] = await Promise.all([
+        window.api.drivers.allWeeklyScorecards(),
+        window.api.drivers.allFalloutCounts(),
+      ])
+      const falloutByDriver = new Map(falloutRows.map(r => [r.driver_id, r.fallout_count]))
+      const map = new Map<number, DriverTierResult>(
+        cards.map(c => [
+          c.driver_id,
+          computeDriverTier({
+            accepted_count:       c.accepted_count,
+            declined_count:       c.declined_count,
+            no_response_count:    c.no_response_count,
+            loads_booked:         c.loads_booked,
+            acceptance_rate:      c.acceptance_rate ?? 0,
+            avg_response_minutes: c.avg_response_minutes,
+            fallout_count:        falloutByDriver.get(c.driver_id) ?? 0,
+          }),
+        ])
+      )
+      setTierMap(map)
+    } catch (_) { /* non-critical — table renders without tier if fetch fails */ }
+  }
+
+  useEffect(() => { reload(); loadTierMap() }, [])
 
   const handleSort = (key: keyof Driver) => {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -44,7 +75,7 @@ export function Drivers() {
   }
   const handleStatus = async (drv: Driver, status: DriverStatus) => {
     // Consistency guard: changing away from On Load risks leaving a live load
-    // with a ghost driver assignment. Check first, then confirm if a conflict exists.
+    // with a ghost driver assignment. Check first; if conflict exists, show reason picker.
     if (drv.status === 'On Load' && status !== 'On Load') {
       const allLoads = await window.api.loads.list()
       const activeLoad = allLoads.find(l =>
@@ -52,15 +83,23 @@ export function Drivers() {
         ['Booked', 'Picked Up', 'In Transit'].includes(l.status)
       )
       if (activeLoad) {
-        const loadRef = activeLoad.load_id ?? `#${activeLoad.id}`
-        const confirmed = window.confirm(
-          `${drv.name} is still assigned to Load ${loadRef}.\n\nUnassign the load and mark driver ${status}?`
-        )
-        if (!confirmed) return
-        // Unassign the load (backend also reverts it to Searching)
-        await window.api.loads.update(activeLoad.id, { driver_id: null })
+        // Show reason picker modal instead of window.confirm
+        setPendingUnassign({ drv, status, activeLoad })
+        return
       }
     }
+    const updated = await window.api.drivers.update(drv.id, { status })
+    if (updated) {
+      setDrivers(p => p.map(d => d.id === updated.id ? updated : d))
+      if (selected?.id === updated.id) setSelected(updated)
+    }
+  }
+
+  const handleConfirmUnassign = async (reason: string) => {
+    if (!pendingUnassign) return
+    const { drv, status, activeLoad } = pendingUnassign
+    setPendingUnassign(null)
+    await window.api.loads.update(activeLoad.id, { driver_id: null, unassignment_reason: reason })
     const updated = await window.api.drivers.update(drv.id, { status })
     if (updated) {
       setDrivers(p => p.map(d => d.id === updated.id ? updated : d))
@@ -115,7 +154,7 @@ export function Drivers() {
       </div>
       <DriversToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} total={filtered.length} onAdd={openAdd} view={view} onView={setView}/>
       {view === 'list'
-        ? <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority} onStatusChange={handleStatus}/>
+        ? <DriversTable drivers={filtered} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onFetchAuthority={handleFetchAuthority} onStatusChange={handleStatus} tierMap={tierMap}/>
         : view === 'calendar'
         ? <DriverAvailabilityCalendar drivers={filtered}/>
         : <DriverOnboardingPipeline drivers={filtered} onSelectDriver={setSelected}/>
@@ -123,6 +162,35 @@ export function Drivers() {
       {selected&&<DriverDrawer driver={selected} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete} onUpdate={handleUpdate}/>}
       {modal&&<DriverModal driver={editDrv} onClose={()=>{setModal(false);setEditDrv(null)}} onSave={handleSave}/>}
       {show1099&&<Export1099Modal drivers={drivers} onClose={()=>setShow1099(false)}/>}
+      {pendingUnassign && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60'>
+          <div className='bg-surface-800 border border-surface-400 rounded-xl shadow-2xl w-80 p-5'>
+            <p className='text-sm text-gray-200 font-medium mb-1'>Remove driver from load?</p>
+            <p className='text-xs text-gray-500 mb-4'>
+              {pendingUnassign.drv.name} is assigned to Load {pendingUnassign.activeLoad.load_id ?? `#${pendingUnassign.activeLoad.id}`}.
+              Select a reason to continue.
+            </p>
+            <div className='space-y-1'>
+              {UNASSIGNMENT_REASON_OPTIONS.map(r => (
+                <button
+                  key={r.value}
+                  onClick={() => handleConfirmUnassign(r.value)}
+                  className='w-full text-left px-3 py-2 rounded-lg text-xs text-gray-200 hover:bg-surface-600 transition-colors border border-transparent hover:border-surface-400'
+                >
+                  {r.label}
+                  {r.fallout && <span className='text-2xs text-red-400 ml-1'>(fallout)</span>}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPendingUnassign(null)}
+              className='mt-3 w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors'
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

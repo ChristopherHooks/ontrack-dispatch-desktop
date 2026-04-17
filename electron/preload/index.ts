@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld('api', {
     compliance:            ()                                    => ipcRenderer.invoke('drivers:compliance'),
     weeklyScorecard:       (driverId: number)                    => ipcRenderer.invoke('drivers:weeklyScorecard', driverId),
     allWeeklyScorecards:   ()                                    => ipcRenderer.invoke('drivers:allWeeklyScorecards'),
+    falloutStats:          (driverId: number)                    => ipcRenderer.invoke('drivers:falloutStats', driverId),
+    allFalloutCounts:      ()                                    => ipcRenderer.invoke('drivers:allFalloutCounts'),
   },
 
   // -- Driver Documents --
@@ -374,9 +376,11 @@ contextBridge.exposeInMainWorld('api', {
     reseed:        () => ipcRenderer.invoke('dev:reseed'),
     seedMissing:   () => ipcRenderer.invoke('dev:seedMissing'),
     seedTasksOnly: () => ipcRenderer.invoke('dev:seedTasksOnly'),
-    clearSeedData: () => ipcRenderer.invoke('dev:clearSeedData'),
-    reseedDocs:    () => ipcRenderer.invoke('dev:reseedDocs'),
-    reseedTasks:   () => ipcRenderer.invoke('dev:reseedTasks'),
+    clearSeedData:  () => ipcRenderer.invoke('dev:clearSeedData'),
+    reseedDocs:     () => ipcRenderer.invoke('dev:reseedDocs'),
+    reseedTasks:    () => ipcRenderer.invoke('dev:reseedTasks'),
+    addTestData:    () => ipcRenderer.invoke('dev:addTestData'),
+    removeTestData: () => ipcRenderer.invoke('dev:removeTestData'),
   },
 
 })

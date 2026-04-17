@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { parseUninvoicedParam } from '../lib/routeIntents'
 import { Receipt } from 'lucide-react'
 import type { Invoice, InvoiceStatus, Driver, Load, Broker } from '../types/models'
 import { InvoicesToolbar, type InvoiceFilters } from '../components/invoices/InvoicesToolbar'
@@ -26,6 +27,7 @@ export function Invoices() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<'invoices' | 'aging'>('invoices')
+  const uninvoicedRef = useRef<HTMLDivElement>(null)
 
   const reload = async () => {
     setLoading(true)
@@ -39,6 +41,12 @@ export function Invoices() {
     setLoading(false)
   }
   useEffect(() => { reload() }, [])
+
+  // Scroll to uninvoiced section when navigated with ?uninvoiced=1
+  useEffect(() => {
+    if (loading || !parseUninvoicedParam(searchParams)) return
+    uninvoicedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading, searchParams])
 
   // Auto-open new invoice modal pre-filled from a load (e.g. navigated from Active Loads after delivery)
   useEffect(() => {
@@ -168,7 +176,7 @@ export function Invoices() {
         ))}
       </div>
       {uninvoicedLoads.length > 0 && (
-        <div className='mx-0 mb-3 rounded-xl border border-orange-700/40 bg-orange-950/25 px-4 py-3'>
+        <div ref={uninvoicedRef} className='mx-0 mb-3 rounded-xl border border-orange-700/40 bg-orange-950/25 px-4 py-3'>
           <div className='flex items-center gap-2 mb-2'>
             <Receipt size={13} className='text-orange-400 shrink-0' />
             <span className='text-xs font-semibold text-orange-300'>

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { activeLoadsRoute, leadsRoute } from '../lib/routeIntents'
 import {
-  Zap, AlertTriangle, Truck, Users, Megaphone,
-  FileText, ChevronRight, ChevronDown, Clock, ArrowRight, X,
+  AlertTriangle, Truck, Users, Megaphone,
+  FileText, ChevronRight, ChevronDown, Clock, X,
   CheckSquare, TrendingUp, Package, Star, Phone, Target, MapPin,
 } from 'lucide-react'
 import { renderMd } from '../lib/renderMd'
@@ -13,13 +14,15 @@ import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 import { LaunchSprintPanel } from '../components/operations/LaunchSprintPanel'
 import { MorningDispatchBrief } from '../components/operations/MorningDispatchBrief'
 import { DailyWorkflowPanel } from '../components/operations/DailyWorkflowPanel'
+import { DoThisNowPanel } from '../components/operations/DoThisNowPanel'
 import { computeDailyWorkflow } from '../lib/dailyWorkflowEngine'
 import type { DailyWorkflowTask } from '../lib/dailyWorkflowEngine'
+import { computeDriverTier, TIER_BADGE, TIER_LABEL } from '../lib/driverTierService'
 import { useSettingsStore } from '../store/settingsStore'
 import { badge as badgeTokens } from '../styles/uiTokens'
 import type {
   Task, Driver, Load, Lead, LeadStatus, CheckCallRow,
-  OperationsData, DriverOpportunity, GroupPerformance, BrokerLane, ProfitRadarData,
+  OperationsData, ProfitRadarData,
   DriverComplianceRow, MorningDispatchBriefRow,
 } from '../types/models'
 
@@ -32,15 +35,6 @@ interface ScoredLead extends Lead {
   _grade:    'Hot' | 'Warm' | 'Cold'
   _overdue:  boolean
   _dueToday: boolean
-}
-
-interface NextAction {
-  id:     string
-  label:  string
-  detail: string
-  icon:   React.ReactNode
-  route:  string
-  urgent: boolean
 }
 
 const EMPTY: OperationsData = {
@@ -76,7 +70,8 @@ export function Operations() {
   const [compliance,      setCompliance]      = useState<DriverComplianceRow[]>([])
   const [morningBrief,    setMorningBrief]    = useState<MorningDispatchBriefRow[]>([])
   const [briefLoading,    setBriefLoading]    = useState(true)
-  const [workflowDone,    setWorkflowDone]    = useState<Set<string>>(new Set())
+  const [workflowDone,       setWorkflowDone]       = useState<Set<string>>(new Set())
+  const [checklistCollapsed, setChecklistCollapsed] = useState(true)
   const navigate         = useNavigate()
   const companyName      = useSettingsStore((s) => s.companyName)
   const firstLaunchDate  = useSettingsStore((s) => s.firstLaunchDate)
@@ -143,23 +138,32 @@ export function Operations() {
   const today    = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   // ── Daily Workflow — computed from live operational data ───────────────────
-  const overdueCheckCalls = checkCalls.filter(c =>
+  const overdueCallList = checkCalls.filter(c =>
     c.scheduled_at && c.scheduled_at < new Date().toISOString()
-  ).length
+  )
+  const overdueCheckCalls              = overdueCallList.length
+  const firstOverdueCheckCallLoadId    = overdueCallList[0]?.load_id_pk
 
   const workflowTasks: DailyWorkflowTask[] = (!loading && !briefLoading)
     ? computeDailyWorkflow(
         {
-          driversNeedingLoads: ops.driversNeedingLoads,
-          loadsInTransit:      ops.loadsInTransit,
+          driversNeedingLoads:          ops.driversNeedingLoads,
+          loadsInTransit:               ops.loadsInTransit,
           overdueCheckCalls,
-          totalCheckCalls:     checkCalls.length,
-          overdueLeads:        ops.overdueLeads,
-          uninvoicedDelivered: ops.uninvoicedDelivered,
+          firstOverdueCheckCallLoadId,
+          firstIdleDriverName:          radar.idleDrivers[0]?.name,
+          totalCheckCalls:              checkCalls.length,
+          overdueLeads:                 ops.overdueLeads,
+          uninvoicedDelivered:          ops.uninvoicedDelivered,
           overdueInvoices:     ops.overdueInvoices,
           expiringDocs:        ops.expiringDocs.length,
           staleLoads:          ops.staleLoads.length,
-          warmLeads:           ops.warmLeads.length,
+          // Only count warm leads with an upcoming follow-up date (not already overdue —
+          // overdue ones are already shown in overdueLeads). Avoids inflating the count
+          // with all High/Medium priority leads that have no scheduled follow-up.
+          warmLeads: ops.warmLeads.filter(l =>
+            l.follow_up_date != null && l.follow_up_date > todayIso
+          ).length,
           hotProspects:        ops.hotProspects.length,
           todaysGroupCount:    ops.todaysGroupCount,
           morningBriefCount:   morningBrief.length,
@@ -183,6 +187,20 @@ export function Operations() {
     })
     .slice(0, 6)
 
+  // Build tier map from morning brief rows (uses offer + scorecard data already fetched)
+  const tierByDriver: Record<number, ReturnType<typeof computeDriverTier>> = {}
+  morningBrief.forEach(row => {
+    tierByDriver[row.driver_id] = computeDriverTier({
+      accepted_count:       row.accepted_count,
+      declined_count:       row.declined_count,
+      no_response_count:    row.no_response_count,
+      loads_booked:         row.loads_booked,
+      acceptance_rate:      row.acceptance_rate ?? 0,
+      avg_response_minutes: row.avg_response_minutes,
+      fallout_count:        0,
+    })
+  })
+
   // ── Top leads ──────────────────────────────────────────────────────────────
   const topLeads: ScoredLead[] = leads
     .filter(l => l.status !== 'Signed' && l.status !== 'Rejected')
@@ -203,34 +221,6 @@ export function Operations() {
     })
     .slice(0, 10)
 
-  // ── Next actions ───────────────────────────────────────────────────────────
-  const nextActions: NextAction[] = [
-    ops.overdueLeads > 0 && {
-      id: 'leads-overdue', urgent: true,
-      label:  'Follow up on overdue leads',
-      detail: `${ops.overdueLeads} lead${ops.overdueLeads !== 1 ? 's' : ''} past their follow-up date`,
-      icon:   <AlertTriangle size={14}/>, route: '/leads?filter=overdue',
-    },
-    ops.driversNeedingLoads > 0 && {
-      id: 'drivers-loads', urgent: ops.driversNeedingLoads >= 2,
-      label:  'Find loads for available drivers',
-      detail: `${ops.driversNeedingLoads} active driver${ops.driversNeedingLoads !== 1 ? 's' : ''} without a load`,
-      icon:   <Truck size={14}/>, route: '/dispatcher',
-    },
-    ops.todaysGroupCount > 0 && {
-      id: 'marketing', urgent: false,
-      label:  "Post in today's Facebook groups",
-      detail: `${ops.todaysGroupCount} group${ops.todaysGroupCount !== 1 ? 's' : ''} eligible for a post today`,
-      icon:   <Megaphone size={14}/>, route: '/marketing',
-    },
-    ops.outstandingInvoices > 0 && {
-      id: 'invoices', urgent: false,
-      label:  'Review outstanding invoices',
-      detail: `${ops.outstandingInvoices} invoice${ops.outstandingInvoices !== 1 ? 's' : ''} in Draft, Sent, or Overdue`,
-      icon:   <FileText size={14}/>, route: '/invoices',
-    },
-  ].filter(Boolean) as NextAction[]
-
   const completedCount = ops.todayTasks.filter(t =>
     ops.completedToday.includes(t.id)
   ).length
@@ -249,22 +239,12 @@ export function Operations() {
         <h1 className='text-2xl font-bold text-gray-100'>{today}</h1>
       </div>
 
-      {/* Drivers-ready banner — shown when drivers need loads */}
-      {!loading && ops.driversNeedingLoads > 0 && (
-        <div className='flex items-center justify-between gap-3 px-4 py-3 bg-orange-600/10 border border-orange-600/30 rounded-xl'>
-          <div className='flex items-center gap-2.5'>
-            <Truck size={15} className='text-orange-700 dark:text-orange-400 shrink-0' />
-            <span className='text-sm text-orange-900 dark:text-orange-200'>
-              You have <span className='font-semibold text-orange-700 dark:text-orange-400'>{ops.driversNeedingLoads} driver{ops.driversNeedingLoads !== 1 ? 's' : ''}</span> ready — find them loads now.
-            </span>
-          </div>
-          <button
-            onClick={() => navigate('/findloads')}
-            className='shrink-0 text-xs font-medium text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 border border-orange-500/60 dark:border-orange-600/40 hover:border-orange-600/80 dark:hover:border-orange-500/60 px-3 py-1.5 rounded-lg transition-colors'>
-            Find Loads
-          </button>
-        </div>
-      )}
+      {/* Do This Now — priority command center */}
+      <DoThisNowPanel
+        tasks={workflowTasks}
+        idleDrivers={radar.idleDrivers}
+        loading={loading || briefLoading}
+      />
 
       {/* 7-Day Launch Sprint — visible until first invoice is sent */}
       <LaunchSprintPanel
@@ -274,12 +254,13 @@ export function Operations() {
         loading={loading}
       />
 
-      {/* Daily Workflow — conditional profit-first task list */}
+      {/* Daily Workflow — flat ranked priority queue */}
       <DailyWorkflowPanel
         tasks={workflowTasks}
         onMarkDone={handleWorkflowDone}
         onMarkUndone={handleWorkflowUndone}
         loading={loading || briefLoading}
+        layout='flat'
       />
 
       {/* Morning Dispatch Brief — driver-first load planning */}
@@ -296,7 +277,7 @@ export function Operations() {
         <KpiCard label='Revenue MTD'     value={loading ? '—' : `$${ops.revenueThisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`} icon={<TrendingUp size={16}/>} accent={false} sub='dispatch fees paid' onClick={() => navigate('/invoices')} />
         <KpiCard label='Loads In Transit' value={loading ? '—' : String(ops.loadsInTransit)}     icon={<Package size={16}/>}       accent={false}                        sub='currently moving'       onClick={() => navigate('/loads')}     />
         <KpiCard label='Drivers Avail.'  value={loading ? '—' : String(ops.driversNeedingLoads)} icon={<Truck size={16}/>}         accent={ops.driversNeedingLoads > 0}  sub='need loads today'       onClick={() => navigate('/drivers')}   />
-        <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'     onClick={() => navigate('/leads?filter=overdue')}     />
+        <KpiCard label='Overdue Leads'   value={loading ? '—' : String(ops.overdueLeads)}        icon={<Users size={16}/>}         accent={ops.overdueLeads > 0}         sub='follow-up past due'     onClick={() => navigate(leadsRoute('overdue'))}     />
         <KpiCard label='Groups to Post'  value={loading ? '—' : String(ops.todaysGroupCount)}    icon={<Megaphone size={16}/>}     accent={false}                        sub='eligible today'         onClick={() => navigate('/marketing')} />
         <KpiCard label='Open Invoices'   value={loading ? '—' : String(ops.outstandingInvoices)} icon={<FileText size={16}/>}      accent={ops.outstandingInvoices > 0}  sub='draft / sent / overdue' onClick={() => navigate('/invoices')}  />
       </div>
@@ -490,12 +471,7 @@ export function Operations() {
         </div>
       )}
 
-      {/* Carrier Compliance Matrix — always visible when there are active drivers */}
-      {compliance.length > 0 && (
-        <ComplianceMatrix rows={compliance} onNavigate={() => navigate('/drivers')} />
-      )}
-
-      {/* Upcoming Check Calls — only rendered when active loads have events */}
+      {/* Upcoming Check Calls — moved up; these are time-sensitive and must be visible */}
       {checkCalls.length > 0 && (
         <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card px-5 py-3'>
           <div className='flex items-center gap-2 mb-3'>
@@ -518,7 +494,7 @@ export function Operations() {
               return (
                 <button
                   key={cc.event_id}
-                  onClick={() => navigate('/activeloads')}
+                  onClick={() => navigate(activeLoadsRoute(cc.load_id_pk))}
                   className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-left transition-colors hover:bg-surface-600 ${
                     overdue ? 'border-red-800/40 bg-red-950/20' : 'border-surface-400 bg-surface-600/50'
                   }`}
@@ -540,7 +516,12 @@ export function Operations() {
         </div>
       )}
 
-      {/* Profit Radar */}
+      {/* Carrier Compliance Matrix — after check calls; collapsible */}
+      {compliance.length > 0 && (
+        <ComplianceMatrix rows={compliance} onNavigate={() => navigate('/drivers')} />
+      )}
+
+      {/* Profit Radar — collapsible reference panel */}
       <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card'>
         {/* Radar header */}
         <div className='flex items-center gap-3 px-5 py-3 border-b border-surface-400'>
@@ -660,51 +641,8 @@ export function Operations() {
         )}
       </div>
 
-      {/* Next Actions + Revenue Opportunities */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-
-        {/* Next Actions */}
-        <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
-          <div className='flex items-center gap-2 mb-4'>
-            <Zap size={15} className='text-orange-500'/>
-            <h2 className='text-sm font-semibold text-gray-200'>Next Actions</h2>
-            <span className='text-2xs text-gray-600 ml-1'>ordered by urgency</span>
-          </div>
-          {nextActions.length === 0 ? (
-            <div className='py-5 text-center'>
-              <p className='text-sm text-green-400 font-medium'>All clear — nothing urgent right now.</p>
-              <p className='text-xs text-gray-600 mt-1'>Check back after new FB activity or follow-ups come due.</p>
-            </div>
-          ) : (
-            <ul className='space-y-2'>
-              {nextActions.map(action => (
-                <li key={action.id}>
-                  <button
-                    onClick={() => navigate(action.route)}
-                    className={[
-                      'w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors group',
-                      action.urgent
-                        ? 'border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 hover:border-orange-500/70'
-                        : 'border-surface-400 bg-surface-600 hover:bg-surface-500 hover:border-surface-300',
-                    ].join(' ')}
-                  >
-                    <span className={action.urgent ? 'text-orange-400' : 'text-gray-400'}>{action.icon}</span>
-                    <div className='flex-1 min-w-0'>
-                      <p className={['text-xs font-semibold truncate', action.urgent ? 'text-orange-300' : 'text-gray-200'].join(' ')}>
-                        {action.label}
-                      </p>
-                      <p className='text-2xs text-gray-400 truncate mt-0.5'>{action.detail}</p>
-                    </div>
-                    <ArrowRight size={13} className='text-gray-500 group-hover:text-gray-200 shrink-0 transition-colors'/>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Revenue Opportunities */}
-        <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
+      {/* Revenue Opportunities — full width (Next Actions surfaced in Do This Now) */}
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
           <div className='flex items-center gap-2 mb-4'>
             <TrendingUp size={15} className='text-orange-500'/>
             <h2 className='text-sm font-semibold text-gray-200'>Revenue Opportunities</h2>
@@ -790,46 +728,58 @@ export function Operations() {
             )}
           </div>
         </div>
-      </div>
 
       {/* Daily Checklist + Mini Dispatch Board */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
 
-        {/* Daily Checklist */}
-        <div className='lg:col-span-2 bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
-          <div className='flex items-center justify-between mb-4'>
+        {/* Daily Checklist — collapsed by default */}
+        <div className='lg:col-span-2 bg-surface-700 rounded-xl border border-surface-400 shadow-card overflow-hidden'>
+          <button
+            onClick={() => setChecklistCollapsed(c => !c)}
+            className='w-full flex items-center justify-between px-5 py-3 hover:bg-surface-600/30 transition-colors'
+          >
             <div className='flex items-center gap-2'>
-              <CheckSquare size={15} className='text-orange-500'/>
-              <h2 className='text-sm font-semibold text-gray-200'>Daily Checklist</h2>
+              <CheckSquare size={14} className='text-orange-500'/>
+              <span className='text-sm font-semibold text-gray-200'>Daily Checklist</span>
+              {ops.todayTasks.length > 0 && (
+                <span className='text-2xs text-gray-500'>{completedCount} / {ops.todayTasks.length} done</span>
+              )}
             </div>
-            {ops.todayTasks.length > 0 && (
-              <span className='text-2xs text-gray-500'>{completedCount} / {ops.todayTasks.length} complete</span>
-            )}
-          </div>
-          {loading ? (
-            <p className='text-sm text-gray-400'>Loading...</p>
-          ) : ops.todayTasks.length === 0 ? (
-            <p className='text-sm text-gray-400'>No tasks scheduled for today.</p>
-          ) : (
-            <ul className='space-y-1'>
-              {ops.todayTasks.map(task => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  initialDone={ops.completedToday.includes(task.id)}
-                  todayIso={todayIso}
-                  onDocLink={setDocModal}
-                />
-              ))}
-            </ul>
+            <ChevronDown size={13} className={`text-gray-600 transition-transform ${checklistCollapsed ? '' : 'rotate-180'}`} />
+          </button>
+          {!checklistCollapsed && (
+            <div className='px-5 pb-4 border-t border-surface-500/50 pt-3'>
+              {loading ? (
+                <p className='text-sm text-gray-400'>Loading...</p>
+              ) : ops.todayTasks.length === 0 ? (
+                <p className='text-sm text-gray-400'>No tasks scheduled for today.</p>
+              ) : (
+                <ul className='space-y-1'>
+                  {ops.todayTasks.map(task => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      initialDone={ops.completedToday.includes(task.id)}
+                      todayIso={todayIso}
+                      onDocLink={setDocModal}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Mini Dispatch Board */}
-        <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
-          <div className='flex items-center gap-2 mb-4'>
-            <Truck size={15} className='text-orange-500'/>
-            <h2 className='text-sm font-semibold text-gray-200'>Dispatch Board</h2>
+        {/* Mini Dispatch Board — with tier badges and Match Loads button */}
+        <div className='bg-surface-700 rounded-xl border border-surface-400 p-4 shadow-card'>
+          <div className='flex items-center justify-between mb-3'>
+            <div className='flex items-center gap-2'>
+              <Truck size={14} className='text-orange-500'/>
+              <span className='text-sm font-semibold text-gray-200'>Dispatch Board</span>
+            </div>
+            <button onClick={() => navigate('/dispatcher')} className='text-2xs text-orange-500 hover:text-orange-400 transition-colors flex items-center gap-1'>
+              Full board <ChevronRight size={10}/>
+            </button>
           </div>
           {loading ? (
             <p className='text-xs text-gray-600'>Loading...</p>
@@ -838,15 +788,21 @@ export function Operations() {
           ) : (
             <div className='space-y-2'>
               {boardDrivers.map(d => {
-                const cl = loadByDriver[d.id]
+                const cl        = loadByDriver[d.id]
                 const needsLoad = d.status === 'Active' && !cl
+                const tier      = tierByDriver[d.id]
                 return (
                   <div key={d.id} className={['rounded-lg px-3 py-2 border',
                     needsLoad ? 'border-orange-700/40 bg-orange-950/20' : 'border-surface-500 bg-surface-600',
                   ].join(' ')}>
-                    <div className='flex items-center justify-between'>
+                    <div className='flex items-center justify-between gap-2'>
                       <p className='text-xs font-medium text-gray-200 truncate flex-1'>{d.name}</p>
-                      <span className={`text-2xs px-1.5 py-0.5 rounded-full border ml-2 shrink-0 ${DRIVER_STATUS_STYLES[d.status]}`}>{d.status}</span>
+                      {tier && tier.tier !== 'UNRATED' && (
+                        <span className={`text-2xs px-1.5 py-0.5 rounded font-bold shrink-0 ${TIER_BADGE[tier.tier]}`}>
+                          {TIER_LABEL[tier.tier]}
+                        </span>
+                      )}
+                      <span className={`text-2xs px-1.5 py-0.5 rounded-full border shrink-0 ${DRIVER_STATUS_STYLES[d.status]}`}>{d.status}</span>
                     </div>
                     {cl ? (
                       <p className='text-2xs text-gray-500 mt-0.5 flex items-center gap-1'>
@@ -854,7 +810,15 @@ export function Operations() {
                         {[cl.origin_state, cl.dest_state].filter(Boolean).join(' → ')}
                       </p>
                     ) : needsLoad ? (
-                      <p className='text-2xs text-orange-500 mt-0.5'>● Needs Load</p>
+                      <div className='flex items-center justify-between mt-1'>
+                        <p className='text-2xs text-orange-500'>Empty — needs load</p>
+                        <button
+                          onClick={() => navigate(`/loadmatch?driverId=${d.id}`)}
+                          className='text-2xs text-orange-400 hover:text-orange-300 border border-orange-600/40 hover:border-orange-500/60 px-2 py-0.5 rounded transition-colors'
+                        >
+                          Match
+                        </button>
+                      </div>
                     ) : (
                       <p className='text-2xs text-gray-700 mt-0.5 italic'>Inactive</p>
                     )}

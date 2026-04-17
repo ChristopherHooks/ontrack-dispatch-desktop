@@ -11,7 +11,9 @@ export function runSeedIfEmpty(db: Database.Database): void {
     seedBrokers(db)
     seedDrivers(db)
     seedLoads(db)
-    seedLeads(db)
+    // seedLeads intentionally omitted — CRM starts empty on fresh install.
+    // Personal lead data must never be pre-populated for new users.
+    // Use the Leads page import tools (FMCSA, CSV, manual) to add leads.
     seedInvoices(db)
     seedTasks(db)
     seedDocuments(db)
@@ -752,6 +754,114 @@ export function resetAndReseed(db: Database.Database): void {
   runSeedIfEmpty(db)
 }
 
+// ---------------------------------------------------------------------------
+// TEST DATA — addTestData / removeTestData
+//
+// Inserts clearly-labelled dummy records for manual testing without touching
+// any real data. IDs are auto-assigned by SQLite so there is no collision
+// with real or seed rows. Inserted IDs are tracked in app_settings under
+// the key 'test_data_ids' (JSON). removeTestData deletes only those rows.
+// ---------------------------------------------------------------------------
+
+interface TestDataIds {
+  brokers: number[]
+  drivers: number[]
+  loads:   number[]
+  leads:   number[]
+}
+
+export function addTestData(db: Database.Database): { counts: TestDataIds } {
+  const ids: TestDataIds = { brokers: [], drivers: [], loads: [], leads: [] }
+
+  db.transaction(() => {
+    // ── Brokers ──────────────────────────────────────────────────────────────
+    const bIns = db.prepare(
+      'INSERT INTO brokers (name, mc_number, phone, email, payment_terms, credit_rating, avg_days_pay, flag, notes)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    ids.brokers.push(Number((bIns.run('[TEST] Freight Direct LLC',   '900001', '800-555-0001', 'test1@freightdirect.com',  30, 'A',  25, 'Preferred', '[TEST RECORD] Reliable test broker. Quick pay, good communication.')).lastInsertRowid))
+    ids.brokers.push(Number((bIns.run('[TEST] Midwest Spot Group',   '900002', '800-555-0002', 'test2@midwestspot.com',    45, 'C',  58, 'Slow Pay',  '[TEST RECORD] Slow pay broker. Use for testing Slow Pay flag behavior.')).lastInsertRowid))
+
+    // ── Drivers ───────────────────────────────────────────────────────────────
+    const dIns = db.prepare(
+      'INSERT INTO drivers (name, company, phone, email, trailer_type, home_base, current_location, min_rpm, dispatch_percent, status, notes)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    ids.drivers.push(Number((dIns.run('[TEST] Alex Driver',  '[TEST] Alex Freight LLC',    '214-555-9001', 'alex@testdriver.com',  'Dry Van',  'Dallas, TX',     'Dallas, TX',     1.90, 7.0, 'Active',  '[TEST RECORD] Dummy driver for testing. Dry van, Dallas base.')).lastInsertRowid))
+    ids.drivers.push(Number((dIns.run('[TEST] Jamie Driver', '[TEST] Jamie Transport',     '615-555-9002', 'jamie@testdriver.com', 'Reefer',   'Nashville, TN',  'Nashville, TN',  2.10, 7.0, 'Active',  '[TEST RECORD] Dummy driver for testing. Reefer, Nashville base.')).lastInsertRowid))
+    ids.drivers.push(Number((dIns.run('[TEST] Sam Driver',   '[TEST] Sam Flatbed LLC',     '720-555-9003', 'sam@testdriver.com',   'Flatbed',  'Denver, CO',     'Denver, CO',     2.00, 7.5, 'On Load', '[TEST RECORD] Dummy driver for testing. Flatbed, Denver base.')).lastInsertRowid))
+
+    const [alexId, jamieId, samId]     = ids.drivers
+    const [broker1Id, broker2Id]        = ids.brokers
+
+    // ── Loads ─────────────────────────────────────────────────────────────────
+    const lIns = db.prepare(
+      'INSERT INTO loads (load_id, driver_id, broker_id, origin_city, origin_state, dest_city, dest_state,' +
+      ' pickup_date, delivery_date, miles, rate, dispatch_pct, commodity, status, invoiced, notes)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    // Searching
+    ids.loads.push(Number((lIns.run('TEST-S001', null,    broker1Id, 'Dallas',      'TX', 'Atlanta',     'GA', null,         null,         900, 2070.00, 7.0, 'General Freight',  'Searching',  0, '[TEST RECORD] Test searching load — no driver assigned.')).lastInsertRowid))
+    ids.loads.push(Number((lIns.run('TEST-S002', null,    broker2Id, 'Denver',      'CO', 'Kansas City', 'MO', null,         null,         600, 1320.00, 7.0, 'Machinery Parts',  'Searching',  0, '[TEST RECORD] Test searching load — slow-pay broker.')).lastInsertRowid))
+    // Booked
+    ids.loads.push(Number((lIns.run('TEST-B001', alexId,  broker1Id, 'Dallas',      'TX', 'Memphis',     'TN', '2026-04-18', '2026-04-20', 450, 1035.00, 7.0, 'Consumer Goods',   'Booked',     0, '[TEST RECORD] Test booked load — Alex Driver.')).lastInsertRowid))
+    // Picked Up
+    ids.loads.push(Number((lIns.run('TEST-P001', jamieId, broker1Id, 'Nashville',   'TN', 'Atlanta',     'GA', '2026-04-15', '2026-04-16', 250,  612.50, 7.0, 'Frozen Goods',     'Picked Up',  0, '[TEST RECORD] Test picked-up load — Jamie Driver reefer.')).lastInsertRowid))
+    // In Transit
+    ids.loads.push(Number((lIns.run('TEST-T001', samId,   broker2Id, 'Denver',      'CO', 'Dallas',      'TX', '2026-04-14', '2026-04-17', 990, 2178.00, 7.5, 'Steel Coils',      'In Transit', 0, '[TEST RECORD] Test in-transit load — Sam Driver flatbed.')).lastInsertRowid))
+    // Delivered
+    ids.loads.push(Number((lIns.run('TEST-D001', alexId,  broker1Id, 'Memphis',     'TN', 'Chicago',     'IL', '2026-04-10', '2026-04-12', 530, 1219.00, 7.0, 'Auto Parts',       'Delivered',  0, '[TEST RECORD] Test delivered load — for invoice testing.')).lastInsertRowid))
+    ids.loads.push(Number((lIns.run('TEST-D002', jamieId, broker1Id, 'Atlanta',     'GA', 'Houston',     'TX', '2026-04-08', '2026-04-11', 790, 1896.00, 7.5, 'Reefer Goods',     'Delivered',  0, '[TEST RECORD] Test delivered reefer load.')).lastInsertRowid))
+    // Invoiced
+    ids.loads.push(Number((lIns.run('TEST-I001', samId,   broker2Id, 'Kansas City', 'MO', 'Denver',      'CO', '2026-04-05', '2026-04-07', 600, 1380.00, 7.0, 'Equipment Parts',  'Invoiced',   1, '[TEST RECORD] Test invoiced load — slow-pay broker scenario.')).lastInsertRowid))
+
+    // ── Leads ─────────────────────────────────────────────────────────────────
+    const leadIns = db.prepare(
+      'INSERT INTO leads (name, company, phone, email, city, state, trailer_type, source, status, priority, follow_up_date, notes)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    ids.leads.push(Number((leadIns.run('[TEST] New Lead',        '[TEST] New Carrier LLC',       '214-555-9101', 'new@testlead.com',        'Dallas',      'TX', 'Dry Van', 'FMCSA',    'New',       'High',   '2026-04-20', '[TEST RECORD] Dummy new lead for CRM testing.')).lastInsertRowid))
+    ids.leads.push(Number((leadIns.run('[TEST] Contacted Lead',  '[TEST] Contacted Freight Co',  '615-555-9102', 'contact@testlead.com',    'Nashville',   'TN', 'Reefer',  'Referral', 'Contacted', 'Medium', '2026-04-18', '[TEST RECORD] Dummy contacted lead. Left voicemail.')).lastInsertRowid))
+    ids.leads.push(Number((leadIns.run('[TEST] Interested Lead', '[TEST] Interested Transport',  '720-555-9103', 'interest@testlead.com',   'Denver',      'CO', 'Flatbed', 'Website',  'Interested','High',   '2026-04-17', '[TEST RECORD] Dummy interested lead. Reviewing contract.')).lastInsertRowid))
+    ids.leads.push(Number((leadIns.run('[TEST] Signed Lead',     '[TEST] Signed Carriers LLC',   '312-555-9104', 'signed@testlead.com',     'Chicago',     'IL', 'Dry Van', 'Cold Call','Signed',    'High',   null,         '[TEST RECORD] Dummy signed lead. Fully onboarded test record.')).lastInsertRowid))
+
+    // Persist tracked IDs so removeTestData can target exactly these rows
+    db.prepare(
+      "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('test_data_ids', ?, datetime('now'))"
+    ).run(JSON.stringify(ids))
+  })()
+
+  console.log('[Seed] addTestData: inserted', ids.brokers.length, 'brokers,', ids.drivers.length, 'drivers,', ids.loads.length, 'loads,', ids.leads.length, 'leads.')
+  return { counts: ids }
+}
+
+export function removeTestData(db: Database.Database): { removed: number } {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'test_data_ids'").get() as { value: string } | undefined
+  if (!row?.value) return { removed: 0 }
+
+  let ids: TestDataIds
+  try { ids = JSON.parse(row.value) as TestDataIds }
+  catch { return { removed: 0 } }
+
+  let removed = 0
+  db.transaction(() => {
+    function del(table: string, idList: number[]) {
+      if (!idList.length) return
+      const placeholders = idList.map(() => '?').join(',')
+      removed += (db.prepare(`DELETE FROM ${table} WHERE id IN (${placeholders})`).run(...idList)).changes
+    }
+    // Delete loads before drivers/brokers (FK references)
+    del('loads',   ids.loads)
+    del('leads',   ids.leads)
+    del('drivers', ids.drivers)
+    del('brokers', ids.brokers)
+    db.prepare("DELETE FROM app_settings WHERE key = 'test_data_ids'").run()
+  })()
+
+  console.log('[Seed] removeTestData: removed', removed, 'rows.')
+  return { removed }
+}
+
 function seedBrokers(db: Database.Database): void {
   const ins = db.prepare(
     'INSERT OR IGNORE INTO brokers (id, name, mc_number, phone, email, payment_terms, credit_rating, avg_days_pay, flag, notes)' +
@@ -849,6 +959,11 @@ function seedLoads(db: Database.Database): void {
   ins.run(140,'LND-556801',109,105,'Denver','CO','Kansas City','MO','2025-11-10','2025-11-12',600,1320.00,7.0,'Auto Parts','Paid',1,'Paid. Flatbed, clean delivery.')
 }
 
+// ---------------------------------------------------------------------------
+// DEMO DATA ONLY — seedLeads is intentionally not called from any production
+// startup path. CRM starts empty on fresh install. This function exists for
+// manual dev/demo use only. Never call from runSeedIfEmpty or db.ts.
+// ---------------------------------------------------------------------------
 function seedLeads(db: Database.Database): void {
   const ins = db.prepare(
     'INSERT OR IGNORE INTO leads' +

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { parseStaleParam, parseLoadStatusParam } from '../lib/routeIntents'
 import { ChevronLeft, ChevronRight, Bell, Search, Check, XCircle, Clock } from 'lucide-react'
 import type { Load, LoadStatus, Driver, Broker, CreateLoadDto, AvailableLoad } from '../types/models'
 import { LOAD_OFFER_DECLINE_REASONS } from '../types/models'
@@ -27,6 +28,8 @@ export function Loads() {
   const [modal,    setModal]    = useState(false)
   const [prefill,  setPrefill]  = useState<Partial<CreateLoadDto> | null>(null)
   const [rateHistoryOpen, setRateHistoryOpen] = useState(false)
+  // staleMode: true when navigated from DoThisNow "stale loads" action — restricts view to in-progress loads
+  const [staleMode, setStaleMode] = useState(false)
 
   const reload = async () => {
     setLoading(true)
@@ -55,6 +58,18 @@ export function Loads() {
       }
     } finally { setLoading(false) }
   }
+  // Apply URL-driven filters on first load
+  // ?stale=1  → restrict to in-progress loads (Booked / Picked Up / In Transit)
+  // ?status=X → pre-set the status filter dropdown to a specific status
+  useEffect(() => {
+    if (parseStaleParam(searchParams)) {
+      setStaleMode(true)
+    } else {
+      const status = parseLoadStatusParam(searchParams)
+      if (status) setFilters(f => ({ ...f, status }))
+    }
+  }, [])
+
   useEffect(() => { reload() }, [])
 
   const handleSort = (key: keyof Load) => {
@@ -75,12 +90,12 @@ export function Loads() {
 
   // Inline driver assignment / unassignment / reassignment from the Loads table.
   // All three paths use existing IPC handlers — no new backend logic.
-  const handleDriverChange = async (load: Load, newDriverId: number | null) => {
+  const handleDriverChange = async (load: Load, newDriverId: number | null, reason?: string) => {
     if (newDriverId === load.driver_id) return
 
     if (newDriverId === null) {
       // Unassign: backend reverts load → Searching, driver → Active
-      const updated = await window.api.loads.update(load.id, { driver_id: null })
+      const updated = await window.api.loads.update(load.id, { driver_id: null, unassignment_reason: reason })
       if (updated) {
         setLoads(p => p.map(l => l.id === updated.id ? updated : l))
         if (selected?.id === updated.id) setSelected(updated)
@@ -97,8 +112,9 @@ export function Loads() {
         if (selected?.id === load.id) setSelected(newLoads.find(l => l.id === load.id) ?? null)
       }
     } else {
-      // Reassign: unassign old (→ Searching + old driver → Active), then assign new
-      const unassigned = await window.api.loads.update(load.id, { driver_id: null })
+      // Reassign: unassign old (→ Searching + old driver → Active), then assign new.
+      // Use reason from caller (passed as 'admin_correction' by DriverDropdown for reassigns).
+      const unassigned = await window.api.loads.update(load.id, { driver_id: null, unassignment_reason: reason ?? 'admin_correction' })
       if (!unassigned) return
       const result = await window.api.dispatcher.assignLoad({ loadId: load.id, driverId: newDriverId })
       if (result.ok) {
@@ -143,8 +159,12 @@ export function Loads() {
     setSelected(null)
   }
 
+  const STALE_STATUSES = ['Booked', 'Picked Up', 'In Transit'] as const
+
   const filtered = useMemo(() => {
     let r = loads
+    // staleMode: show only in-progress loads (past-expected-date candidates)
+    if (staleMode) r = r.filter(l => (STALE_STATUSES as readonly string[]).includes(l.status))
     if (search) {
       const q = search.toLowerCase()
       const dMap = Object.fromEntries(drivers.map(d => [d.id, d.name.toLowerCase()]))
@@ -162,7 +182,7 @@ export function Loads() {
       const av = a[sortKey] ?? ''; const bv = b[sortKey] ?? ''
       return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av))
     })
-  }, [loads, search, filters, sortKey, sortDir, drivers])
+  }, [loads, search, filters, staleMode, sortKey, sortDir, drivers])
 
   return (
     <div className='space-y-4 max-w-[1400px] animate-fade-in'>
