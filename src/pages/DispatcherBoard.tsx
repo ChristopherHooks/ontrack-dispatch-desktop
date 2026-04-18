@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { DndContext, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { BoardRow, AvailableLoad, AssignLoadResult, LoadRecommendation, SopDocument } from '../types/models'
-import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star, Phone } from 'lucide-react'
+import { RefreshCw, Search, AlertCircle, Package, MapPin, X, Check, Loader2, Star, Phone, Zap, ArrowRight } from 'lucide-react'
 import { resolveGuidance } from '../lib/guidanceResolver'
 import { ContextGuidancePanel } from '../components/ui/ContextGuidancePanel'
 import { badge as badgeTokens } from '../styles/uiTokens'
@@ -25,12 +25,41 @@ function deriveGroup(row: BoardRow): BoardGroup {
 interface GroupMeta { color: string; rowBg: string; badge: string; dot: string }
 
 const GROUP_META: Record<BoardGroup, GroupMeta> = {
-  'Needs Load':     { color: 'text-orange-600 dark:text-orange-400', rowBg: 'hover:bg-surface-600 dark:bg-orange-950/20 dark:hover:bg-orange-950/30', badge: badgeTokens.warning, dot: 'bg-orange-500 animate-pulse' },
+  'Needs Load':     { color: 'text-orange-600 dark:text-orange-400', rowBg: 'bg-orange-950/25 hover:bg-orange-950/40', badge: badgeTokens.warning, dot: 'bg-orange-500 animate-pulse' },
   'In Transit':     { color: 'text-green-600 dark:text-green-400',   rowBg: 'bg-surface-700 hover:bg-surface-600', badge: badgeTokens.success, dot: 'bg-green-500' },
   'Picked Up':      { color: 'text-blue-600 dark:text-blue-400',     rowBg: 'bg-surface-700 hover:bg-surface-600', badge: badgeTokens.info,    dot: 'bg-blue-500' },
   'Booked':         { color: 'text-yellow-600 dark:text-yellow-500', rowBg: 'bg-surface-700 hover:bg-surface-600', badge: badgeTokens.caution, dot: 'bg-yellow-400' },
   'Available Soon': { color: 'text-cyan-600 dark:text-cyan-400',     rowBg: 'hover:bg-surface-600 dark:bg-cyan-950/20 dark:hover:bg-cyan-950/30', badge: badgeTokens.cyan, dot: 'bg-cyan-400' },
   'Inactive':       { color: 'text-gray-500',                        rowBg: 'bg-surface-800 opacity-60 hover:opacity-80', badge: badgeTokens.neutral, dot: 'bg-gray-600' },
+}
+
+// ---------------------------------------------------------------------------
+// Delivery urgency helpers (reused logic from Active Loads page)
+// ---------------------------------------------------------------------------
+
+type DeliveryUrgency = 'overdue' | 'today' | 'soon' | 'ok'
+
+function deliveryUrgency(date: string | null): DeliveryUrgency {
+  if (!date) return 'ok'
+  const today = new Date().toISOString().split('T')[0]
+  if (date < today) return 'overdue'
+  if (date === today) return 'today'
+  const diffDays = (new Date(date).getTime() - Date.now()) / 86_400_000
+  return diffDays <= 1 ? 'soon' : 'ok'
+}
+
+const DELIVERY_CLS: Record<DeliveryUrgency, string> = {
+  overdue: 'text-red-400 font-semibold',
+  today:   'text-yellow-400 font-semibold',
+  soon:    'text-orange-300',
+  ok:      'text-gray-400',
+}
+
+const DELIVERY_BADGE: Record<DeliveryUrgency, string> = {
+  overdue: 'Overdue',
+  today:   'Due today',
+  soon:    'Tomorrow',
+  ok:      '',
 }
 
 const SEL = 'bg-surface-800 border border-surface-400 text-gray-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-orange-500'
@@ -143,6 +172,25 @@ export function DispatcherBoard() {
   }, [rows])
 
   const visibleGroups = filterGroup ? [filterGroup] as BoardGroup[] : GROUP_ORDER
+
+  // Phase 5: action items for "Do This Now" panel
+  const actionItems = useMemo(() => {
+    const items: Array<{ type: 'assign' | 'check'; driverName: string; driverId: number }> = []
+    for (const row of rows) {
+      if (items.length >= 5) break
+      if (deriveGroup(row) === 'Needs Load') {
+        items.push({ type: 'assign', driverName: row.driver_name, driverId: row.driver_id })
+      }
+    }
+    for (const row of rows) {
+      if (items.length >= 5) break
+      const g = deriveGroup(row)
+      if ((g === 'In Transit' || g === 'Picked Up') && deliveryUrgency(row.delivery_date) === 'overdue') {
+        items.push({ type: 'check', driverName: row.driver_name, driverId: row.driver_id })
+      }
+    }
+    return items
+  }, [rows])
 
   const rowById = useMemo(() => {
     const m = new Map<number, BoardRow>()
@@ -271,6 +319,30 @@ export function DispatcherBoard() {
             )}
           </div>
 
+          {/* Do This Now panel */}
+          {actionItems.length > 0 && (
+            <div className='bg-orange-950/25 border border-orange-700/40 rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5'>
+              <div className='flex items-center gap-1.5 shrink-0'>
+                <Zap size={12} className='text-orange-400' />
+                <span className='text-xs font-bold text-orange-400'>Do This Now:</span>
+              </div>
+              {actionItems.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectDriver(item.driverId, item.driverName)}
+                  className='flex items-center gap-1.5 text-xs text-gray-300 hover:text-white hover:bg-surface-600 px-2 py-1 rounded-lg transition-colors'
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.type === 'assign' ? 'bg-orange-500 animate-pulse' : 'bg-red-500'}`} />
+                  {item.type === 'assign'
+                    ? <>Assign load to <span className='font-semibold'>{item.driverName}</span></>
+                    : <>Delivery overdue — check on <span className='font-semibold'>{item.driverName}</span></>
+                  }
+                  <ArrowRight size={10} className='text-gray-600' />
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Status group sections */}
           {visibleGroups.map(g => {
             const groupRows = grouped[g]
@@ -296,18 +368,8 @@ export function DispatcherBoard() {
           )}
         </div>
 
-        {/* Right column: Available Loads + SOP Guidance + Recommended Loads */}
+        {/* Right column: Best Matches (when selected) → Available Loads → SOP Guidance */}
         <div className='flex flex-col gap-4 shrink-0'>
-          <AvailableLoadsPanel loads={availableLoads} />
-          {(() => {
-            const guideDocs = resolveGuidance('dispatch-board', allDocs)
-            if (guideDocs.length === 0) return null
-            return (
-              <div className='w-72 shrink-0 bg-surface-800 border border-surface-400 rounded-xl px-3 py-2.5'>
-                <ContextGuidancePanel docs={guideDocs} label='Dispatch SOPs' />
-              </div>
-            )
-          })()}
           {selectedDriverId != null && (
             <RecommendedLoadsPanel
               driverName={selectedDriverName ?? ''}
@@ -331,6 +393,16 @@ export function DispatcherBoard() {
               onClose={() => { setSelectedDriverId(null); setSelectedDriverName(null); setRecommendations([]) }}
             />
           )}
+          <AvailableLoadsPanel loads={availableLoads} />
+          {(() => {
+            const guideDocs = resolveGuidance('dispatch-board', allDocs)
+            if (guideDocs.length === 0) return null
+            return (
+              <div className='w-72 shrink-0 bg-surface-800 border border-surface-400 rounded-xl px-3 py-2.5'>
+                <ContextGuidancePanel docs={guideDocs} label='Dispatch SOPs' />
+              </div>
+            )
+          })()}
         </div>
       </div>
 
@@ -537,6 +609,17 @@ function DriverBoardRow({ row, group, isSelected, onSelectDriver, onLogCall }: D
       <td className='px-3 py-2.5'>
         <p className='font-medium text-gray-200 truncate max-w-[9rem]'>{row.driver_name}</p>
         {row.driver_company && <p className='text-gray-600 truncate max-w-[9rem]'>{row.driver_company}</p>}
+        {group === 'Needs Load' && (
+          <>
+            <p className='text-2xs text-red-400/80 mt-0.5'>Losing money — no load</p>
+            <button
+              onClick={e => { e.stopPropagation(); onSelectDriver(row.driver_id, row.driver_name) }}
+              className='mt-1 flex items-center gap-1 text-2xs px-2 py-0.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-medium transition-colors'
+            >
+              Find Best Load <ArrowRight size={9} />
+            </button>
+          </>
+        )}
       </td>
       <td className='px-3 py-2.5'>
         {row.trailer_type && <span className='px-1.5 py-0.5 rounded bg-surface-600 text-gray-400 mr-1'>{row.trailer_type}</span>}
@@ -568,7 +651,21 @@ function DriverBoardRow({ row, group, isSelected, onSelectDriver, onLogCall }: D
         {route ?? <span className='text-gray-700'>&#8212;</span>}
       </td>
       <td className='px-3 py-2.5 text-gray-400 font-mono whitespace-nowrap'>{row.pickup_date ?? '&#8212;'}</td>
-      <td className='px-3 py-2.5 text-gray-400 font-mono whitespace-nowrap'>{row.delivery_date ?? '&#8212;'}</td>
+      <td className='px-3 py-2.5 font-mono whitespace-nowrap'>
+        {row.delivery_date
+          ? (() => {
+              const isMoving = group === 'In Transit' || group === 'Picked Up'
+              const urg = isMoving ? deliveryUrgency(row.delivery_date) : 'ok'
+              const badge = DELIVERY_BADGE[urg]
+              return (
+                <span className={DELIVERY_CLS[urg]}>
+                  {row.delivery_date}
+                  {badge && <span className='ml-1 text-2xs font-sans font-medium'>{badge}</span>}
+                </span>
+              )
+            })()
+          : <span className='text-gray-700'>&#8212;</span>}
+      </td>
       <td className='px-3 py-2.5'>
         {rpm != null
           ? <span className={`font-mono font-semibold ${rpmOk ? 'text-green-400' : 'text-red-400'}`}>${rpm.toFixed(2)}</span>
@@ -720,30 +817,31 @@ interface RecommendedLoadsPanelProps {
 function RecommendedLoadsPanel({ driverName, driverId, recommendations, loading, onAssign, onClose }: RecommendedLoadsPanelProps) {
   const [assigningId, setAssigningId] = useState<number | null>(null)
   const [passedIds,   setPassedIds]   = useState<Set<number>>(new Set())
+  const top3 = recommendations.slice(0, 3)
   return (
-    <div className='w-72 bg-surface-800 border border-yellow-700/40 rounded-xl overflow-hidden'>
-      <div className='px-3 py-2.5 border-b border-yellow-700/30 bg-surface-750'>
+    <div className='w-72 bg-surface-800 border border-orange-600/50 rounded-xl overflow-hidden shadow-glow-orange'>
+      <div className='px-3 py-2.5 border-b border-orange-600/30 bg-orange-950/20'>
         <div className='flex items-center gap-2'>
-          <Star size={14} className='text-yellow-400' />
-          <h2 className='text-xs font-semibold uppercase tracking-wide text-yellow-400'>Recommended Loads</h2>
+          <Star size={14} className='text-orange-400' />
+          <h2 className='text-xs font-semibold uppercase tracking-wide text-orange-400'>Best Matches</h2>
           <button onClick={onClose} className='ml-auto text-gray-500 hover:text-gray-300 transition-colors'>
             <X size={14} />
           </button>
         </div>
-        <p className='text-xs text-gray-600 mt-0.5 truncate'>Top 5 for {driverName}</p>
+        <p className='text-xs text-gray-500 mt-0.5 truncate'>Top 3 loads for {driverName}</p>
       </div>
-      <div className='p-2 space-y-2 max-h-[calc(100vh-420px)] overflow-y-auto'>
+      <div className='p-2 space-y-2 max-h-[calc(100vh-360px)] overflow-y-auto'>
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className='h-16 rounded-lg bg-surface-700 animate-pulse' />
           ))
-        ) : recommendations.length === 0 ? (
+        ) : top3.length === 0 ? (
           <div className='py-8 text-center'>
             <Package size={24} className='mx-auto mb-2 text-gray-700' />
             <p className='text-xs text-gray-600'>No available loads to rank</p>
           </div>
         ) : (
-          recommendations.map((rec, i) => (
+          top3.map((rec, i) => (
             <RecommendationCard
               key={rec.load_id_pk}
               rec={rec}
@@ -782,20 +880,32 @@ interface RecommendationCardProps {
 
 function RecommendationCard({ rec, rank, passed, assigning, onAssign, onPass }: RecommendationCardProps) {
   const [passing, setPassing] = useState(false)
-  const origin = [rec.origin_city, rec.origin_state].filter(Boolean).join(', ')
-  const dest   = [rec.dest_city,   rec.dest_state  ].filter(Boolean).join(', ')
+  const origin    = [rec.origin_city, rec.origin_state].filter(Boolean).join(', ')
+  const dest      = [rec.dest_city,   rec.dest_state  ].filter(Boolean).join(', ')
+  const isBest    = rank === 1
   return (
-    <div className={`rounded-lg border p-2.5 transition-colors ${passed ? 'border-surface-600 bg-surface-800 opacity-50' : 'border-surface-400 bg-surface-700'}`}>
+    <div className={[
+      'rounded-lg border p-2.5 transition-colors',
+      passed ? 'border-surface-600 bg-surface-800 opacity-50'
+             : isBest
+               ? 'border-orange-600/60 bg-orange-950/20 ring-1 ring-orange-600/20'
+               : 'border-surface-400 bg-surface-700 opacity-80',
+    ].join(' ')}>
       <div className='flex items-start gap-2 mb-1.5'>
-        <span className='shrink-0 w-5 h-5 rounded-full bg-surface-600 text-gray-400 text-2xs flex items-center justify-center font-mono font-bold'>
+        <span className={`shrink-0 w-5 h-5 rounded-full text-2xs flex items-center justify-center font-mono font-bold ${isBest ? 'bg-orange-600 text-white' : 'bg-surface-600 text-gray-400'}`}>
           {rank}
         </span>
         <div className='min-w-0 flex-1'>
-          <p className='text-xs font-semibold text-gray-200 truncate'>{origin || '?'} &rarr; {dest || '?'}</p>
+          <div className='flex items-center gap-1.5 flex-wrap mb-0.5'>
+            <p className='text-xs font-semibold text-gray-200 truncate'>{origin || '?'} &rarr; {dest || '?'}</p>
+            {isBest && !passed && (
+              <span className='text-2xs px-1.5 py-0 rounded-full bg-orange-600/20 border border-orange-600/40 text-orange-400 font-medium shrink-0'>Best Match</span>
+            )}
+          </div>
           {rec.broker_name && <p className='text-2xs text-gray-500 truncate'>{rec.broker_name}</p>}
         </div>
         {rec.rpm != null && (
-          <span className='text-xs font-mono font-semibold text-green-400 shrink-0'>${rec.rpm.toFixed(2)}</span>
+          <span className={`text-xs font-mono font-semibold shrink-0 ${isBest ? 'text-orange-400' : 'text-green-400'}`}>${rec.rpm.toFixed(2)}</span>
         )}
       </div>
       <div className='flex items-center gap-2 text-2xs text-gray-500 mb-2'>

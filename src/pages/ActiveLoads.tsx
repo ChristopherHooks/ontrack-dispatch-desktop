@@ -44,6 +44,47 @@ function isOverdue(iso: string | null): boolean {
   return new Date(iso) < new Date()
 }
 
+function hoursUntil(iso: string | null): number | null {
+  if (!iso) return null
+  return (new Date(iso).getTime() - Date.now()) / 3_600_000
+}
+
+function fmtRelative(iso: string | null): string {
+  if (!iso) return ''
+  const h = hoursUntil(iso)
+  if (h === null) return ''
+  if (h < 0) {
+    const abs = Math.abs(h)
+    if (abs < 1) return 'overdue now'
+    if (abs < 24) return `overdue ${Math.floor(abs)}h`
+    return `overdue ${Math.floor(abs / 24)}d`
+  }
+  if (h < 1) return `in ${Math.round(h * 60)}m`
+  if (h < 24) return `in ${Math.floor(h)}h`
+  return `in ${Math.floor(h / 24)}d`
+}
+
+type RiskLevel = 'red' | 'yellow' | 'green'
+
+function loadRisk(row: ActiveLoadRow): RiskLevel {
+  if (isOverdue(row.next_event_at)) return 'red'
+  const h = hoursUntil(row.next_event_at)
+  if (h !== null && h >= 0 && h < 4) return 'yellow'
+  return 'green'
+}
+
+function eventsRisk(pending: TimelineEvent[]): RiskLevel {
+  if (pending.some(e => isOverdue(e.scheduled_at))) return 'red'
+  if (pending.some(e => { const h = hoursUntil(e.scheduled_at); return h !== null && h >= 0 && h < 4 })) return 'yellow'
+  return 'green'
+}
+
+const RISK_DOT: Record<RiskLevel, string> = {
+  red:    'bg-red-500',
+  yellow: 'bg-yellow-400',
+  green:  'bg-green-500',
+}
+
 // ---------------------------------------------------------------------------
 // Status progression for active loads
 // ---------------------------------------------------------------------------
@@ -67,6 +108,7 @@ const STATUS_COLORS: Record<string, string> = {
 function LoadCard({ row, selected, onClick }: { row: ActiveLoadRow; selected: boolean; onClick: () => void }) {
   const statusStyle = LOAD_STATUS_STYLES[row.status as LoadStatus] ?? 'bg-gray-800 text-gray-400'
   const nextOverdue = isOverdue(row.next_event_at)
+  const risk        = loadRisk(row)
 
   return (
     <button
@@ -75,12 +117,19 @@ function LoadCard({ row, selected, onClick }: { row: ActiveLoadRow; selected: bo
         'w-full text-left px-3 py-3 rounded-lg border transition-all duration-150',
         selected
           ? 'bg-orange-600/15 border-orange-600/50'
-          : 'bg-surface-700 border-surface-400 hover:bg-surface-600 hover:border-surface-300',
+          : risk === 'red'
+            ? 'bg-red-950/20 border-red-800/40 hover:bg-red-950/30'
+            : 'bg-surface-700 border-surface-400 hover:bg-surface-600 hover:border-surface-300',
       ].join(' ')}
     >
-      {/* Top row: ref + status */}
+      {/* Top row: risk dot + ref + status */}
       <div className='flex items-center justify-between gap-2 mb-1'>
-        <span className='text-xs font-bold text-gray-200'>{fmtLoadRef(row)}</span>
+        <div className='flex items-center gap-1.5'>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${RISK_DOT[risk]}`} title={
+            risk === 'red' ? 'At Risk' : risk === 'yellow' ? 'Watch' : 'On Track'
+          } />
+          <span className='text-xs font-bold text-gray-200'>{fmtLoadRef(row)}</span>
+        </div>
         <span className={`text-2xs px-1.5 py-0.5 rounded border ${statusStyle}`}>{row.status}</span>
       </div>
 
@@ -95,11 +144,11 @@ function LoadCard({ row, selected, onClick }: { row: ActiveLoadRow; selected: bo
 
       {/* Next event */}
       {row.next_event_label && (
-        <div className={`flex items-center gap-1 ${nextOverdue ? 'text-red-400' : 'text-gray-500'}`}>
+        <div className={`flex items-center gap-1 ${nextOverdue ? 'text-red-400' : risk === 'yellow' ? 'text-yellow-400' : 'text-gray-500'}`}>
           {nextOverdue ? <AlertTriangle size={9} className='shrink-0' /> : <Clock size={9} className='shrink-0' />}
           <span className='text-2xs truncate'>{row.next_event_label}</span>
           {row.next_event_at && (
-            <span className='text-2xs ml-auto shrink-0'>{fmtTime(row.next_event_at)}</span>
+            <span className='text-2xs ml-auto shrink-0'>{fmtRelative(row.next_event_at)}</span>
           )}
         </div>
       )}
@@ -112,17 +161,21 @@ function TimelineRow({ event, onComplete, onDelete }: {
   onComplete: (id: number) => void
   onDelete:   (id: number) => void
 }) {
-  const done    = Boolean(event.completed_at)
-  const overdue = !done && isOverdue(event.scheduled_at)
+  const done       = Boolean(event.completed_at)
+  const overdue    = !done && isOverdue(event.scheduled_at)
+  const h          = done ? null : hoursUntil(event.scheduled_at)
+  const urgentSoon = !done && !overdue && h !== null && h >= 0 && h < 4
 
   return (
-    <div className={`flex items-start gap-3 py-2.5 border-b border-surface-600 last:border-0 group`}>
+    <div className={`flex items-start gap-3 py-2.5 border-b border-surface-600 last:border-0 group ${overdue ? 'bg-red-950/10' : ''}`}>
       {/* Icon */}
       <div className='mt-0.5 shrink-0'>
         {done ? (
           <CheckCircle size={14} className='text-green-500' />
         ) : overdue ? (
           <AlertTriangle size={14} className='text-red-400' />
+        ) : urgentSoon ? (
+          <Clock size={14} className='text-orange-400' />
         ) : (
           <Circle size={14} className={`${STATUS_COLORS[event.event_type] ?? 'text-gray-500'}`} />
         )}
@@ -131,14 +184,16 @@ function TimelineRow({ event, onComplete, onDelete }: {
       {/* Content */}
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-2'>
-          <span className={`text-xs font-medium ${done ? 'text-gray-600 line-through' : 'text-gray-200'}`}>
+          <span className={`text-xs font-medium ${done ? 'text-gray-600 line-through' : overdue ? 'text-red-300' : urgentSoon ? 'text-orange-200' : 'text-gray-200'}`}>
             {event.label}
           </span>
           <span className='text-2xs text-gray-600 uppercase tracking-wide'>{event.event_type.replace('_', ' ')}</span>
         </div>
         {event.scheduled_at && (
-          <p className={`text-2xs mt-0.5 ${done ? 'text-gray-700' : overdue ? 'text-red-400' : 'text-gray-500'}`}>
-            {done ? 'Completed ' + fmtTime(event.completed_at) : fmtTime(event.scheduled_at)}
+          <p className={`text-2xs mt-0.5 ${done ? 'text-gray-700' : overdue ? 'text-red-400' : urgentSoon ? 'text-orange-400' : 'text-gray-500'}`}>
+            {done
+              ? 'Completed ' + fmtTime(event.completed_at)
+              : fmtTime(event.scheduled_at) + (event.scheduled_at ? ' · ' + fmtRelative(event.scheduled_at) : '')}
           </p>
         )}
         {event.notes && (
@@ -304,7 +359,16 @@ export function ActiveLoads() {
   const pending    = events.filter(e => !e.completed_at)
   const completed  = events.filter(e => e.completed_at)
   const nextEvent  = pending[0] ?? null
+  const upcomingEvents = pending.slice(1, 3)
   const nextStatus = selected ? ACTIVE_NEXT[selected.status] ?? null : null
+
+  const loadHealth  = selected && !eventsLoad ? eventsRisk(pending) : 'green'
+  const healthLabel = loadHealth === 'red' ? 'At Risk' : loadHealth === 'yellow' ? 'Watch' : 'On Track'
+  const healthCls   = loadHealth === 'red'
+    ? 'text-red-400 border-red-800/40 bg-red-950/20'
+    : loadHealth === 'yellow'
+      ? 'text-yellow-400 border-yellow-800/40 bg-yellow-950/20'
+      : 'text-green-400 border-green-800/40 bg-green-950/20'
 
   const msgLabels: Record<string, string> = {
     check_in:        'Driver Check-In',
@@ -336,12 +400,20 @@ export function ActiveLoads() {
           </button>
         </div>
 
-        {/* Count */}
-        {!loading && (
-          <p className='text-2xs text-gray-600'>
-            {loads.length === 0 ? 'No active loads' : `${loads.length} active load${loads.length !== 1 ? 's' : ''}`}
-          </p>
+        {/* Global status */}
+        {!loading && loads.length === 0 && (
+          <p className='text-2xs text-gray-600'>No active loads</p>
         )}
+        {!loading && loads.length > 0 && (() => {
+          const needAttn = loads.filter(r => loadRisk(r) !== 'green').length
+          return (
+            <p className={`text-2xs font-medium ${needAttn > 0 ? 'text-red-400' : 'text-green-500'}`}>
+              {needAttn > 0
+                ? `${needAttn} load${needAttn !== 1 ? 's' : ''} need attention`
+                : 'All loads on track'}
+            </p>
+          )
+        })()}
 
         {/* List */}
         <div className='flex-1 overflow-y-auto space-y-2 pr-1'>
@@ -382,6 +454,11 @@ export function ActiveLoads() {
                   <span className={`text-2xs px-1.5 py-0.5 rounded border ${LOAD_STATUS_STYLES[selected.status as LoadStatus] ?? ''}`}>
                     {selected.status}
                   </span>
+                  {!eventsLoad && (
+                    <span className={`text-2xs px-1.5 py-0.5 rounded border ${healthCls}`}>
+                      {healthLabel}
+                    </span>
+                  )}
                 </div>
                 <p className='text-sm font-semibold text-gray-100'>{fmtRoute(selected)}</p>
                 <div className='flex items-center gap-4 mt-1 text-2xs text-gray-500'>
@@ -450,6 +527,28 @@ export function ActiveLoads() {
                   </a>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Coming up next */}
+          {nextEvent && upcomingEvents.length > 0 && (
+            <div className='flex flex-col gap-1.5 px-4 py-2.5 bg-surface-700 rounded-xl border border-surface-500'>
+              <p className='text-2xs font-semibold text-gray-600 uppercase tracking-wider'>Coming up next</p>
+              {upcomingEvents.map(ev => {
+                const evH = hoursUntil(ev.scheduled_at)
+                const soon = evH !== null && evH >= 0 && evH < 4
+                return (
+                  <div key={ev.id} className='flex items-center gap-2'>
+                    <Clock size={9} className={soon ? 'text-orange-400 shrink-0' : 'text-gray-600 shrink-0'} />
+                    <span className={`text-2xs ${soon ? 'text-orange-300' : 'text-gray-500'}`}>{ev.label}</span>
+                    {ev.scheduled_at && (
+                      <span className={`text-2xs ml-auto shrink-0 ${soon ? 'text-orange-400' : 'text-gray-600'}`}>
+                        {fmtRelative(ev.scheduled_at)}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 
