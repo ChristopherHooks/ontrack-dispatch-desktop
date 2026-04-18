@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { activeLoadsRoute, leadsRoute } from '../lib/routeIntents'
+import { activeLoadsRoute, leadsRoute, findLoadsRoute } from '../lib/routeIntents'
 import {
   AlertTriangle, Truck, Users, Megaphone,
   FileText, ChevronRight, ChevronDown, Clock, X,
@@ -560,7 +560,7 @@ export function Operations() {
             ) : (
               <ul className='space-y-2'>
                 {radar.idleDrivers.slice(0, 5).map(d => (
-                  <li key={d.driverId} className='flex items-start gap-2 cursor-pointer hover:bg-surface-600 rounded-lg px-2 py-1.5 -mx-2 transition-colors' onClick={() => navigate('/loadmatch?driverId=' + d.driverId)}>
+                  <li key={d.driverId} className='flex items-start gap-2 cursor-pointer hover:bg-surface-600 rounded-lg px-2 py-1.5 -mx-2 transition-colors' onClick={() => navigate(findLoadsRoute(d.driverId))}>
                     <span className='text-2xs font-bold text-orange-400 mt-0.5 w-6 text-center shrink-0'>{d.score}</span>
                     <div className='min-w-0'>
                       <p className='text-xs font-medium text-gray-200 truncate'>{d.name}</p>
@@ -813,7 +813,7 @@ export function Operations() {
                       <div className='flex items-center justify-between mt-1'>
                         <p className='text-2xs text-orange-500'>Empty — needs load</p>
                         <button
-                          onClick={() => navigate(`/loadmatch?driverId=${d.id}`)}
+                          onClick={() => navigate(findLoadsRoute(d.id))}
                           className='text-2xs text-orange-400 hover:text-orange-300 border border-orange-600/40 hover:border-orange-500/60 px-2 py-0.5 rounded transition-colors'
                         >
                           Match

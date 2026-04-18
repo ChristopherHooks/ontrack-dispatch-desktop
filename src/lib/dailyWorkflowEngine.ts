@@ -218,16 +218,19 @@ export function computeDailyWorkflow(
 
   // ── Tier 3: Pipeline Building ───────────────────────────────────────────────
 
-  // Overdue lead follow-ups
+  // Overdue lead follow-ups — cap daily target at 3; show total as context when backlog is larger
   if (input.overdueLeads > 0) {
+    const leadTarget = Math.min(input.overdueLeads, 3)
     tasks.push({
       id: 'lead_followup',
-      title: `${input.overdueLeads} lead${input.overdueLeads !== 1 ? 's' : ''} past follow-up date`,
-      description: 'Call or update these leads now to keep the pipeline moving',
+      title: `Follow up with ${leadTarget} overdue lead${leadTarget !== 1 ? 's' : ''} today`,
+      description: input.overdueLeads > 3
+        ? `${input.overdueLeads} total overdue — start with the top 3`
+        : 'Call or update these leads to keep the pipeline moving',
       category: 'pipeline', priority: 30,
       status: done('lead_followup'),
       actionLabel: 'View Leads', actionTarget: leadsRoute('overdue'),
-      count: input.overdueLeads,
+      count: leadTarget,
     })
   } else {
     tasks.push({
@@ -238,16 +241,19 @@ export function computeDailyWorkflow(
     })
   }
 
-  // Driver prospect follow-up
+  // Driver prospect follow-up — cap daily target at 3
   if (input.hotProspects > 0) {
+    const prospectTarget = Math.min(input.hotProspects, 3)
     tasks.push({
       id: 'driver_prospects',
-      title: `Follow up with ${input.hotProspects} driver prospect${input.hotProspects !== 1 ? 's' : ''}`,
-      description: 'High/medium priority or overdue follow-up dates',
+      title: `Follow up with ${prospectTarget} driver prospect${prospectTarget !== 1 ? 's' : ''} today`,
+      description: input.hotProspects > 3
+        ? `${input.hotProspects} total due — start with the top 3`
+        : 'High/medium priority or overdue follow-up dates',
       category: 'pipeline', priority: 31,
       status: done('driver_prospects'),
       actionLabel: 'Driver Pipeline', actionTarget: '/driver-acquisition',
-      count: input.hotProspects,
+      count: prospectTarget,
     })
   } else {
     tasks.push({
@@ -258,16 +264,19 @@ export function computeDailyWorkflow(
     })
   }
 
-  // Warm lead outreach
+  // Warm lead outreach — cap daily target at 3
   if (input.warmLeads > 0) {
+    const warmTarget = Math.min(input.warmLeads, 3)
     tasks.push({
       id: 'warm_leads',
-      title: `${input.warmLeads} warm lead${input.warmLeads !== 1 ? 's' : ''} ready for outreach`,
-      description: 'High/medium priority or follow-up within 3 days',
+      title: `Reach out to ${warmTarget} warm lead${warmTarget !== 1 ? 's' : ''} today`,
+      description: input.warmLeads > 3
+        ? `${input.warmLeads} with upcoming follow-up dates — start with the top 3`
+        : 'High/medium priority leads with follow-up due within 3 days',
       category: 'pipeline', priority: 32,
       status: done('warm_leads'),
       actionLabel: 'View Leads', actionTarget: leadsRoute('upcoming'),
-      count: input.warmLeads,
+      count: warmTarget,
     })
   } else {
     tasks.push({
@@ -300,16 +309,16 @@ export function computeDailyWorkflow(
     })
   }
 
-  // Facebook marketing — only when groups are eligible to post
+  // Facebook marketing — badge shows daily target (2-3), description gives total eligible as context
   if (input.todaysGroupCount > 0) {
     tasks.push({
       id: 'marketing',
-      title: 'Post in 2-3 recommended Facebook groups today',
-      description: `${input.todaysGroupCount} group${input.todaysGroupCount !== 1 ? 's' : ''} eligible — pick the highest-priority 2-3 from your recommendations`,
+      title: 'Post to 2-3 recommended Facebook groups today',
+      description: `${input.todaysGroupCount} group${input.todaysGroupCount !== 1 ? 's' : ''} eligible — pick the highest-priority 2-3`,
       category: 'admin', priority: 41,
       status: done('marketing'),
       actionLabel: 'Marketing', actionTarget: '/marketing',
-      count: input.todaysGroupCount,
+      count: Math.min(input.todaysGroupCount, 3),
     })
   } else {
     tasks.push({

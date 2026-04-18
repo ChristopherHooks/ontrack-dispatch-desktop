@@ -4,7 +4,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import {
   Users, Truck, Package, Building2,
   FileText, Megaphone, CheckSquare, FolderOpen,
-  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, ArrowRightLeft, Activity, Radar, TrendingUp, Calculator, UserPlus, CalendarDays, FileSpreadsheet
+  BarChart3, HelpCircle, Settings, ChevronLeft, ChevronRight, Kanban, Zap, Activity, Radar, TrendingUp, Calculator, UserPlus, CalendarDays, FileSpreadsheet
 } from 'lucide-react'
 import { RateCalculator } from '../ui/RateCalculator'
 
@@ -34,7 +34,6 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Operations',
     items: [
       { to: '/operations',        label: 'Operations',    icon: <Zap size={18} /> },
-      { to: '/loadmatch',         label: 'Load Match',    icon: <ArrowRightLeft size={18} /> },
       { to: '/findloads',         label: 'Find Loads',    icon: <Radar size={18} /> },
       { to: '/activeloads',       label: 'Active Loads',  icon: <Activity size={18} /> },
       { to: '/dispatcher',        label: 'Dispatch Board', icon: <Kanban size={18} /> },

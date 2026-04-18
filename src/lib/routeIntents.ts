@@ -14,7 +14,6 @@
 // ── Canonical param names ────────────────────────────────────────────────────
 
 const P_DRIVER_ID         = 'driver_id'   // /findloads
-const P_LOADMATCH_DRIVER  = 'driverId'    // /loadmatch (camelCase kept for back-compat)
 const P_LEAD_FILTER       = 'filter'      // /leads
 const P_UNINVOICED        = 'uninvoiced'  // /invoices
 const P_LOAD_STALE        = 'stale'       // /loads
@@ -40,11 +39,6 @@ const VALID_LEAD_FILTERS = new Set<string>([
 /** /findloads — optionally pre-select a driver by ID */
 export function findLoadsRoute(driverId?: number): string {
   return driverId ? `/findloads?${P_DRIVER_ID}=${driverId}` : '/findloads'
-}
-
-/** /loadmatch — optionally pre-select a driver (legacy camelCase param) */
-export function loadMatchRoute(driverId?: number): string {
-  return driverId ? `/loadmatch?${P_LOADMATCH_DRIVER}=${driverId}` : '/loadmatch'
 }
 
 /** /leads — optionally apply a named filter on arrival */
@@ -78,14 +72,6 @@ export function parseDriverIdParam(params: URLSearchParams): number | null {
   const v = params.get(P_DRIVER_ID)
   if (!v) return null
   const n = Number(v)
-  return isNaN(n) ? null : n
-}
-
-/** /loadmatch: parse ?driverId=X → number | null */
-export function parseLoadMatchDriverParam(params: URLSearchParams): number | null {
-  const v = params.get(P_LOADMATCH_DRIVER)
-  if (!v) return null
-  const n = parseInt(v, 10)
   return isNaN(n) ? null : n
 }
 

@@ -14,7 +14,7 @@
  */
 
 import { useNavigate } from 'react-router-dom'
-import { loadMatchRoute } from '../../lib/routeIntents'
+import { findLoadsRoute } from '../../lib/routeIntents'
 import {
   Zap, Truck, ArrowRight, MapPin, FileText,
   AlertTriangle, Phone, Clock,
@@ -204,7 +204,7 @@ export function DoThisNowPanel({ tasks, idleDrivers, loading }: Props) {
                         {lanes.map(lane => (
                           <button
                             key={lane}
-                            onClick={() => navigate(loadMatchRoute(d.driverId))}
+                            onClick={() => navigate(findLoadsRoute(d.driverId))}
                             className='text-2xs px-2 py-0.5 bg-surface-600 hover:bg-orange-600/20 border border-surface-400 hover:border-orange-600/50 text-gray-400 hover:text-orange-300 rounded-md transition-colors'
                           >
                             {lane}
@@ -216,10 +216,10 @@ export function DoThisNowPanel({ tasks, idleDrivers, loading }: Props) {
 
                   {/* Action button */}
                   <button
-                    onClick={() => navigate(loadMatchRoute(d.driverId))}
+                    onClick={() => navigate(findLoadsRoute(d.driverId))}
                     className='shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors whitespace-nowrap'
                   >
-                    Match Loads
+                    Find Loads
                     <ArrowRight size={11} />
                   </button>
                 </div>
