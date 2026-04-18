@@ -23,11 +23,11 @@ export interface DailyTask {
 }
 
 const DEFAULT_DAILY_TASKS: Array<{ id: string; label: string }> = [
-  { id: 'post_hotshot',    label: 'Post 1 hotshot template to Facebook groups' },
+  { id: 'post_hotshot',    label: 'Post 1 hotshot template to recommended groups' },
   { id: 'post_freight',    label: 'Post 1 reefer, dry van, or flatbed template' },
-  { id: 'post_3_groups',   label: 'Post to at least 3 groups today' },
-  { id: 'add_new_groups',  label: 'Add any newly joined groups to the group list' },
-  { id: 'review_history',  label: 'Review recent post history and note any leads' },
+  { id: 'post_2_3_groups', label: 'Post to 2-3 recommended groups today' },
+  { id: 'log_outcomes',    label: 'Log replies and leads for each post' },
+  { id: 'convert_leads',   label: 'Convert any interested replies into leads' },
 ]
 
 export function loadDailyTasks(today: string): DailyTask[] {

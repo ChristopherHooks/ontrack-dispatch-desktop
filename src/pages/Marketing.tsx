@@ -105,9 +105,47 @@ function LogForm({ template, groups, preselected = [], onSave, onCancel }: LogFo
   const [replies,        setReplies]        = useState(0)
   const [leads,          setLeads]          = useState(0)
   const [notes,          setNotes]          = useState('')
+  const [leadName,       setLeadName]       = useState('')
+  const [leadCreated,    setLeadCreated]    = useState(false)
 
   const toggleGroup = (name: string) => {
     setSelectedGroups(p => p.includes(name) ? p.filter(g => g !== name) : [...p, name])
+  }
+
+  const handleCreateLead = async () => {
+    if (!leadName.trim()) return
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+    await window.api.leads.create({
+      name:                  leadName.trim(),
+      company:               null,
+      mc_number:             null,
+      phone:                 null,
+      email:                 null,
+      city:                  null,
+      state:                 null,
+      trailer_type:          (() => {
+        const t = getTruckType(template)
+        const LEAD_TRAILER_TYPES = ['Dry Van', 'Reefer', 'Flatbed', 'Tanker', 'Step Deck', 'RGN', 'Lowboy', 'Car Hauler', 'Other']
+        return t && LEAD_TRAILER_TYPES.includes(t) ? t : null
+      })(),
+      trailer_length:        null,
+      authority_date:        null,
+      fleet_size:            null,
+      source:                'Facebook',
+      status:                'New',
+      priority:              'Medium',
+      follow_up_date:        tomorrow,
+      follow_up_time:        null,
+      notes:                 selectedGroups.length > 0
+        ? `From Facebook post. Groups: ${selectedGroups.join(', ')}`
+        : 'From Facebook post.',
+      last_contact_date:     today,
+      contact_attempt_count: 1,
+      contact_method:        'DM',
+      outreach_outcome:      'Interested — replied to Facebook post',
+      follow_up_notes:       null,
+    })
+    setLeadCreated(true)
   }
 
   const handleSave = () => {
@@ -164,7 +202,7 @@ function LogForm({ template, groups, preselected = [], onSave, onCancel }: LogFo
 
       <div className='grid grid-cols-2 gap-3'>
         <div className='space-y-1'>
-          <label className='text-2xs text-gray-500 uppercase tracking-wide'>Replies</label>
+          <label className='text-2xs text-gray-500 uppercase tracking-wide'>Replies received</label>
           <input
             type='number'
             min={0}
@@ -184,6 +222,31 @@ function LogForm({ template, groups, preselected = [], onSave, onCancel }: LogFo
           />
         </div>
       </div>
+      <p className='text-2xs text-gray-700'>Save now with 0 replies — you can update the count in Post History after checking responses tomorrow.</p>
+
+      {leads > 0 && (
+        <div className='rounded-lg border border-blue-700/30 bg-blue-950/10 p-3 space-y-2'>
+          <p className='text-2xs text-blue-400 font-medium'>Convert to Lead</p>
+          <p className='text-2xs text-gray-600'>Add this driver to your lead pipeline with Facebook as the source.</p>
+          {!leadCreated ? (
+            <div className='flex gap-2'>
+              <input
+                value={leadName}
+                onChange={e => setLeadName(e.target.value)}
+                placeholder='Driver or company name'
+                className='flex-1 h-7 px-2 bg-surface-500 border border-surface-400 rounded text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-600/60'
+              />
+              <button
+                onClick={handleCreateLead}
+                disabled={!leadName.trim()}
+                className='px-2.5 py-1 text-2xs bg-blue-700 hover:bg-blue-600 text-white rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+              >Add to Leads</button>
+            </div>
+          ) : (
+            <p className='text-2xs text-green-400'>Lead created — visible in the Leads pipeline.</p>
+          )}
+        </div>
+      )}
 
       <div className='space-y-1'>
         <label className='text-2xs text-gray-500 uppercase tracking-wide'>Notes</label>
@@ -373,7 +436,7 @@ export function Marketing() {
   const [marked,        setMarked]       = useState(false)
   const [showImgPrompt, setShowImgPrompt] = useState(false)
   const [showLogForm,   setShowLogForm]  = useState(false)
-  const [tasksOpen,     setTasksOpen]    = useState(true)
+  const [tasksOpen,     setTasksOpen]    = useState(false)
 
   // Daily tasks
   const [dailyTasks,   setDailyTasks]   = useState<DailyTask[]>(() => loadDailyTasks(today))
@@ -501,6 +564,21 @@ export function Marketing() {
   const hashtagStr   = template.hashtags.join(' ')
   const fullPost     = displayText + '\n\n' + hashtagStr
   const imagePrompt  = getImagePrompt(template)
+
+  // ── Derived: this template's logged performance (from existing postLog state) ─
+  const tplHistory = postLog.filter(l => l.template_id === template.id)
+  const tplUses    = tplHistory.length
+  const tplReplies = tplHistory.reduce((s, l) => s + l.replies_count, 0)
+  const tplLeads   = tplHistory.reduce((s, l) => s + l.leads_generated, 0)
+
+  // ── Derived: workflow steps 3 + 4 ─────────────────────────────────────────
+  // Step 3: posts ≤3 days old with no outcomes logged yet
+  const needsReplyCheck = postLog.filter(l => {
+    const daysOld = Math.floor((new Date(today).getTime() - new Date(l.used_date).getTime()) / 86400000)
+    return daysOld <= 3 && l.replies_count === 0 && l.leads_generated === 0
+  })
+  // Step 4: posts with logged replies or leads ready for lead conversion
+  const postsWithReplies = postLog.filter(l => l.replies_count > 0 || l.leads_generated > 0)
 
   // ── Derived: suggested groups ──────────────────────────────────────────────
   // Use the same backend-scored Today's Groups list so both panels stay in sync.
@@ -630,6 +708,33 @@ export function Marketing() {
   }
 
   const [importResult, setImportResult] = useState<{ added: number; found: number } | null>(null)
+  const [editingLog,   setEditingLog]   = useState<PostLog | null>(null)
+  const [editReplies,  setEditReplies]  = useState(0)
+  const [editLeads,    setEditLeads]    = useState(0)
+  const [editNotes,    setEditNotes]    = useState('')
+
+  const handleEditLog = (log: PostLog) => {
+    setEditingLog(log)
+    setEditReplies(log.replies_count)
+    setEditLeads(log.leads_generated)
+    setEditNotes(log.notes ?? '')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingLog) return
+    let groups: string[] = []
+    try { groups = JSON.parse(editingLog.groups_posted_to) } catch {}
+    await api().post.update(editingLog.id, {
+      groups_posted_to: groups,
+      posted:           editingLog.posted === 1,
+      replies_count:    editReplies,
+      leads_generated:  editLeads,
+      notes:            editNotes.trim() || null,
+    })
+    setEditingLog(null)
+    await loadPostLog()
+  }
+
   const handleImportHtml = async () => {
     setImportResult(null)
     const result = await (window.api as any).marketing.groups.importHtml()
@@ -649,86 +754,26 @@ export function Marketing() {
 
       {/* Page header */}
       <div>
-        <h1 className='text-xl font-semibold text-gray-100'>Marketing</h1>
+        <h1 className='text-xl font-semibold text-gray-100'>Get Drivers Today</h1>
         <p className='text-sm text-gray-500 mt-0.5'>{todayLabel}</p>
       </div>
 
-      {/* Daily Tasks */}
-      <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card overflow-hidden'>
-        <button
-          onClick={() => setTasksOpen(v => !v)}
-          className='w-full flex items-center justify-between px-5 py-3 hover:bg-surface-600/40 transition-colors'
-        >
-          <div className='flex items-center gap-2'>
-            <span className='text-sm font-semibold text-gray-200'>Today&apos;s Checklist</span>
-            <span className={[
-              'text-2xs px-2 py-0.5 rounded-full font-medium',
-              completedCount === dailyTasks.length
-                ? 'bg-green-900/40 text-green-400'
-                : 'bg-surface-500 text-gray-500',
-            ].join(' ')}>
-              {completedCount}/{dailyTasks.length} done
-            </span>
-          </div>
-          {tasksOpen ? <ChevronUp size={14} className='text-gray-600' /> : <ChevronDown size={14} className='text-gray-600' />}
-        </button>
-        {tasksOpen && (
-          <div className='px-5 pb-4 space-y-2 border-t border-surface-500/50'>
-            {dailyTasks.map(task => (
-              <button
-                key={task.id}
-                onClick={() => toggleTask(task.id)}
-                className='w-full flex items-center gap-3 py-1.5 group'
-              >
-                <div className={[
-                  'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
-                  task.completed
-                    ? 'bg-orange-600 border-orange-600'
-                    : 'border-surface-400 group-hover:border-orange-600/50',
-                ].join(' ')}>
-                  {task.completed && <Check size={10} className='text-white' />}
-                </div>
-                <span className={['text-xs', task.completed ? 'line-through text-gray-600' : 'text-gray-300'].join(' ')}>
-                  {task.label}
-                </span>
-              </button>
-            ))}
-            {(() => {
-              const stalePosts = postLog.filter(l =>
-                l.replies_count === 0 &&
-                Math.floor((new Date(today).getTime() - new Date(l.used_date).getTime()) / 86400000) >= 3
-              )
-              if (stalePosts.length === 0) return null
-              return (
-                <button
-                  onClick={() => setActiveTab('history')}
-                  className='w-full flex items-center gap-3 py-1.5 group'
-                >
-                  <div className='w-4 h-4 rounded border border-yellow-600/60 flex items-center justify-center shrink-0 text-yellow-500'>
-                    <span className='text-2xs font-bold leading-none'>{stalePosts.length}</span>
-                  </div>
-                  <span className='text-xs text-yellow-500 group-hover:text-yellow-400 transition-colors text-left'>
-                    Log results for {stalePosts.length} post{stalePosts.length !== 1 ? 's' : ''} from 3+ days ago
-                  </span>
-                </button>
-              )
-            })()}
-          </div>
-        )}
-      </div>
+      {/* Steps 1 + 2 — Post + Groups */}
+      <div className='grid grid-cols-1 xl:grid-cols-3 gap-5 items-start'>
 
-      {/* Main two-column */}
-      <div className='grid grid-cols-1 xl:grid-cols-3 gap-5'>
-
-        {/* Suggested Post Card — 2/3 width */}
+        {/* Step 1 — Post This Today */}
         <div className='xl:col-span-2 space-y-3'>
+          <div className='flex items-center gap-2 px-1'>
+            <span className='flex items-center justify-center w-5 h-5 rounded-full bg-orange-600 text-white text-2xs font-bold shrink-0'>1</span>
+            <span className='text-xs font-semibold text-gray-400 uppercase tracking-wide'>Post This Today</span>
+          </div>
           <div className='bg-surface-700 rounded-xl border border-surface-400 p-5 shadow-card'>
 
             {/* Card header */}
             <div className='flex items-center justify-between mb-3'>
               <div className='flex items-center gap-2 flex-wrap'>
                 <Megaphone size={14} className='text-orange-500 shrink-0' />
-                <span className='text-sm font-semibold text-gray-200'>Suggested Post</span>
+                <span className='text-sm font-semibold text-gray-200'>Today's Post</span>
                 <span className={`text-2xs px-2 py-0.5 rounded-full border ${catCls}`}>{template.category}</span>
                 {truckType && <span className='text-2xs text-gray-500'>{truckType}</span>}
                 {useVariation && !shortMode && <span className='text-2xs text-blue-400'>variation</span>}
@@ -743,8 +788,24 @@ export function Marketing() {
               </div>
             </div>
 
-            {/* Why chosen */}
-            <p className='text-2xs text-gray-600 italic mb-3'>{reason}</p>
+            {/* Why chosen + template performance signal */}
+            <div className='flex items-start justify-between gap-3 mb-3'>
+              <p className='text-2xs text-gray-600 italic'>{reason}</p>
+              {tplUses === 0 ? (
+                <span className='text-2xs text-gray-700 whitespace-nowrap shrink-0' title='No logged uses yet — mark as used after posting to start tracking'>Untested</span>
+              ) : (tplReplies + tplLeads) === 0 ? (
+                <span className='text-2xs text-gray-700 whitespace-nowrap shrink-0' title='Based on your logged replies and leads — update outcomes in Post History'>
+                  {tplUses} {tplUses === 1 ? 'use' : 'uses'} · no responses logged
+                </span>
+              ) : (
+                <span className='text-2xs text-green-500 whitespace-nowrap shrink-0'>
+                  {tplReplies > 0 ? `${tplReplies} ${tplReplies === 1 ? 'reply' : 'replies'}` : ''}
+                  {tplReplies > 0 && tplLeads > 0 ? ' · ' : ''}
+                  {tplLeads > 0 ? `${tplLeads} ${tplLeads === 1 ? 'lead' : 'leads'}` : ''}
+                  {` from ${tplUses} ${tplUses === 1 ? 'use' : 'uses'}`}
+                </span>
+              )}
+            </div>
 
             {/* Category filter */}
             <div className='flex gap-1.5 flex-wrap mb-4'>
@@ -835,6 +896,9 @@ export function Marketing() {
                 {marked ? <><CheckCircle size={12} /> Marked!</> : <><Check size={12} /> Mark as Used</>}
               </button>
             </div>
+            <p className='text-2xs text-gray-700 mt-2'>
+              After posting: click Mark as Used, select the groups, save. Come back 24-48 hours later and update replies in Post History.
+            </p>
           </div>
 
           {/* Log form — appears after marking used */}
@@ -849,8 +913,13 @@ export function Marketing() {
           )}
         </div>
 
-        {/* Suggested Groups sidebar */}
-        <div className='bg-surface-700 rounded-xl border border-surface-400 p-4 shadow-card h-fit'>
+        {/* Step 2 — Post to These Groups */}
+        <div className='space-y-3'>
+          <div className='flex items-center gap-2 px-1'>
+            <span className='flex items-center justify-center w-5 h-5 rounded-full bg-orange-600 text-white text-2xs font-bold shrink-0'>2</span>
+            <span className='text-xs font-semibold text-gray-400 uppercase tracking-wide'>Post to These Groups</span>
+          </div>
+          <div className='bg-surface-700 rounded-xl border border-surface-400 p-4 shadow-card h-fit'>
           <div className='flex items-center gap-2 mb-3'>
             <Users size={13} className='text-orange-500' />
             <span className='text-sm font-semibold text-gray-200'>Suggested Groups</span>
@@ -898,6 +967,100 @@ export function Marketing() {
             >Manage all groups</button>
           </div>
         </div>
+        </div>
+      </div>
+
+      {/* Step 3 — Check for Replies */}
+      <div className='bg-surface-700 rounded-xl border border-surface-400 p-4 shadow-card space-y-3'>
+        <div className='flex items-center gap-2'>
+          <span className='flex items-center justify-center w-5 h-5 rounded-full bg-orange-600 text-white text-2xs font-bold shrink-0'>3</span>
+          <span className='text-xs font-semibold text-gray-400 uppercase tracking-wide'>Check for Replies</span>
+        </div>
+        {needsReplyCheck.length === 0 ? (
+          <p className='text-2xs text-gray-600 pl-7'>No posts waiting on reply data — all recent posts have outcomes logged.</p>
+        ) : (
+          <div className='space-y-1 pl-7'>
+            <p className='text-2xs text-gray-600 mb-2'>Check Facebook for replies on each post, then click Update outcomes to log the count.</p>
+            {needsReplyCheck.map(log => {
+              const groupList: string[] = (() => { try { return JSON.parse(log.groups_posted_to) } catch { return [] } })()
+              return (
+                <div key={log.id} className='flex items-center justify-between gap-3 py-1.5 border-t border-surface-500/30'>
+                  <div>
+                    <p className='text-xs text-gray-300'>{log.category}{log.truck_type ? ` · ${log.truck_type}` : ''}</p>
+                    <p className='text-2xs text-gray-600'>{log.used_date}{groupList.length > 0 ? ` · ${groupList.join(', ')}` : ''}</p>
+                  </div>
+                  <button
+                    onClick={() => { setActiveTab('history'); handleEditLog(log) }}
+                    className='px-2.5 py-1 text-2xs bg-surface-600 hover:bg-orange-600 text-gray-400 hover:text-white rounded transition-colors shrink-0'
+                  >Update outcomes</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Step 4 — Convert Responses to Leads */}
+      {postsWithReplies.length > 0 && (
+        <div className='bg-surface-700 rounded-xl border border-surface-400 p-4 shadow-card space-y-3'>
+          <div className='flex items-center gap-2'>
+            <span className='flex items-center justify-center w-5 h-5 rounded-full bg-orange-600 text-white text-2xs font-bold shrink-0'>4</span>
+            <span className='text-xs font-semibold text-gray-400 uppercase tracking-wide'>Convert Responses to Leads</span>
+          </div>
+          <div className='space-y-1 pl-7'>
+            <p className='text-2xs text-gray-600 mb-2'>Posts with logged replies — follow up and add interested drivers to your lead pipeline.</p>
+            {postsWithReplies.slice(0, 5).map(log => (
+              <div key={log.id} className='flex items-center justify-between gap-3 py-1.5 border-t border-surface-500/30'>
+                <div>
+                  <p className='text-xs text-gray-300'>
+                    {log.category}{log.truck_type ? ` · ${log.truck_type}` : ''}
+                    {' · '}
+                    <span className='text-green-400'>{log.replies_count} {log.replies_count === 1 ? 'reply' : 'replies'}</span>
+                    {log.leads_generated > 0 && <span className='text-gray-500'> · {log.leads_generated} lead{log.leads_generated !== 1 ? 's' : ''} logged</span>}
+                  </p>
+                  <p className='text-2xs text-gray-600'>{log.used_date}</p>
+                </div>
+                <button
+                  onClick={() => { window.location.hash = '/leads' }}
+                  className='px-2.5 py-1 text-2xs bg-surface-600 hover:bg-blue-700 text-gray-400 hover:text-white rounded transition-colors shrink-0'
+                >Add to Leads</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Daily Checklist */}
+      <div className='bg-surface-700 rounded-xl border border-surface-400 shadow-card'>
+        <button
+          onClick={() => setTasksOpen(v => !v)}
+          className='w-full flex items-center justify-between px-5 py-3'
+        >
+          <div className='flex items-center gap-2'>
+            <span className='text-sm font-semibold text-gray-200'>Daily Checklist</span>
+            <span className='text-2xs px-2 py-0.5 rounded-full bg-surface-600 border border-surface-400 text-gray-500'>
+              {completedCount}/{dailyTasks.length}
+            </span>
+          </div>
+          {tasksOpen ? <ChevronUp size={13} className='text-gray-600' /> : <ChevronDown size={13} className='text-gray-600' />}
+        </button>
+        {tasksOpen && (
+          <div className='px-5 pb-4 space-y-2'>
+            {dailyTasks.map(task => (
+              <label key={task.id} className='flex items-start gap-3 cursor-pointer'>
+                <input
+                  type='checkbox'
+                  checked={task.completed}
+                  onChange={() => toggleTask(task.id)}
+                  className='mt-0.5 accent-orange-500 shrink-0'
+                />
+                <span className={['text-xs leading-relaxed', task.completed ? 'line-through text-gray-600' : 'text-gray-300'].join(' ')}>
+                  {task.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Bottom tabs */}
@@ -922,6 +1085,52 @@ export function Marketing() {
         {/* Post History tab */}
         {activeTab === 'history' && (
           <div className='p-5'>
+
+            {/* Inline outcome editor — appears when pencil icon is clicked */}
+            {editingLog && (
+              <div className='mb-4 bg-surface-600 rounded-xl border border-orange-700/30 p-4 space-y-3'>
+                <div className='flex items-center justify-between'>
+                  <p className='text-xs font-semibold text-gray-200'>
+                    Update outcomes — {editingLog.category} · {editingLog.used_date}
+                  </p>
+                  <button onClick={() => setEditingLog(null)}
+                    className='p-1 rounded hover:bg-surface-500 text-gray-600 hover:text-gray-300 transition-colors'>
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='space-y-1'>
+                    <label className='text-2xs text-gray-500 uppercase tracking-wide'>Replies received</label>
+                    <input type='number' min={0} value={editReplies}
+                      onChange={e => setEditReplies(Number(e.target.value))}
+                      className='w-full h-8 px-2 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-600/60' />
+                  </div>
+                  <div className='space-y-1'>
+                    <label className='text-2xs text-gray-500 uppercase tracking-wide'>Leads generated</label>
+                    <input type='number' min={0} value={editLeads}
+                      onChange={e => setEditLeads(Number(e.target.value))}
+                      className='w-full h-8 px-2 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-orange-600/60' />
+                  </div>
+                </div>
+                <div className='space-y-1'>
+                  <label className='text-2xs text-gray-500 uppercase tracking-wide'>Notes</label>
+                  <input value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                    placeholder='Any observations...'
+                    className='w-full h-8 px-3 bg-surface-500 border border-surface-400 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-600/60' />
+                </div>
+                <div className='flex gap-2'>
+                  <button onClick={handleSaveEdit}
+                    className='px-3 py-1.5 text-xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'>
+                    Save outcomes
+                  </button>
+                  <button onClick={() => setEditingLog(null)}
+                    className='px-3 py-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors'>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className='flex items-center justify-between mb-4'>
               <span className='text-xs text-gray-500'>{postLog.length} recent entries</span>
             </div>
@@ -948,8 +1157,14 @@ export function Marketing() {
                   <tbody className='divide-y divide-surface-500/30'>
                     {postLog.map(log => {
                       const groupList: string[] = (() => { try { return JSON.parse(log.groups_posted_to) } catch { return [] } })()
+                      // Same-day posts with 0 outcomes are "pending" — too soon to know if replies came in
+                      const isPending = log.used_date === today && log.replies_count === 0 && log.leads_generated === 0
+                      const isEditing = editingLog?.id === log.id
                       return (
-                        <tr key={log.id} className='hover:bg-surface-600/30 transition-colors'>
+                        <tr key={log.id} className={[
+                          'transition-colors',
+                          isEditing ? 'bg-orange-950/10' : 'hover:bg-surface-600/30',
+                        ].join(' ')}>
                           <td className='py-2 pr-4 text-gray-400 whitespace-nowrap'>{log.used_date}</td>
                           <td className='py-2 pr-4 text-gray-400 whitespace-nowrap'>{log.category}</td>
                           <td className='py-2 pr-4 text-gray-500'>{log.truck_type ?? '—'}</td>
@@ -959,20 +1174,35 @@ export function Marketing() {
                           <td className='py-2 pr-4'>
                             {log.posted ? <span className='text-green-400'>Yes</span> : <span className='text-gray-600'>No</span>}
                           </td>
-                          <td className='py-2 pr-4 text-gray-400'>{log.replies_count}</td>
-                          <td className='py-2 pr-4 text-gray-400'>{log.leads_generated}</td>
+                          <td className='py-2 pr-4' title={isPending ? 'Posted today — check for replies and update outcomes' : undefined}>
+                            {isPending
+                              ? <span className='text-gray-700 italic'>pending</span>
+                              : <span className='text-gray-400'>{log.replies_count}</span>}
+                          </td>
+                          <td className='py-2 pr-4'>
+                            {isPending
+                              ? <span className='text-gray-700 italic'>pending</span>
+                              : <span className='text-gray-400'>{log.leads_generated}</span>}
+                          </td>
                           <td className='py-2 pr-2 text-gray-500 max-w-[140px] truncate' title={log.notes ?? ''}>
                             {log.notes ?? '—'}
                           </td>
                           <td className='py-2'>
-                            <button
-                              onClick={async () => {
-                                await api().post.delete(log.id)
-                                await loadPostLog()
-                                await loadAntiRep()
-                              }}
-                              className='p-1 rounded hover:bg-surface-500 text-gray-700 hover:text-red-400 transition-colors'
-                            ><Trash2 size={11} /></button>
+                            <div className='flex items-center gap-0.5'>
+                              <button
+                                onClick={() => handleEditLog(log)}
+                                title='Update replies and leads'
+                                className='p-1 rounded hover:bg-surface-500 text-gray-700 hover:text-orange-400 transition-colors'
+                              ><Edit2 size={11} /></button>
+                              <button
+                                onClick={async () => {
+                                  await api().post.delete(log.id)
+                                  await loadPostLog()
+                                  await loadAntiRep()
+                                }}
+                                className='p-1 rounded hover:bg-surface-500 text-gray-700 hover:text-red-400 transition-colors'
+                              ><Trash2 size={11} /></button>
+                            </div>
                           </td>
                         </tr>
                       )

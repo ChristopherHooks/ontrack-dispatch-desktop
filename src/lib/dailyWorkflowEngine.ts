@@ -304,8 +304,8 @@ export function computeDailyWorkflow(
   if (input.todaysGroupCount > 0) {
     tasks.push({
       id: 'marketing',
-      title: `Post in ${input.todaysGroupCount} Facebook group${input.todaysGroupCount !== 1 ? 's' : ''} today`,
-      description: 'Keep the pipeline warm — these groups are eligible',
+      title: 'Post in 2-3 recommended Facebook groups today',
+      description: `${input.todaysGroupCount} group${input.todaysGroupCount !== 1 ? 's' : ''} eligible — pick the highest-priority 2-3 from your recommendations`,
       category: 'admin', priority: 41,
       status: done('marketing'),
       actionLabel: 'Marketing', actionTarget: '/marketing',
