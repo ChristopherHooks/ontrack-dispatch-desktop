@@ -12,6 +12,8 @@ export interface FmcsaImportResult {
   leadsFound:        number
   leadsAdded:        number
   duplicatesSkipped: number
+  failedEnrichment:  number   // carriers where SAFER/dockets lookup timed out or failed
+  usedFallback:      boolean  // true when the 0-365 day fallback window was used
   errors:            string[]
 }
 
@@ -22,6 +24,7 @@ export interface FmcsaImportStatus {
   leadsFound:        number
   leadsAdded:        number
   duplicatesSkipped: number
+  failedEnrichment:  number
   lastError:         string | null
 }
 
@@ -135,6 +138,7 @@ export function writeImportMeta(
   set('fmcsa_last_found',   String(result.leadsFound))
   set('fmcsa_last_added',   String(result.leadsAdded))
   set('fmcsa_last_skipped', String(result.duplicatesSkipped))
+  set('fmcsa_last_failed',  String(result.failedEnrichment))
   set('fmcsa_last_error',   result.errors.join('; '))
 }
 
@@ -150,6 +154,7 @@ export function readImportStatus(db: Database.Database): FmcsaImportStatus {
     leadsFound:        parseInt(get('fmcsa_last_found')   ?? '0', 10) || 0,
     leadsAdded:        parseInt(get('fmcsa_last_added')   ?? '0', 10) || 0,
     duplicatesSkipped: parseInt(get('fmcsa_last_skipped') ?? '0', 10) || 0,
+    failedEnrichment:  parseInt(get('fmcsa_last_failed')  ?? '0', 10) || 0,
     lastError:         get('fmcsa_last_error') || null,
   }
 }
@@ -281,7 +286,8 @@ export async function importFmcsaLeads(
   }
 
   const errors: string[] = []
-  let leadsFound = 0, leadsAdded = 0, duplicatesSkipped = 0
+  let leadsFound = 0, leadsAdded = 0, duplicatesSkipped = 0, failedEnrichment = 0
+  let usedFallback = false
 
   // Carriers that passed enrichment but were outside the strict 30-180 day window.
   // Used as a no-HTTP-call fallback if the strict pass yields 0 new leads.
@@ -351,6 +357,15 @@ export async function importFmcsaLeads(
           getCarrierSafer(c.dotNumber),
           getCarrierDockets(webKey, c.dotNumber),
         ])
+
+        // Count carriers where any enrichment call failed (SAFER timeout, API error, etc.)
+        if (saferResult.status === 'rejected' || docketsResult.status === 'rejected') {
+          failedEnrichment++
+        }
+
+        // Polite pause between per-carrier SAFER requests — prevents rate-limit timeouts
+        // on rapid back-to-back calls when processing many carriers per search term
+        await new Promise(r => setTimeout(r, 120))
 
         if (saferResult.status === 'fulfilled') {
           const safer = saferResult.value
@@ -442,6 +457,7 @@ export async function importFmcsaLeads(
   // enriched this run that fall within the wider 0-365 day window.
   // No additional HTTP calls are made — enrichment data was already fetched above.
   if (leadsAdded < 5 && onlyNewAuthorities && fallbackCarriers.length > 0) {
+    usedFallback = true
     console.log('[FMCSA] Fewer than 5 leads in authority window — fallback to 0-365 day window (' + fallbackCarriers.length + ' candidates)')
     const now = new Date().toISOString()
     for (const fb of fallbackCarriers) {
@@ -458,6 +474,6 @@ export async function importFmcsaLeads(
     if (leadsAdded > 0) console.log('[FMCSA] Fallback pass added ' + leadsAdded + ' leads (0-365 day window)')
   }
 
-  console.log('[FMCSA] Import complete. Found:', leadsFound, 'Added:', leadsAdded, 'Skipped:', duplicatesSkipped)
-  return { leadsFound, leadsAdded, duplicatesSkipped, errors }
+  console.log('[FMCSA] Import complete. Found:', leadsFound, 'Added:', leadsAdded, 'Skipped:', duplicatesSkipped, 'Failed enrichment:', failedEnrichment, 'Used fallback:', usedFallback)
+  return { leadsFound, leadsAdded, duplicatesSkipped, failedEnrichment, usedFallback, errors }
 }

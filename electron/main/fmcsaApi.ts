@@ -10,9 +10,10 @@
 import * as https from 'https'
 import * as http  from 'http'
 
-const BASE_URL           = 'https://mobile.fmcsa.dot.gov/qc/services'
-const SAFER_BASE         = 'https://safer.fmcsa.dot.gov'
-const REQUEST_TIMEOUT_MS = 15_000
+const BASE_URL          = 'https://mobile.fmcsa.dot.gov/qc/services'
+const SAFER_BASE        = 'https://safer.fmcsa.dot.gov'
+const API_TIMEOUT_MS    = 12_000   // QC JSON API — typically fast
+const SAFER_TIMEOUT_MS  = 22_000   // SAFER HTML pages — government server, can be slow
 
 // ── API response shapes ────────────────────────────────────────────────────
 
@@ -89,9 +90,9 @@ function httpGetText(url: string, hops = 0): Promise<string> {
       res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     })
     req.on('error', reject)
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    req.setTimeout(SAFER_TIMEOUT_MS, () => {
       req.destroy()
-      reject(new Error('SAFER request timed out after ' + REQUEST_TIMEOUT_MS + 'ms'))
+      reject(new Error('SAFER request timed out after ' + SAFER_TIMEOUT_MS + 'ms'))
     })
   })
 }
@@ -118,9 +119,9 @@ function httpGet(url: string): Promise<Record<string, unknown>> {
       })
     })
     req.on('error', reject)
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    req.setTimeout(API_TIMEOUT_MS, () => {
       req.destroy()
-      reject(new Error('FMCSA request timed out after ' + REQUEST_TIMEOUT_MS + 'ms'))
+      reject(new Error('FMCSA request timed out after ' + API_TIMEOUT_MS + 'ms'))
     })
   })
 }

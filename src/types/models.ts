@@ -539,6 +539,8 @@ export interface FmcsaImportResult {
   leadsFound:        number
   leadsAdded:        number
   duplicatesSkipped: number
+  failedEnrichment:  number   // carriers where SAFER/dockets lookup timed out or failed
+  usedFallback:      boolean  // true when the 0-365 day fallback window was used
   errors:            string[]
 }
 
@@ -549,6 +551,7 @@ export interface FmcsaImportStatus {
   leadsFound:        number
   leadsAdded:        number
   duplicatesSkipped: number
+  failedEnrichment:  number
   lastError:         string | null
 }
 

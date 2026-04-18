@@ -671,6 +671,10 @@ export function Settings() {
       {/* Integrations */}
       <Section title='Integrations' icon={<Link size={16} />}>
         <div className='space-y-4'>
+          <p className='text-2xs text-gray-500'>
+            The FMCSA scanner searches government carrier records for recently-authorized owner-operators and adds them as prospecting leads.
+            It supplements your outreach — results still need manual review and follow-up.
+          </p>
           <div>
             <Label>FMCSA Web Key</Label>
             <input
@@ -681,7 +685,7 @@ export function Settings() {
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
             <p className='text-2xs text-gray-400 mt-1'>
-              Register free at mobile.fmcsa.dot.gov/QCDevsite/home — used by the FMCSA import on the Leads page.
+              Register free at mobile.fmcsa.dot.gov/QCDevsite/home — needed to search the FMCSA carrier database.
             </p>
           </div>
           <div>
@@ -694,8 +698,8 @@ export function Settings() {
               className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
             />
             <p className='text-2xs text-gray-400 mt-1'>
-              Each term triggers one API search. State names work well — many carriers include their home state in their name.
-              Leave blank to use the 7 built-in defaults.
+              Each term triggers one API search. State names work well — many carriers include their home state in their company name.
+              Leave blank to use the built-in defaults.
             </p>
           </div>
           <div className='flex items-center gap-3'>
@@ -716,8 +720,8 @@ export function Settings() {
           <div className='border-t border-surface-500 pt-4'>
             <p className='text-xs font-medium text-gray-400 mb-1'>Re-enrich Existing Leads</p>
             <p className='text-2xs text-gray-400 mb-3'>
-              Scrapes SAFER for any leads missing fleet size, then re-prioritizes all FMCSA leads
-              using your current rules (30–180 day authority + 1–3 trucks = High).
+              Fetches missing fleet size and authority data from SAFER for existing FMCSA leads,
+              then re-prioritizes based on authority age and fleet size (30–180 days + 1–3 trucks = High).
             </p>
             <div className='flex items-center gap-3'>
               <button

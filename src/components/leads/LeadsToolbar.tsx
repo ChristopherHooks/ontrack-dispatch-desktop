@@ -159,8 +159,8 @@ export function LeadsToolbar({
           className='flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-surface-400 bg-surface-600 hover:bg-surface-500 hover:border-orange-600/40 text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
         >
           {importBusy
-            ? <><svg className='animate-spin h-3 w-3' viewBox='0 0 24 24' fill='none'><circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' /><path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8v8z' /></svg> Importing…</>
-            : <><Upload size={12} /> FMCSA Import</>
+            ? <><svg className='animate-spin h-3 w-3' viewBox='0 0 24 24' fill='none'><circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' /><path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8v8z' /></svg> Scanning…</>
+            : <><Upload size={12} /> Scan FMCSA</>
           }
         </button>
 

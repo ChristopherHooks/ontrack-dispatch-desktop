@@ -55,9 +55,22 @@ function contactAgeCls(days: number | null, status: string): string {
   return 'text-gray-500'
 }
 
+function nextActionLabel(lead: Lead): string | null {
+  const s = lead.status
+  if (['Not Interested', 'Bad Fit', 'Rejected', 'Inactive MC', 'Converted', 'Signed'].includes(s)) return null
+  if (s === 'New' && (lead.contact_attempt_count ?? 0) === 0) return 'First call'
+  if (s === 'New' || s === 'Attempted') return 'Follow up'
+  if (s === 'Voicemail Left') return 'Call back'
+  if (s === 'Contacted') return 'Send info'
+  if (s === 'Interested' || s === 'Call Back Later') return 'Schedule call'
+  return null
+}
+
 const SKELS = [0, 1, 2, 3, 4, 5]
 
 export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect, onEdit, onDelete, onStatusChange, duplicateMcNumbers }: Props) {
+  const today = new Date().toISOString().split('T')[0]
+
   function Th({ col, label, cls = '' }: { col: SortKey; label: string; cls?: string }) {
     const on = col === sortKey
     return (
@@ -110,8 +123,11 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
             <th className='pr-4 w-16' />
           </tr></thead>
           <tbody className='divide-y divide-surface-600'>
-            {leads.map(lead => (
-              <tr key={lead.id} onClick={() => onSelect(lead)} className='cursor-pointer hover:bg-surface-600/40 transition-colors group'>
+            {leads.map(lead => {
+              const isOverdue = lead.follow_up_date != null && lead.follow_up_date < today
+              const rowAction = nextActionLabel(lead)
+              return (
+              <tr key={lead.id} onClick={() => onSelect(lead)} className={`cursor-pointer hover:bg-surface-600/40 transition-colors group ${isOverdue ? 'bg-red-950/20' : ''}`}>
                 <td className='pl-4 pr-3 py-2.5'><LeadScoreBadge lead={lead} /></td>
                 <td className='pr-3 py-2.5 max-w-[260px]'>
                   <div className='flex items-center gap-1.5 flex-wrap'>
@@ -121,6 +137,7 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                     )}
                   </div>
                   {lead.company && <p className='text-2xs text-gray-500 truncate' title={lead.company}>{lead.company}</p>}
+                  {rowAction && <p className='text-2xs text-orange-400/70 font-medium mt-0.5'>{rowAction}</p>}
                 </td>
                 <td className='pr-3 py-2.5' onClick={e => e.stopPropagation()}>
                   <select
@@ -181,7 +198,8 @@ export function LeadsTable({ leads, loading, sortKey, sortDir, onSort, onSelect,
                   </div>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
