@@ -12,6 +12,7 @@ interface Props {
   onClose: () => void; onEdit: (l: Load) => void
   onStatusChange: (l: Load, s: LoadStatus) => void; onDelete: (l: Load) => void
   onDuplicate?: (l: Load) => void
+  onDeliverAndInvoice?: (load: Load) => void
 }
 const fmt = (d: string | null) => { if (!d) return '—'; const [y,m,day]=d.split('-'); return `${m}/${day}/${y}` }
 const fmtDT = (dt: string) => new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
@@ -256,7 +257,7 @@ const DAT_BLANK: DatForm         = { posted_rate:'', expires_at:'', posting_ref:
 const OFFER_BLANK: OfferForm     = { carrier_name:'', mc_number:'', phone:'', offered_rate:'', status:'Pending', counter_rate:'', final_rate:'', notes:'' }
 const VETTING_BLANK: VettingForm = { carrier_mc:'', carrier_name:'', insurance_verified:0, authority_active:0, safety_rating:'', carrier_packet_received:0, vetting_date:'', notes:'' }
 
-export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusChange, onDelete, onDuplicate }: Props) {
+export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusChange, onDelete, onDuplicate, onDeliverAndInvoice }: Props) {
   const navigate = useNavigate()
   const [notes,setNotes]             = useState<Note[]>([])
   const [noteText,setNoteText]       = useState('')
@@ -498,6 +499,13 @@ export function LoadDrawer({ load, drivers, brokers, onClose, onEdit, onStatusCh
             {nextSt&&(
               <button onClick={()=>onStatusChange(load,nextSt)} className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'>
                 Mark {nextSt}
+              </button>
+            )}
+            {onDeliverAndInvoice && !['Delivered','Invoiced','Paid'].includes(load.status) && load.load_mode !== 'broker' && (
+              <button onClick={()=>{ onClose(); onDeliverAndInvoice(load) }}
+                title='Mark as Delivered and open prefilled invoice — sets delivery date to today if unset'
+                className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-teal-700 hover:bg-teal-600 text-white rounded-lg transition-colors'>
+                <Receipt size={11}/>Deliver &amp; Invoice
               </button>
             )}
             {['Booked','Picked Up','In Transit'].includes(load.status) && (

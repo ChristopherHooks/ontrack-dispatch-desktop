@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { parseStaleParam, parseLoadStatusParam } from '../lib/routeIntents'
 import { ChevronLeft, ChevronRight, Bell, Search, Check, XCircle, Clock } from 'lucide-react'
 import type { Load, LoadStatus, Driver, Broker, CreateLoadDto, AvailableLoad } from '../types/models'
@@ -13,6 +13,7 @@ import { DRIVER_STATUS_STYLES } from '../components/drivers/constants'
 import { LOAD_STATUS_STYLES } from '../components/loads/constants'
 
 export function Loads() {
+  const navigate                   = useNavigate()
   const [searchParams]             = useSearchParams()
   const [loads,    setLoads]    = useState<Load[]>([])
   const [drivers,  setDrivers]  = useState<Driver[]>([])
@@ -146,6 +147,18 @@ export function Loads() {
       if (selected?.id === updated.id) setSelected(updated)
     }
   }
+  // Combined: mark Delivered (with today as delivery_date if unset) then open Invoice modal prefilled
+  const handleDeliverAndInvoice = async (load: Load) => {
+    const today = new Date().toISOString().split('T')[0]
+    const patch: { status: LoadStatus; delivery_date?: string } = { status: 'Delivered' }
+    if (!load.delivery_date) patch.delivery_date = today
+    const updated = await window.api.loads.update(load.id, patch)
+    if (updated) {
+      setLoads(p => p.map(l => l.id === updated.id ? updated : l))
+      setSelected(null)
+    }
+    navigate(`/invoices?new=1&load_id=${load.id}`)
+  }
   const openEdit = (load: Load) => { setEditLoad(load); setModal(true) }
   const openAdd  = () => { setEditLoad(null); setModal(true) }
   const handleDuplicate = (load: Load) => {
@@ -206,12 +219,12 @@ export function Loads() {
       </div>
       <LoadsToolbar search={search} onSearch={setSearch} filters={filters} onFilters={setFilters} view={view} onView={setView} total={filtered.length} onAdd={openAdd} onRateHistory={() => setRateHistoryOpen(true)}/>
       {view === 'list'
-        ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onStatusChange={handleStatus} onDriverChange={handleDriverChange}/>
+        ? <LoadsTable loads={filtered} drivers={drivers} loading={loading} sortKey={sortKey} sortDir={sortDir} onSort={handleSort} onSelect={setSelected} onEdit={openEdit} onStatusChange={handleStatus} onDriverChange={handleDriverChange} onDeliverAndInvoice={handleDeliverAndInvoice}/>
         : view === 'board'
         ? <DispatchBoard drivers={drivers} loads={loads} loading={loading} onLoadClick={setSelected}/>
         : <LoadCalendar loads={loads} drivers={drivers} onLoadClick={setSelected}/>
       }
-      {selected&&<LoadDrawer load={selected} drivers={drivers} brokers={brokers} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete} onDuplicate={handleDuplicate}/>}
+      {selected&&<LoadDrawer load={selected} drivers={drivers} brokers={brokers} onClose={()=>setSelected(null)} onEdit={openEdit} onStatusChange={handleStatus} onDelete={handleDelete} onDuplicate={handleDuplicate} onDeliverAndInvoice={handleDeliverAndInvoice}/>}
       {modal&&<LoadModal load={editLoad} prefill={prefill} onClose={()=>{setModal(false);setEditLoad(null);setPrefill(null)}} onSave={handleSave}/>}
       {rateHistoryOpen&&<RateHistoryModal loads={loads} brokers={brokers} onClose={()=>setRateHistoryOpen(false)}/>}
     </div>

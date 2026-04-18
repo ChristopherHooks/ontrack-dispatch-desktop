@@ -22,6 +22,15 @@ export function Settings() {
   const [fmcsaSaved, setFmcsaSaved]   = useState(false)
   const [claudeKey, setClaudeKey]     = useState('')
   const [claudeSaved, setClaudeSaved] = useState(false)
+  // SMTP / email settings
+  const [smtpHost,   setSmtpHost]   = useState('')
+  const [smtpPort,   setSmtpPort]   = useState('587')
+  const [smtpUser,   setSmtpUser]   = useState('')
+  const [smtpPass,   setSmtpPass]   = useState('')
+  const [smtpSecure, setSmtpSecure] = useState(false)
+  const [smtpSaved,  setSmtpSaved]  = useState(false)
+  const [smtpStatus, setSmtpStatus] = useState<{ host: string; port: number; user: string; passSet: boolean; secure: boolean } | null>(null)
+  const [smtpChecking, setSmtpChecking] = useState(false)
   const [backfillBusy, setBackfillBusy] = useState(false)
   const [backfillMsg,  setBackfillMsg]  = useState<{ text: string; ok: boolean } | null>(null)
   const [seedBusy,       setSeedBusy]       = useState(false)
@@ -63,6 +72,11 @@ export function Settings() {
     window.api.settings.get('fmcsa_web_key').then(v => { if (v) setFmcsaKey(String(v)) }).catch(() => {})
     window.api.settings.get('fmcsa_search_terms').then(v => { if (v) setFmcsaTerms(String(v)) }).catch(() => {})
     window.api.settings.get('claude_api_key').then(v => { if (v) setClaudeKey(String(v)) }).catch(() => {})
+    window.api.settings.get('smtp_host').then(v => { if (v) setSmtpHost(String(v)) }).catch(() => {})
+    window.api.settings.get('smtp_port').then(v => { if (v) setSmtpPort(String(v)) }).catch(() => {})
+    window.api.settings.get('smtp_user').then(v => { if (v) setSmtpUser(String(v)) }).catch(() => {})
+    window.api.settings.get('smtp_pass').then(v => { if (v) setSmtpPass(String(v)) }).catch(() => {})
+    window.api.settings.get('smtp_secure').then(v => { setSmtpSecure(Boolean(v)) }).catch(() => {})
     window.api.settings.get('revenueGoal').then(v => { if (typeof v === 'number' && v > 0) setBizGoal(String(v)) }).catch(() => {})
     window.api.settings.get('fuelPricePerGallon').then(v => { if (typeof v === 'number' && v > 0) setBizFuel(String(v)) }).catch(() => {})
   }, [])
@@ -222,6 +236,27 @@ export function Settings() {
     await window.api.settings.set('claude_api_key', claudeKey.trim())
     setClaudeSaved(true)
     setTimeout(() => setClaudeSaved(false), 2500)
+  }
+
+  async function handleSaveSmtp() {
+    await window.api.settings.set('smtp_host',   smtpHost.trim())
+    await window.api.settings.set('smtp_port',   Number(smtpPort) || 587)
+    await window.api.settings.set('smtp_user',   smtpUser.trim())
+    await window.api.settings.set('smtp_pass',   smtpPass)
+    await window.api.settings.set('smtp_secure', smtpSecure)
+    setSmtpSaved(true)
+    setSmtpStatus(null)
+    setTimeout(() => setSmtpSaved(false), 2500)
+  }
+
+  async function handleVerifySmtp() {
+    setSmtpChecking(true)
+    try {
+      const s = await window.api.emails.smtpStatus()
+      setSmtpStatus(s)
+    } catch { /* ignore */ } finally {
+      setSmtpChecking(false)
+    }
   }
 
   async function handleBackfill() {
@@ -732,6 +767,106 @@ export function Settings() {
               </span>
             )}
           </div>
+        </div>
+      </Section>
+
+      {/* Email / SMTP */}
+      <Section title='Email Configuration' icon={<Link size={16} />}>
+        <div className='space-y-3'>
+          <p className='text-2xs text-gray-400'>
+            Configure SMTP so invoice emails send directly from your business address instead of your personal email client.
+            Use port 587 with STARTTLS (most providers) or port 465 with SSL.
+            Gmail users: enable 2-Step Verification, then create an App Password at myaccount.google.com/apppasswords.
+          </p>
+          <div className='grid grid-cols-2 gap-3'>
+            <div className='col-span-2'>
+              <Label>SMTP Host</Label>
+              <input
+                type='text'
+                value={smtpHost}
+                onChange={e => setSmtpHost(e.target.value)}
+                placeholder='smtp.gmail.com'
+                className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+              />
+            </div>
+            <div>
+              <Label>Port</Label>
+              <input
+                type='number'
+                value={smtpPort}
+                onChange={e => setSmtpPort(e.target.value)}
+                placeholder='587'
+                className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+              />
+            </div>
+            <div className='flex items-center gap-2 pt-6'>
+              <input
+                type='checkbox'
+                id='smtpSecure'
+                checked={smtpSecure}
+                onChange={e => setSmtpSecure(e.target.checked)}
+                className='accent-orange-500'
+              />
+              <label htmlFor='smtpSecure' className='text-sm text-gray-300 cursor-pointer select-none'>SSL/TLS (port 465)</label>
+            </div>
+            <div className='col-span-2'>
+              <Label>Username (your business email)</Label>
+              <input
+                type='email'
+                value={smtpUser}
+                onChange={e => setSmtpUser(e.target.value)}
+                placeholder='business@yourdomain.com'
+                className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+              />
+              <p className='text-2xs text-gray-500 mt-1'>This address becomes the From address on all sent invoices.</p>
+            </div>
+            <div className='col-span-2'>
+              <Label>Password / App Password</Label>
+              <input
+                type='password'
+                value={smtpPass}
+                onChange={e => setSmtpPass(e.target.value)}
+                placeholder='Paste app password here'
+                className='w-full text-sm bg-surface-600 border border-surface-400 text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-orange-600/60'
+              />
+            </div>
+          </div>
+          <div className='flex items-center gap-3 mt-2 flex-wrap'>
+            <button
+              onClick={handleSaveSmtp}
+              className='text-xs px-4 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg transition-colors'
+            >
+              Save
+            </button>
+            <button
+              onClick={handleVerifySmtp}
+              disabled={smtpChecking}
+              className='text-xs px-4 py-1.5 bg-surface-500 hover:bg-surface-400 text-gray-300 rounded-lg transition-colors disabled:opacity-50'
+            >
+              {smtpChecking ? 'Checking…' : 'Verify Saved Config'}
+            </button>
+            {smtpSaved && (
+              <span className='text-xs text-green-400 flex items-center gap-1'>
+                <CheckCircle size={12} /> Saved
+              </span>
+            )}
+          </div>
+          {smtpStatus && (
+            <div className='mt-3 rounded-lg border border-surface-400 bg-surface-700 px-3 py-2.5 space-y-1'>
+              <p className='text-xs font-medium text-gray-400 mb-1.5'>What is persisted in electron-store:</p>
+              <p className={`text-2xs font-mono ${smtpStatus.host ? 'text-green-400' : 'text-red-400'}`}>smtp_host: {smtpStatus.host || '(empty — not saved)'}</p>
+              <p className={`text-2xs font-mono ${smtpStatus.port ? 'text-green-400' : 'text-red-400'}`}>smtp_port: {smtpStatus.port}</p>
+              <p className={`text-2xs font-mono ${smtpStatus.user ? 'text-green-400' : 'text-red-400'}`}>smtp_user: {smtpStatus.user || '(empty — not saved)'}</p>
+              <p className={`text-2xs font-mono ${smtpStatus.passSet ? 'text-green-400' : 'text-red-400'}`}>smtp_pass: {smtpStatus.passSet ? '(set)' : '(empty — not saved)'}</p>
+              <p className='text-2xs font-mono text-gray-500'>smtp_secure: {String(smtpStatus.secure)}</p>
+              {(!smtpStatus.host || !smtpStatus.user || !smtpStatus.passSet) && (
+                <p className='text-xs text-orange-400 mt-2'>One or more required fields are empty in the store. Fill them in above and click Save.</p>
+              )}
+              {smtpStatus.host && smtpStatus.user && smtpStatus.passSet && (
+                <p className='text-xs text-green-400 mt-2'>All required fields are set. If send still fails, the error will indicate the provider auth issue.</p>
+              )}
+            </div>
+          )}
         </div>
       </Section>
 

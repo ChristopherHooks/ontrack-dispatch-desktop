@@ -1,5 +1,5 @@
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
-import type { Invoice, Driver } from '../../types/models'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Send, CheckCircle, Mail } from 'lucide-react'
+import type { Invoice, InvoiceStatus, Driver } from '../../types/models'
 import { INVOICE_STATUS_STYLES } from './constants'
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   selectedIds?: Set<number>
   onToggle?: (id: number) => void
   onToggleAll?: (ids: number[]) => void
+  onStatusChange?: (inv: Invoice, status: InvoiceStatus) => void
 }
 
 const COLS: { key: keyof Invoice; label: string; w: string }[] = [
@@ -55,7 +56,7 @@ function agingLabel(inv: Invoice, status: string): { text: string; cls: string }
   return null
 }
 
-export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, onSort, onSelect, selectedIds, onToggle, onToggleAll }: Props) {
+export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, onSort, onSelect, selectedIds, onToggle, onToggleAll, onStatusChange }: Props) {
   const allChecked = invoices.length > 0 && invoices.every(inv => selectedIds?.has(inv.id))
   const colSpanTotal = COLS.length + 1
   return (
@@ -73,6 +74,7 @@ export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, on
                 <div className='flex items-center gap-1'>{c.label}<SI col={c.key} sk={sortKey} sd={sortDir} /></div>
               </th>
             ))}
+            <th className='w-24 px-3 py-2.5' />
           </tr>
         </thead>
         <tbody>
@@ -109,6 +111,36 @@ export function InvoicesTable({ invoices, drivers, loading, sortKey, sortDir, on
                     </td>
                     <td className='px-3 py-2.5 text-gray-400' onClick={() => onSelect(inv)}>{fmt(inv.sent_date)}</td>
                     <td className='px-3 py-2.5 text-gray-400' onClick={() => onSelect(inv)}>{fmt(inv.paid_date)}</td>
+                    <td className='px-3 py-2.5' onClick={e => e.stopPropagation()}>
+                      {onStatusChange && (
+                        <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          {inv.status === 'Draft' && (
+                            <button
+                              onClick={() => onStatusChange(inv, 'Sent')}
+                              title='Mark Sent'
+                              className='flex items-center gap-1 px-2 h-6 text-2xs font-medium bg-blue-800 hover:bg-blue-700 text-blue-200 rounded-md transition-colors'>
+                              <Send size={9}/>Sent
+                            </button>
+                          )}
+                          {(inv.status === 'Sent' || inv.status === 'Overdue') && (
+                            <button
+                              onClick={() => onStatusChange(inv, 'Paid')}
+                              title='Mark Paid'
+                              className='flex items-center gap-1 px-2 h-6 text-2xs font-medium bg-green-800 hover:bg-green-700 text-green-200 rounded-md transition-colors'>
+                              <CheckCircle size={9}/>Paid
+                            </button>
+                          )}
+                          {(inv.status === 'Sent' || inv.status === 'Overdue') && (
+                            <button
+                              onClick={() => onSelect(inv)}
+                              title='Open follow-up tools'
+                              className='p-1 rounded-md hover:bg-surface-500 text-gray-600 hover:text-orange-400 transition-colors'>
+                              <Mail size={11}/>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 )
               })

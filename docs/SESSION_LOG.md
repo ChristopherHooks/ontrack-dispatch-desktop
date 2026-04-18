@@ -1,5 +1,37 @@
 # Session Log — OnTrack Dispatch Dashboard
 
+## 2026-04-17 — Session 40: Pre-Booking Profit Check in Find Loads (3 rounds)
+
+### Work Completed
+
+Pure frontend feature — no schema changes, no IPC changes, no new dependencies.
+
+**New file: `src/lib/profitability.ts`**
+- `checkProfitability(ProfitInput): ProfitCheck` — main entry point
+- `ProfitInput`: driverLocation, locationBasis, driverCpm, driverMinRpm, pickupCity, pickupState, loadedMiles, grossRate
+- `ProfitResult` (incomplete: false): deadheadMiles, loadedMiles, totalMiles, grossRevenue, estimatedCost, estimatedNet, effectiveRpm, band, whyReasons, locationBasis
+- `ProfitIncomplete` (incomplete: true): missingField ('location' | 'cpm' | 'rate' | 'miles')
+- `ProfitBand`: 'strong' | 'acceptable' | 'thin' | 'reject'
+- `PROFIT_THRESHOLDS` const: REJECT_NET=100, THIN_NET=250, STRONG_NET=400, LONG_DEADHEAD_MI=200, HIGH_DH_RATIO=0.30
+- Deadhead heuristic: same city=10mi, same state=75mi, cross-state=250mi (consistent with LoadMatch)
+- Never fakes results — returns incomplete when location, CPM, rate, or miles are null
+
+**Modified: `src/pages/FindLoads.tsx`**
+- `BAND_STYLE`, `BAND_LABEL`, `MISSING_MSG` constants
+- `dropCityBasis` state: 'actual' (current_location) vs 'estimated' (active-load dest / home_base)
+- `profitChecks` memo: computed per-load using dropCity / dropCityBasis, driver CPM, driver min RPM
+- `hideBands` state (`Set<ProfitBand>`): filter toggles for 'reject' and 'thin' in results bar; loads with no/incomplete check data are never filtered
+- `sortedGoodLoads`: filter-then-sort pipeline
+- `profitSort` state: `null | 'net' | 'rpm'` — sort toggles above results table
+- `ProfitStrip` sub-component: Net as hero (text-xl font-bold, band color); DH/Gross/Eff.RPM at text-sm; "Loaded/Total/Cost" toggle for detail row; location basis pill; why-reasons expander
+- `LoadRow`: permanent second `<tr>` always shows ProfitStrip (no expand required); expanded section shows reasons/equipment only
+- `FirstCallCard`: ProfitStrip shown above broker footer
+- `laneProjectedNet()` + `bandFromNet()` helpers: lane card badge shows projected min net when driver has both cpm and min_rpm; tooltip explains calculation
+
+tsc --noEmit: zero errors (verified after all 3 rounds).
+
+---
+
 ## 2026-04-16 — Session 39: Find Loads Overhaul + CRM Seed Fix
 
 ### Work Completed

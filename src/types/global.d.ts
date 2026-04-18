@@ -51,6 +51,14 @@ declare global {
         set:    (key: string, value: unknown) => Promise<void>
         getAll: () => Promise<Record<string, unknown>>
       }
+      emails: {
+        sendInvoice: (payload: {
+          to: string; subject: string; body: string; fromEmail: string; fromName: string
+        }) => Promise<{ ok: boolean; message: string }>
+        smtpStatus: () => Promise<{
+          host: string; port: number; user: string; passSet: boolean; secure: boolean
+        }>
+      }
       dashboard: {
         stats: () => Promise<DashboardStats>
       }
@@ -395,6 +403,8 @@ export interface ScoredLoad {
   equip:        string | null
   mode:         string | null
   company:      string | null
+  phone:        string | null
+  email:        string | null
   d2p:          number | null
   // Calculated financials
   loaded_rpm:         number | null

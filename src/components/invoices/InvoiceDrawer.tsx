@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { X, Edit2, Plus, Printer, Mail, CheckCircle, Send, AlertCircle, Download, Trash2, Copy, Check, Phone, ChevronDown } from 'lucide-react'
+import { X, Edit2, Plus, Printer, Mail, CheckCircle, Send, AlertCircle, Download, Trash2, Copy, Check, Phone, ChevronDown, Info } from 'lucide-react'
 import type { Invoice, InvoiceStatus, Driver, Load, Broker, Note } from '../../types/models'
 import { INVOICE_STATUS_STYLES } from './constants'
+import { useSettingsStore } from '../../store/settingsStore'
 
 interface Props {
   invoice: Invoice
@@ -27,7 +28,7 @@ function Sec({ title }: { title: string }) {
   return <p className='text-2xs font-medium text-gray-400 uppercase tracking-wider mb-3'>{title}</p>
 }
 
-function printInvoice(inv: Invoice, driver: Driver | undefined, load: Load | undefined, broker: Broker | undefined) {
+function printInvoice(inv: Invoice, driver: Driver | undefined, load: Load | undefined, broker: Broker | undefined, biz: { name: string; email: string }) {
   const style = document.createElement('style')
   style.id = '__inv_print_style'
   style.textContent = `@media print { body > * { display: none !important; } #inv-print-root { display: block !important; } } #inv-print-root { display: none; }`
@@ -53,7 +54,7 @@ function printInvoice(inv: Invoice, driver: Driver | undefined, load: Load | und
     </table>
     <div class="total">Dispatch Fee: ${fmtMoney(inv.dispatch_fee)}</div>
     ${inv.notes ? '<p style="margin-top:16px;font-size:12px;color:#555;">Notes: ' + inv.notes + '</p>' : ''}
-    <div class="footer">OnTrack Hauling Solutions &mdash; dispatch@ontrackhaulingsolutions.com &mdash; Generated ${new Date().toLocaleDateString()}</div>
+    <div class="footer">${biz.name} &mdash; ${biz.email} &mdash; Generated ${new Date().toLocaleDateString()}</div>
   `
   document.body.appendChild(root)
   window.print()
@@ -76,6 +77,11 @@ function exportCsv(inv: Invoice, driver: Driver | undefined) {
 }
 
 export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdit, onStatusChange, onDelete }: Props) {
+  const { ownerEmail, ownerName, companyName } = useSettingsStore()
+  // Resolved business sender identity — falls back to hardcoded values if settings not yet filled
+  const senderName  = companyName || ownerName  || 'OnTrack Hauling Solutions'
+  const senderEmail = ownerEmail || 'dispatch@ontrackhaulingsolutions.com'
+
   const [notes, setNotes] = useState<Note[]>([])
   const [noteText, setNoteText] = useState('')
   const [addNote, setAddNote] = useState(false)
@@ -92,6 +98,8 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
   const [emailTo, setEmailTo] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
   const [msgCopied, setMsgCopied] = useState(false)
+  const [sending, setSending]       = useState(false)
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   const driver = drivers.find(d => d.id === invoice.driver_id)
   const load = loads.find(l => l.id === invoice.load_id)
@@ -120,7 +128,7 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
   const isOverdueOrSent = invoice.status === 'Overdue' || invoice.status === 'Sent'
 
   const emailSubject = `Dispatch Invoice ${invoice.invoice_number}${invoice.week_ending ? ' - Week Ending ' + fmt(invoice.week_ending) : ''}`
-  const emailBody = [
+  const emailBodyLines = [
     `Hi${driver?.name ? ' ' + driver.name.split(' ')[0] : ''},`,
     '',
     `Please find your dispatch invoice attached.`,
@@ -132,12 +140,14 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
     '',
     'Please confirm receipt. Print the invoice using the Print PDF button in the dashboard.',
     '',
-    'OnTrack Hauling Solutions',
-    'dispatch@ontrackhaulingsolutions.com',
-  ].join('%0A')
+    senderName,
+    senderEmail,
+  ]
+  const emailBody    = emailBodyLines.join('%0A')  // mailto-encoded
+  const emailBodyRaw = emailBodyLines.join('\n')   // SMTP plain text
 
   const followUpSubject = `Payment Follow-Up: ${invoice.invoice_number}${invoice.week_ending ? ' - Week Ending ' + fmt(invoice.week_ending) : ''}`
-  const followUpBody = [
+  const followUpBodyLines = [
     `Hi${driver?.name ? ' ' + driver.name.split(' ')[0] : ''},`,
     '',
     `I am following up on dispatch invoice ${invoice.invoice_number}${invoice.week_ending ? ', for the week ending ' + fmt(invoice.week_ending) : ''}. As of today, payment has not been received.`,
@@ -150,13 +160,36 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
     '',
     `Please send payment at your earliest convenience. If there is a discrepancy with this invoice or you have already sent payment, let me know so I can update my records.`,
     '',
-    'OnTrack Hauling Solutions',
-    'dispatch@ontrackhaulingsolutions.com',
-  ].join('%0A')
+    senderName,
+    senderEmail,
+  ]
+  const followUpBody    = followUpBodyLines.join('%0A')  // mailto-encoded
+  const followUpBodyRaw = followUpBodyLines.join('\n')   // SMTP plain text
 
-  const activeSubject = followUpMode ? followUpSubject : emailSubject
-  const activeBody    = followUpMode ? followUpBody    : emailBody
-  const mailtoHref = `mailto:${encodeURIComponent(emailTo)}?subject=${encodeURIComponent(activeSubject)}&body=${activeBody}`
+  const activeSubject  = followUpMode ? followUpSubject  : emailSubject
+  const activeBody     = followUpMode ? followUpBody     : emailBody
+  const activeBodyRaw  = followUpMode ? followUpBodyRaw  : emailBodyRaw
+  const mailtoHref = `mailto:${encodeURIComponent(emailTo)}?reply-to=${encodeURIComponent(senderEmail)}&subject=${encodeURIComponent(activeSubject)}&body=${activeBody}`
+
+  async function handleSendViaSmtp() {
+    if (!emailTo || sending) return
+    setSending(true)
+    setSendResult(null)
+    try {
+      const result = await window.api.emails.sendInvoice({
+        to:        emailTo,
+        subject:   activeSubject,
+        body:      activeBodyRaw,
+        fromEmail: senderEmail,
+        fromName:  senderName,
+      })
+      setSendResult(result)
+    } catch (e) {
+      setSendResult({ ok: false, message: String(e) })
+    } finally {
+      setSending(false)
+    }
+  }
 
   // Plain-text collection message — copy to clipboard for use in SMS, DM, or direct call scripts
   const collectionMsg = [
@@ -173,8 +206,8 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
     '',
     'Payment methods: Zelle, ACH, or check. Contact me to confirm payment details.',
     '',
-    'OnTrack Hauling Solutions',
-    'dispatch@ontrackhaulingsolutions.com',
+    senderName,
+    senderEmail,
   ].join('\n')
 
   function copyCollectionMsg() {
@@ -267,10 +300,31 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
               <h2 className='text-lg font-semibold text-gray-100 font-mono'>{invoice.invoice_number}</h2>
               <span className={`text-2xs px-2 py-0.5 rounded-full border ${INVOICE_STATUS_STYLES[invoice.status]}`}>{invoice.status}</span>
             </div>
-            <p className='text-sm text-gray-500'>Week ending {fmt(invoice.week_ending)}</p>
+            <div className='flex items-center gap-3 mt-0.5 flex-wrap'>
+              <p className='text-sm text-gray-500'>Week ending {fmt(invoice.week_ending)}</p>
+              {invoice.dispatch_fee != null && (
+                <p className='text-sm font-mono font-semibold text-green-400'>${invoice.dispatch_fee.toFixed(2)}</p>
+              )}
+              {daysSinceSent > 0 && invoice.status !== 'Paid' && (
+                <p className={`text-xs font-medium ${daysOverdue > 0 ? 'text-red-400' : 'text-yellow-500'}`}>
+                  {daysOverdue > 0 ? `${daysOverdue}d overdue` : `${daysSinceSent}d since sent`}
+                </p>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className='p-1.5 rounded-lg hover:bg-surface-600 text-gray-500 hover:text-gray-300 ml-3 shrink-0'><X size={16} /></button>
         </div>
+        {/* Overdue banner — shown when invoice is overdue */}
+        {daysOverdue > 0 && (
+          <div className='flex items-center gap-2.5 px-5 py-2 bg-red-950/40 border-b border-red-700/30 shrink-0'>
+            <AlertCircle size={13} className='text-red-400 shrink-0' />
+            <p className='text-xs text-red-300'>
+              <span className='font-semibold'>{daysOverdue}d past due</span>
+              {' '}—{' '}sent {fmt(invoice.sent_date)}, net {terms}d
+              {broker?.name ? ` · ${broker.name}` : ''}
+            </p>
+          </div>
+        )}
         <div className='flex-1 overflow-y-auto'>
           {/* Action bar */}
           <div className='flex items-center gap-1.5 px-5 py-3 border-b border-surface-600 flex-wrap shrink-0'>
@@ -299,7 +353,7 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
                   <button onClick={() => setConfirmDel(false)} className='text-2xs px-2 py-0.5 rounded bg-surface-600 text-gray-400'>No</button>
                 </div>
             }
-            <button onClick={() => printInvoice(invoice, driver, load, broker)} title='Print / Save as PDF'
+            <button onClick={() => printInvoice(invoice, driver, load, broker, { name: senderName, email: senderEmail })} title='Print / Save as PDF'
               className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Printer size={11} />Print PDF</button>
             <button onClick={() => exportCsv(invoice, driver)} title='Export CSV'
               className='flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium bg-surface-600 hover:bg-surface-500 text-gray-300 rounded-lg transition-colors'><Download size={11} />CSV</button>
@@ -323,11 +377,16 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
               ) : (
                 <Sec title='Email Invoice' />
               )}
-              <p className='text-2xs text-gray-500 mb-3'>
-                {followUpMode
-                  ? 'Payment follow-up template. Opens in your default email app.'
-                  : 'Compose and send via your default email app. SMTP integration available in Settings.'}
-              </p>
+              {/* Sender identity notice */}
+              <div className='flex items-start gap-1.5 px-2.5 py-2 mb-3 rounded-lg bg-surface-700 border border-surface-500'>
+                <Info size={11} className='text-gray-500 shrink-0 mt-0.5' />
+                <p className='text-2xs text-gray-500 leading-relaxed'>
+                  {ownerEmail
+                    ? <>Sends from <span className='text-gray-300 font-mono'>{senderEmail}</span> via SMTP. Configure your SMTP credentials in Settings &rarr; Email Configuration.</>
+                    : <>No business email set. <span className='text-orange-400'>Add it in Settings &rarr; Business Info</span> and configure SMTP to enable in-app sending.</>
+                  }
+                </p>
+              </div>
               <div className='mb-2'>
                 <label className='text-2xs text-gray-600 block mb-1'>To</label>
                 <input value={emailTo} onChange={e => setEmailTo(e.target.value)}
@@ -339,7 +398,14 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
                 <p className='text-xs text-gray-400 px-2 py-1 bg-surface-600 rounded-lg border border-surface-400'>{activeSubject}</p>
               </div>
               <div className='flex items-center gap-2 mt-3 flex-wrap'>
-                <a href={mailtoHref} className='flex items-center gap-1.5 px-3 h-7 text-xs font-semibold bg-blue-700 hover:bg-blue-600 text-white rounded-lg transition-colors'><Mail size={11} />Open in Email App</a>
+                {/* Primary: in-app SMTP send */}
+                <button
+                  onClick={handleSendViaSmtp}
+                  disabled={sending || !emailTo}
+                  className='flex items-center gap-1.5 px-3 h-7 text-xs font-semibold bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors'
+                >
+                  <Send size={11} />{sending ? 'Sending…' : 'Send Invoice Email'}
+                </button>
                 {isOverdueOrSent && daysOverdue > 0 && (
                   <button
                     onClick={copyCollectionMsg}
@@ -350,10 +416,23 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
                   </button>
                 )}
               </div>
+              {/* Send result */}
+              {sendResult && (
+                <div className={`flex items-center gap-1.5 mt-2 text-2xs ${sendResult.ok ? 'text-green-400' : 'text-red-400'}`}>
+                  {sendResult.ok ? <Check size={11} /> : <AlertCircle size={11} />}
+                  {sendResult.message}
+                  {!sendResult.ok && <span className='text-gray-500 ml-1'>— check SMTP settings or use the fallback below</span>}
+                </div>
+              )}
+              {/* Fallback: mailto handoff */}
+              <div className='flex items-center gap-2 mt-2 pt-2 border-t border-surface-600'>
+                <a href={mailtoHref} className='flex items-center gap-1.5 text-2xs text-gray-500 hover:text-gray-300 transition-colors'>
+                  <Mail size={10} />Open in email app (fallback)
+                </a>
+              </div>
               {isOverdueOrSent && daysOverdue > 0 && (
                 <p className='text-2xs text-gray-600 mt-1.5'>Collection message ready to paste into SMS, DM, or call script.</p>
               )}
-              <p className='text-2xs text-gray-700 mt-2'>To enable SMTP sending, go to Settings &gt; Email Configuration.</p>
             </div>
           )}
           {/* Call Script — shows for Sent / Overdue invoices */}
@@ -440,6 +519,12 @@ export function InvoiceDrawer({ invoice, drivers, loads, brokers, onClose, onEdi
                     {origin && dest && <span className='font-sans font-normal text-gray-500'> &mdash; {origin} to {dest}</span>}
                   </p>
                 </div>
+              )}
+              {load?.delivery_date && (
+                <Row label='Delivery Date' value={fmt(load.delivery_date)} accent='text-teal-400' />
+              )}
+              {load?.pickup_date && (
+                <Row label='Pickup Date' value={fmt(load.pickup_date)} />
               )}
               <Row label='Sent Date' value={fmt(invoice.sent_date)} />
               <Row label='Paid Date' value={fmt(invoice.paid_date)} accent={invoice.paid_date ? 'text-green-400' : undefined} />

@@ -7,7 +7,7 @@ Update this file at the end of every meaningful work session.
 
 ## Last Updated
 
-2026-04-16 (Session 39)
+2026-04-17 (Session 40, Round 3)
 
 ## Current Branch
 
@@ -16,6 +16,33 @@ feature/first-real-task
 ---
 
 ## What Was Completed (Most Recent Sessions)
+
+### Session 40 — Pre-Booking Profit Check in Find Loads (complete — 3 rounds)
+
+Pure frontend feature. No schema changes, no IPC changes, no new dependencies.
+
+**New file: `src/lib/profitability.ts`**
+- `PROFIT_THRESHOLDS` const: centralized threshold config (REJECT_NET=100, THIN_NET=250, STRONG_NET=400, LONG_DEADHEAD_MI=200, HIGH_DH_RATIO=0.30)
+- `LocationBasis` type: `'actual' | 'estimated'` — distinguishes confirmed driver location from fallbacks
+- `checkProfitability(ProfitInput): ProfitCheck` — typed, pure function; carries `locationBasis` through to `ProfitResult`
+- Returns `ProfitIncomplete` with `missingField` when location, CPM, rate, or miles are null
+
+**Modified: `src/pages/FindLoads.tsx`**
+- `dropCityBasis` state (`'actual' | 'estimated'`): set in same useEffect as `dropCity`
+  - active-load dest → `'estimated'` (mid-haul drop, not confirmed position)
+  - `current_location` → `'actual'` (dispatcher-confirmed)
+  - home_base → `'estimated'` (standing default)
+- `profitChecks` memo: passes `locationBasis: dropCityBasis` into each `checkProfitability` call
+- `ProfitStrip`: always visible in LoadRow (no expand required); Net is hero value (text-xl font-bold, band color); supporting 3 metrics (Deadhead/Gross/Eff. RPM) at text-sm; "Loaded / Total / Cost" toggle reveals detail row; why-reasons expander for thin/reject; location basis pill in header
+- `ProfitStrip` in FirstCallCard: same layout, shown above broker footer
+- `hideBands` state (`Set<ProfitBand>`): filter toggles for 'reject' and 'thin' in results summary bar; loads with incomplete/no check data are never filtered out
+- `sortedGoodLoads`: filter-then-sort pipeline; filter applied first to `goodLoads`, sort applied to filtered result
+- `laneProjectedNet()` + `bandFromNet()` helpers: projected minimum net badge on lane suggestion cards (only when driver has both cpm and min_rpm set); tooltip shows calculation context
+- `LoadRow`: always-visible profit sub-row (`<tr>`) inserted after main row; expanded section shows reasons/equipment only (strip removed from expand section)
+
+tsc --noEmit: zero errors (verified after all 3 rounds).
+
+---
 
 ### Session 39 — Find Loads Overhaul + CRM Seed Fix (complete)
 
@@ -1014,12 +1041,24 @@ None. Build is clean.
 3. Add loads to the system in Searching status so Load Match has candidates to surface
 4. Email/SMTP integration for invoices (replace mailto: with real send)
 5. Driver document expiry push notifications (badge alerts exist, OS push does not)
-6. Real deadhead estimation — Load Match currently uses a placeholder (same city = 10mi, same state = 75mi, cross-state = 250mi); a real API (PC Miler, Google Maps) would improve match quality
+6. Real deadhead estimation — Load Match and the new Pre-Booking Profit Check both use the same heuristic (same city=10mi, same state=75mi, cross-state=250mi). A real API (PC Miler, Google Maps) would improve accuracy of deadhead-based profitability calculations significantly.
 7. Surface broker_id and trailer_type in the UI — migration 017/018 added these columns; InvoiceModal and LoadModal do not yet expose them for editing
 
 ---
 
-## Files Touched in Most Recent Session (38)
+## Files Touched in Most Recent Session (40)
+
+### New:
+- `src/lib/profitability.ts` — checkProfitability, ProfitCheck, ProfitBand, ProfitResult, ProfitIncomplete
+
+### Modified:
+- `src/pages/FindLoads.tsx` — ProfitStrip component, profitChecks memo, profitSort state, sortedGoodLoads, sort toggles, FirstCallCard/LoadRow profitCheck prop
+- `docs/HANDOFF.md` — session 40 entry
+- `docs/SESSION_LOG.md` — session 40 entry
+
+---
+
+## Files Touched in Session (38)
 
 ### Modified:
 - `electron/main/schema/migrations.ts` — migration047 (unassignment_reason column)

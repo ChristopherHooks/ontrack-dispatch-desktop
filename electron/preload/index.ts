@@ -364,6 +364,14 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.removeListener('loads:browser-import', (_e: unknown, data: unknown) => cb(data)),
   },
 
+  // -- Email (SMTP in-app send) --
+  emails: {
+    sendInvoice: (payload: {
+      to: string; subject: string; body: string; fromEmail: string; fromName: string
+    }) => ipcRenderer.invoke('emails:sendInvoice', payload),
+    smtpStatus: () => ipcRenderer.invoke('emails:smtpStatus'),
+  },
+
   // -- Shell utilities --
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),

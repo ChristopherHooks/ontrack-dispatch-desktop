@@ -95,6 +95,22 @@ export function Invoices() {
     [loads, invoicedLoadIds]
   )
 
+  // Aging buckets for outstanding invoices (Current 0-14d, 15-29d, 30-59d, 60+d)
+  const agingBuckets = useMemo(() => {
+    const today = new Date().setHours(0, 0, 0, 0)
+    const age = (inv: Invoice) => {
+      const base = inv.sent_date ?? inv.created_at.slice(0, 10)
+      return Math.floor((today - new Date(base).setHours(0, 0, 0, 0)) / 86_400_000)
+    }
+    const outstanding = invoices.filter(i => i.status === 'Sent' || i.status === 'Overdue')
+    return {
+      current: outstanding.filter(i => age(i) <= 14),
+      d15:     outstanding.filter(i => age(i) >= 15 && age(i) <= 29),
+      d30:     outstanding.filter(i => age(i) >= 30 && age(i) <= 59),
+      d60:     outstanding.filter(i => age(i) >= 60),
+    }
+  }, [invoices])
+
   const openGenerate = () => { setEditInv(null); setPrefill(null); setModal(true) }
   const openEdit = (inv: Invoice) => { setEditInv(inv); setPrefill(null); setModal(true); setSelected(null) }
 
@@ -230,11 +246,33 @@ export function Invoices() {
       )}
       {activeTab === 'invoices' && (
         <>
+          {/* Aging summary strip — only shown when outstanding invoices exist */}
+          {(agingBuckets.current.length + agingBuckets.d15.length + agingBuckets.d30.length + agingBuckets.d60.length) > 0 && (
+            <div className='flex items-stretch gap-px mx-0 shrink-0 border-b border-surface-600 bg-surface-900'>
+              {([
+                { label: 'Current',  items: agingBuckets.current, textCls: 'text-green-400',  bgCls: 'bg-green-900/10'  },
+                { label: '15+ days', items: agingBuckets.d15,     textCls: 'text-yellow-400', bgCls: 'bg-yellow-900/10' },
+                { label: '30+ days', items: agingBuckets.d30,     textCls: 'text-orange-400', bgCls: 'bg-orange-900/10' },
+                { label: '60+ days', items: agingBuckets.d60,     textCls: 'text-red-400',    bgCls: 'bg-red-900/15'    },
+              ] as const).map(b => (
+                <div key={b.label} className={`flex-1 flex flex-col px-4 py-2.5 ${b.bgCls}`}>
+                  <span className={`text-2xs font-semibold uppercase tracking-wide ${b.textCls}`}>{b.label}</span>
+                  <span className={`text-sm font-mono font-bold mt-0.5 ${b.textCls}`}>
+                    {b.items.length > 0
+                      ? '$' + b.items.reduce((s, i) => s + (i.dispatch_fee ?? 0), 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                      : '—'}
+                  </span>
+                  <span className='text-2xs text-gray-600 mt-0.5'>{b.items.length} invoice{b.items.length !== 1 ? 's' : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <InvoicesTable
             invoices={filtered} drivers={drivers} loading={loading}
             sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
             onSelect={setSelected}
             selectedIds={selectedIds} onToggle={handleToggle} onToggleAll={handleToggleAll}
+            onStatusChange={handleStatusChange}
           />
         </>
       )}

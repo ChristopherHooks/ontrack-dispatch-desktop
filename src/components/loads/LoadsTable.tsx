@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, ArrowRight, ChevronDown as DropIcon, ChevronLeft } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, Edit2, ChevronRight, ArrowRight, ChevronDown as DropIcon, ChevronLeft, Receipt } from 'lucide-react'
 import type { Load, Driver, LoadStatus } from '../../types/models'
 import { LOAD_STATUS_STYLES, LOAD_STATUSES, UNASSIGNMENT_REASON_OPTIONS } from './constants'
 
@@ -11,6 +11,7 @@ interface Props {
   onSelect: (l: Load) => void; onEdit: (l: Load) => void
   onStatusChange?: (l: Load, status: LoadStatus) => Promise<void>
   onDriverChange?: (l: Load, driverId: number | null, reason?: string) => Promise<void>
+  onDeliverAndInvoice?: (load: Load) => void
 }
 
 // Inline driver assignment / reassignment / unassignment dropdown.
@@ -250,7 +251,7 @@ const COLS: { label: string; key: keyof Load }[] = [
 ]
 const th = 'text-left text-2xs font-medium text-gray-400 uppercase tracking-wider pb-2 pr-3 select-none cursor-pointer hover:text-gray-400 transition-colors whitespace-nowrap'
 
-export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onStatusChange, onDriverChange }: Props) {
+export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, onSelect, onEdit, onStatusChange, onDriverChange, onDeliverAndInvoice }: Props) {
   if (loading) return <div className='space-y-2'>{Array.from({length:5}).map((_,i)=><div key={i} className='h-10 rounded-lg bg-surface-700 animate-pulse'/>)}</div>
   if (!loads.length) return <div className='py-16 text-center'><p className='text-sm text-gray-500'>No loads found.</p><p className='text-xs text-gray-700 mt-1'>Add your first load to get started.</p></div>
 
@@ -315,6 +316,14 @@ export function LoadsTable({ loads, drivers, loading, sortKey, sortDir, onSort, 
                 <td className='pr-3 py-2.5'>
                   <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
                     <button onClick={e=>{e.stopPropagation();onEdit(l)}} className='p-1 rounded hover:bg-surface-500 text-gray-500 hover:text-orange-400 transition-colors'><Edit2 size={12} /></button>
+                    {onDeliverAndInvoice && !['Delivered','Invoiced','Paid'].includes(l.status) && l.load_mode !== 'broker' && (
+                      <button
+                        onClick={e=>{e.stopPropagation();onDeliverAndInvoice(l)}}
+                        title='Mark Delivered & Create Invoice'
+                        className='p-1 rounded hover:bg-surface-500 text-gray-500 hover:text-teal-400 transition-colors'>
+                        <Receipt size={12} />
+                      </button>
+                    )}
                     <ChevronRight size={12} className='text-gray-700' />
                   </div>
                 </td>

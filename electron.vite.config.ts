@@ -16,6 +16,7 @@ const nodeExternal = [
   'electron',
   'better-sqlite3',
   'electron-store',
+  'nodemailer',
   ...builtinModules,
   // Also support 'node:fs' style imports
   ...builtinModules.map((m) => `node:${m}`),

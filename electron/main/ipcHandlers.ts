@@ -57,6 +57,7 @@ import { getBrokerIntelAll, getLaneIntelAll, getDriverLaneFits } from './brokerI
 import { parseAndScore, importAndScoreXlsx } from './loadBoardParser'
 import { getLastBrowserImport } from './webServer'
 import { getReportsData } from './reports'
+import { sendEmail } from './emailService'
 
 export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
 
@@ -635,6 +636,46 @@ export function registerDbHandlers(ipcMain: IpcMain, store: Store<any>): void {
   ipcMain.handle('loadDeductions:list',   (_e, loadId: number) => listLoadDeductions(getDb(), loadId))
   ipcMain.handle('loadDeductions:create', (_e, dto: unknown) => createLoadDeduction(getDb(), dto as any))
   ipcMain.handle('loadDeductions:delete', (_e, id: number) => deleteLoadDeduction(getDb(), id))
+
+  // -- Email send (SMTP) --
+  ipcMain.handle('emails:sendInvoice', async (_e, payload: {
+    to:        string
+    subject:   string
+    body:      string
+    fromEmail: string
+    fromName:  string
+  }) => {
+    const host   = String(store.get('smtp_host')   ?? '')
+    const port   = Number(store.get('smtp_port')   ?? 587)
+    const user   = String(store.get('smtp_user')   ?? '')
+    const pass   = String(store.get('smtp_pass')   ?? '')
+    const secure = Boolean(store.get('smtp_secure') ?? false)
+
+    // Diagnostic log — does NOT log the password value, only whether it is set
+    console.log('[SMTP] sendInvoice config check — host:', host || '(empty)', '| port:', port, '| user:', user || '(empty)', '| pass set:', !!pass, '| secure:', secure)
+
+    return sendEmail(
+      { host, port, user, pass, secure },
+      {
+        from:     user,
+        fromName: payload.fromName,
+        to:       payload.to,
+        replyTo:  payload.fromEmail,
+        subject:  payload.subject,
+        text:     payload.body,
+      }
+    )
+  })
+
+  // -- SMTP status (diagnostic) — returns stored config with password redacted --
+  ipcMain.handle('emails:smtpStatus', () => {
+    const host   = String(store.get('smtp_host')   ?? '')
+    const port   = Number(store.get('smtp_port')   ?? 587)
+    const user   = String(store.get('smtp_user')   ?? '')
+    const pass   = String(store.get('smtp_pass')   ?? '')
+    const secure = Boolean(store.get('smtp_secure') ?? false)
+    return { host, port, user, passSet: !!pass, secure }
+  })
 
   // -- Dev Seed (non-packaged builds only) --
   ipcMain.handle('dev:seed',          () => { runSeedIfEmpty(getDb());      return { ok: true } })
