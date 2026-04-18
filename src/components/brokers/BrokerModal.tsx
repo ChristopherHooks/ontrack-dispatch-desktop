@@ -3,7 +3,7 @@ import { X, Building2, Phone, Mail, DollarSign, Tag, FileText, Star } from 'luci
 import type { Broker, CreateBrokerDto, BrokerFlag } from '../../types/models'
 import { BROKER_FLAGS, CREDIT_RATINGS } from './constants'
 
-interface Props { broker: Broker | null; onSave: (b: Broker) => void; onClose: () => void }
+interface Props { broker: Broker | null; prefill?: Partial<CreateBrokerDto> | null; onSave: (b: Broker) => void; onClose: () => void }
 
 const BLANK: CreateBrokerDto = {
   name: '', mc_number: null, phone: null, email: null,
@@ -25,15 +25,15 @@ function Field({ label, icon, children }: { label: string; icon: React.ReactNode
   )
 }
 
-export function BrokerModal({ broker, onSave, onClose }: Props) {
+export function BrokerModal({ broker, prefill, onSave, onClose }: Props) {
   const [form, setForm] = useState<CreateBrokerDto>(BLANK)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (broker) { const { id, created_at, updated_at, ...rest } = broker; setForm({ ...BLANK, ...rest }) }
-    else setForm(BLANK)
-  }, [broker])
+    else setForm({ ...BLANK, ...(prefill ?? {}) })
+  }, [broker, prefill])
 
   const str = (k: keyof CreateBrokerDto, v: string) => setForm(p => ({ ...p, [k]: v || null }))
 

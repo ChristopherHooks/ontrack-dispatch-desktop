@@ -2,14 +2,15 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { parseDriverIdParam } from '../lib/routeIntents'
 import {
-  FileSpreadsheet, Loader2, AlertCircle, ArrowRight,
+  Loader2, AlertCircle, ArrowRight,
   CheckCircle2, XCircle, ChevronDown, ChevronUp, Plus,
-  Phone, TrendingUp, Globe, Radio, MapPin,
+  Phone, TrendingUp, MapPin, Radio,
   Copy, Check, Calculator, ExternalLink,
-  Bookmark, BookmarkCheck, Users, Navigation, Home,
-  Compass,
+  Bookmark, BookmarkCheck, Users, Navigation, Home, Compass,
 } from 'lucide-react'
 import type { Driver, Load, Broker } from '../types/models'
+import { checkProfitability, PROFIT_THRESHOLDS } from '../lib/profitability'
+import type { ProfitCheck, ProfitBand } from '../lib/profitability'
 import type { ScoredLoad, ParseScreenshotResult } from '../types/global'
 import type { DriverLaneFitRow } from '../types/models'
 import { getSuggestedLanes, tagLabel, tagStyle } from '../services/laneSuggestionService'
@@ -55,6 +56,490 @@ function timeAgo(d: Date): string {
 }
 
 // ---------------------------------------------------------------------------
+// Paste import parser — heuristic extraction from DAT / Truckstop copied text
+// ---------------------------------------------------------------------------
+
+const US_STATES = new Set([
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN',
+  'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV',
+  'NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN',
+  'TX','UT','VT','VA','WA','WV','WI','WY','DC',
+])
+
+// DAT load block structure (each load is multiline, separated by '–'):
+//   Line 0:  time posted       "2m" | "3h"
+//   Line 1:  rate or –         "$1,200" | "–"
+//   Line 2:  $/mi (optional)   "$3.47*/mi"
+//   Line 3:  miles             "346"
+//   Line 4:  origin city,state "Coppell, TX"
+//   Line 5:  origin DH         "(21)"
+//   Line 6:  dest city,state   "Beaumont, TX"
+//   Line 7:  dest DH           "(88)"
+//   Line 8:  pickup date       "4/17" | "4/17 - 4/20"
+//   Line 9:  equipment code    "V" | "VR" | "F"
+//   Line 10: trailer size      "53 ft"
+//   Line 11: weight            "35,000 lbs"
+//   Line 12: load type         "Full" | "Partial"
+//   Line 13: company name
+//   Line 14: contact (email/phone)
+//   Line 15: credit score      "97 CS"
+//   Line 16: days to pay       "17 DTP" | "– DTP"
+//   (trailing –)
+
+const EQUIP_MAP: Record<string, string> = {
+  V:  'Van', VR: 'Reefer', F: 'Flatbed', R: 'Reefer',
+  SD: 'Step Deck', RGN: 'RGN', T: 'Tanker',
+}
+
+// ── Date normalization helper ─────────────────────────────────────────────────
+// DAT paste dates arrive as "M/D" or "M/D - M/D". Screenshot import produces
+// "YYYY-MM-DD" already. This function normalizes any single date token to
+// "YYYY-MM-DD" using the current year, and returns null for unrecognized strings.
+const _YEAR = new Date().getFullYear()
+function _normDate(s: string): string | null {
+  if (!s) return null
+  s = s.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s           // already YYYY-MM-DD
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})$/)
+  if (!m) return null
+  return `${_YEAR}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+}
+
+// Parse a DAT date field (may be "4/17", "4/17 - 4/20", or "YYYY-MM-DD") and
+// return [pickupDate, deliveryDate] both as "YYYY-MM-DD" or null.
+function _parseDateField(raw: string | null): [string | null, string | null] {
+  if (!raw) return [null, null]
+  const s = raw.trim()
+  // Already YYYY-MM-DD (from screenshot import) — no range possible in this format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return [s, null]
+  // DAT paste format: "M/D" or "M/D - M/D"
+  const parts = s.split(/\s+-\s+/)
+  return [_normDate(parts[0] ?? ''), _normDate(parts[1] ?? '')]
+}
+
+// ── Field classifiers (module-level so they are not recreated on every call) ──
+const _parseCity = (s: string): [string, string] | null => {
+  const m = s.match(/^(.+),\s+([A-Z]{2})$/)
+  return m && US_STATES.has(m[2]) ? [m[1].trim(), m[2]] : null
+}
+
+function parsePastedLoads(raw: string): ScoredLoad[] {
+  // ── Step 1: Normalize ────────────────────────────────────────────────────
+  // Strip Unicode Format chars (Cf: zero-width spaces, direction marks, BOM…)
+  // that clipboard APIs inject invisibly, then trim/filter empty lines.
+  const lines = raw
+    .split(/\r?\n/)
+    .map(l => l.replace(/\p{Cf}/gu, '').replace(/\u00A0/g, ' ').trim())
+    .filter(l => l.length > 0)
+
+  // ── Step 2: Classifiers ──────────────────────────────────────────────────
+  const isMiles   = (s: string) => /^\d{2,4}$/.test(s) && +s >= 20 && +s <= 4000
+  const isDh      = (s: string) => /^\(\d+\)$/.test(s)
+  const isRate    = (s: string) => /^\$([\d,]+)$/.test(s)
+  const isRpm     = (s: string) => /^\$[\d.]+\*?\/mi$/.test(s)
+  const isAge     = (s: string) => /^\d+[mh]$/.test(s)
+  const isDate    = (s: string) => /^\d+\/\d+/.test(s)
+  const isEquip   = (s: string) => Object.prototype.hasOwnProperty.call(EQUIP_MAP, s)
+  const isWeight  = (s: string) => /^[\d,]+ lbs$/.test(s)
+  const isLength  = (s: string) => /^\d+ ft$/.test(s)
+  const isCs      = (s: string) => /^\d+ CS$/.test(s)
+  const isDtp     = (s: string) => /^[\d\u2013\-]+ DTP$/.test(s)
+  const isSep     = (s: string) => s === '\u2013' || s === '\u2014' || s === '\u2012' || s === '-'
+  const isPhone   = (s: string) => /^\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/.test(s)
+  const isEmail   = (s: string) => /^[\w.+\-]+@[\w.\-]+$/.test(s)
+  const isContact = (s: string) => isPhone(s) || isEmail(s)
+  const isState   = (s: string) => /^[A-Z]{2}$/.test(s) && US_STATES.has(s)
+
+  // ── Step 3: State machine ────────────────────────────────────────────────
+  // A new record is triggered by a pure-integer miles line (20–4000).
+  // Rate ownership: rate/RPM lines appearing in the TAIL of a record (after
+  // its origin/dest fields, before the next miles line) belong to THAT record,
+  // not the next one. DAT formats each listing as: fields → separator → age →
+  // rate/RPM. The next listing then starts cleanly with its miles line.
+  //
+  // States:
+  //   preamble  – consuming leading noise before the first miles line
+  //   origin    – next City, ST line is the origin
+  //   dest      – optional origin DH, then next City, ST is the destination
+  //   tail      – all remaining fields until the next miles trigger
+
+  type SMState = 'preamble' | 'origin' | 'dest' | 'tail'
+
+  interface RawRecord {
+    miles: number; rate: number | null
+    origin_city: string | null; origin_state: string | null; origin_dh: number | null
+    dest_city:   string | null; dest_state:   string | null; dest_dh:   number | null
+    pickup_date: string | null; equip: string | null
+    weight: number | null; company: string | null
+    phone: string | null; email: string | null
+    cancelled: boolean
+  }
+
+  const makeRec = (miles: number): RawRecord => ({
+    miles, rate: null,
+    origin_city: null, origin_state: null, origin_dh: null,
+    dest_city:   null, dest_state:   null, dest_dh:   null,
+    pickup_date: null, equip: null, weight: null, company: null,
+    phone: null, email: null,
+    cancelled: false,
+  })
+
+  let smState: SMState  = 'preamble'
+  let cur: RawRecord | null = null
+  let pendingCityName: string | null = null   // buffer for stacked "City\nST" format
+  const rawRecs: RawRecord[] = []
+
+  const finalize = () => {
+    if (cur?.origin_city && cur?.dest_city && !cur.cancelled) rawRecs.push(cur)
+    cur = null
+  }
+
+  for (const line of lines) {
+    switch (smState) {
+
+      case 'preamble': {
+        if (isMiles(line)) {
+          pendingCityName = null
+          cur = makeRec(+line); smState = 'origin'
+        }
+        // rate, age, RPM, separator, 'Factoring': all skipped in preamble
+        break
+      }
+
+      case 'origin': {
+        const c = _parseCity(line)
+        if (c) {
+          // Single-line "City, ST" format
+          pendingCityName = null
+          cur!.origin_city = c[0]; cur!.origin_state = c[1]; smState = 'dest'
+        } else if (pendingCityName !== null && isState(line)) {
+          // Stacked format: previous line was city name, this line is the state code
+          cur!.origin_city = pendingCityName; cur!.origin_state = line
+          pendingCityName = null; smState = 'dest'
+        } else if (isMiles(line)) {
+          // Another miles before we got origin — abandon current, start fresh
+          pendingCityName = null
+          finalize(); cur = makeRec(+line)
+        } else if (!isSep(line) && !isAge(line) && !isRate(line) && !isRpm(line) && line.length > 1) {
+          // Could be the city name on its own line (stacked format)
+          pendingCityName = line
+        }
+        break
+      }
+
+      case 'dest': {
+        if (isDh(line)) {
+          cur!.origin_dh = parseInt(line.slice(1, -1))
+        } else {
+          const c = _parseCity(line)
+          if (c) {
+            // Single-line "City, ST" format
+            pendingCityName = null
+            cur!.dest_city = c[0]; cur!.dest_state = c[1]; smState = 'tail'
+          } else if (pendingCityName !== null && isState(line)) {
+            // Stacked format
+            cur!.dest_city = pendingCityName; cur!.dest_state = line
+            pendingCityName = null; smState = 'tail'
+          } else if (isMiles(line)) {
+            pendingCityName = null
+            finalize(); cur = makeRec(+line); smState = 'origin'
+          } else if (!isSep(line) && !isAge(line) && !isRate(line) && !isRpm(line) && line.length > 1) {
+            pendingCityName = line
+          }
+        }
+        break
+      }
+
+      case 'tail': {
+        if (isMiles(line)) {
+          finalize(); cur = makeRec(+line); smState = 'origin'
+        } else if (isDh(line) && !cur!.dest_dh) {
+          cur!.dest_dh = parseInt(line.slice(1, -1))
+        } else if (isDate(line) && !cur!.pickup_date) {
+          cur!.pickup_date = line   // keep full string, e.g. "4/17 - 4/20"; normalized in handleAdd
+        } else if (isEquip(line) && !cur!.equip) {
+          cur!.equip = EQUIP_MAP[line]
+        } else if (isWeight(line)) {
+          cur!.weight = parseInt(line.replace(/[^\d]/g, ''))
+        } else if (isRate(line) && cur!.rate === null) {
+          // Rate in the tail belongs to THIS record (it follows the load's fields)
+          cur!.rate = parseFloat(line.slice(1).replace(/,/g, ''))
+        } else if (isPhone(line)) {
+          if (!cur!.phone) cur!.phone = line
+        } else if (isEmail(line)) {
+          if (!cur!.email) cur!.email = line
+        } else if (/^cancell?ed$/i.test(line)) {
+          // Mark entire record as cancelled — excluded from final results
+          cur!.cancelled = true
+        } else if (
+          isRpm(line) || isLength(line) || isCs(line) || isDtp(line) ||
+          isSep(line) || isAge(line) ||
+          line === 'Full' || line === 'Partial' || line === 'Factoring'
+        ) {
+          // skip
+        } else if (!cur!.company && /^[A-Za-z]/.test(line) && line.length > 3) {
+          cur!.company = line
+        }
+        break
+      }
+    }
+  }
+  finalize()
+
+  // ── Diagnostics (remove when no longer needed) ───────────────────────────
+  console.log('[parsePastedLoads] lines:', lines.length, '| records:', rawRecs.length)
+  rawRecs.forEach((r, i) => {
+    const rpm   = r.rate != null ? (r.rate / r.miles).toFixed(2) : 'n/a'
+    const dhSrc = r.origin_dh != null ? `dh ${r.origin_dh}mi (parsed)` : 'dh – (heuristic)'
+    console.log(`  [${i + 1}] ${r.origin_city}, ${r.origin_state} → ${r.dest_city}, ${r.dest_state} | ${r.miles}mi | $${r.rate ?? '–'} | rpm $${rpm} | ${dhSrc}`)
+  })
+
+  // ── Step 4: Map to ScoredLoad[] ──────────────────────────────────────────
+  let nextRank = 1
+  const results: ScoredLoad[] = rawRecs.map(r => {
+    const loadedRpm  = r.rate != null && r.miles > 0 ? r.rate / r.miles : null
+    const allInMiles = r.origin_dh != null ? r.miles + r.origin_dh : r.miles
+    const allInRpm   = r.rate != null && allInMiles > 0 ? r.rate / allInMiles : null
+    return {
+      pickup_date:        r.pickup_date,
+      rate:               r.rate,
+      rpm:                loadedRpm,
+      origin_dh:          r.origin_dh,
+      origin_city:        r.origin_city!,
+      origin_state:       r.origin_state!,
+      dest_city:          r.dest_city!,
+      dest_state:         r.dest_state!,
+      miles:              r.miles,
+      length_ft:          null,
+      weight:             r.weight,
+      equip:              r.equip,
+      mode:               null,
+      company:            r.company,
+      phone:              r.phone,
+      email:              r.email,
+      d2p:                null,
+      loaded_rpm:         loadedRpm,
+      all_in_miles:       allInMiles,
+      all_in_rpm:         allInRpm,
+      est_cost:           null,
+      est_margin:         null,
+      negotiation_target: null,
+      score:              loadedRpm != null ? Math.round(loadedRpm * 30) : 50,
+      rank:               nextRank++,
+      reasons:            ['Pasted import'],
+      skip:               false,
+      skip_reason:        null,
+      first_call_rank:    null,
+    }
+  })
+
+  // Assign first_call_rank to top 3 by all-in RPM (uses parsed DH when available)
+  const byRpm = [...results].sort((a, b) => (b.all_in_rpm ?? b.loaded_rpm ?? 0) - (a.all_in_rpm ?? a.loaded_rpm ?? 0))
+  byRpm.slice(0, 3).forEach((l, i) => { l.first_call_rank = i + 1 })
+
+  return results
+}
+
+// ---------------------------------------------------------------------------
+// Profitability Strip
+// ---------------------------------------------------------------------------
+
+const BAND_STYLE: Record<ProfitBand, { border: string; text: string; bg: string }> = {
+  strong:     { border: 'border-green-700/40',  text: 'text-green-400',  bg: 'bg-green-900/10'  },
+  acceptable: { border: 'border-orange-700/40', text: 'text-orange-400', bg: 'bg-orange-900/10' },
+  thin:       { border: 'border-yellow-700/40', text: 'text-yellow-400', bg: 'bg-yellow-900/10' },
+  reject:     { border: 'border-red-700/40',    text: 'text-red-400',    bg: 'bg-red-900/10'    },
+}
+
+const BAND_LABEL: Record<ProfitBand, string> = {
+  strong:     'Strong',
+  acceptable: 'Acceptable',
+  thin:       'Thin margin',
+  reject:     'Reject',
+}
+
+const MISSING_MSG: Record<string, string> = {
+  location: 'Set driver location to calculate profitability',
+  cpm:      'Set driver CPM to calculate profitability',
+  rate:     'Needs manual rate entry',
+  miles:    'Load miles missing',
+}
+
+function ProfitStrip({ check }: { check: ProfitCheck }) {
+  const [showWhy,     setShowWhy    ] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+
+  if (check.incomplete) {
+    return (
+      <div className='flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-surface-500 bg-surface-700'>
+        <AlertCircle size={10} className='text-gray-600 shrink-0' />
+        <span className='text-2xs text-gray-600'>{MISSING_MSG[check.missingField] ?? 'Incomplete data'}</span>
+      </div>
+    )
+  }
+
+  const {
+    band, locationBasis,
+    deadheadMiles, loadedMiles, totalMiles,
+    grossRevenue, estimatedCost, estimatedNet, effectiveRpm, whyReasons,
+  } = check
+  const s       = BAND_STYLE[band]
+  const canWhy  = (band === 'thin' || band === 'reject') && whyReasons.length > 0
+
+  return (
+    <div className={`rounded-lg border px-3 py-2.5 space-y-2 ${s.border} ${s.bg}`}>
+
+      {/* Header: band label + location basis + why toggle */}
+      <div className='flex items-center gap-2 justify-between'>
+        <div className='flex items-center gap-2 min-w-0'>
+          <span className={`text-xs font-bold uppercase tracking-wide shrink-0 ${s.text}`}>
+            {BAND_LABEL[band]}
+          </span>
+          <span className={`text-2xs px-1.5 py-px rounded border shrink-0 ${
+            locationBasis === 'actual'
+              ? 'border-blue-700/40 text-blue-400'
+              : 'border-surface-400 text-gray-500'
+          }`}>
+            {locationBasis === 'actual' ? 'Actual location' : 'Est. location'}
+          </span>
+        </div>
+        {canWhy && (
+          <button
+            onClick={() => setShowWhy(w => !w)}
+            className='text-2xs text-gray-500 hover:text-gray-300 transition-colors shrink-0'
+          >
+            {showWhy ? 'less' : 'why?'}
+          </button>
+        )}
+      </div>
+
+      {/* Primary metric row — Net is intentionally larger to dominate */}
+      <div className='flex items-end gap-5'>
+        {/* Net — hero value */}
+        <div>
+          <p className='text-2xs text-gray-600 uppercase tracking-wide leading-none'>Net</p>
+          <p className={`text-xl font-mono font-bold leading-tight ${s.text}`}>
+            ${Math.round(estimatedNet).toLocaleString()}
+          </p>
+        </div>
+        {/* Supporting metrics */}
+        <div className='grid grid-cols-3 gap-x-4 gap-y-0 pb-0.5'>
+          {([
+            ['Deadhead',  `${deadheadMiles}mi`],
+            ['Gross',     `$${Math.round(grossRevenue).toLocaleString()}`],
+            ['Eff. RPM',  `$${effectiveRpm.toFixed(2)}`],
+          ] as [string, string][]).map(([lbl, val]) => (
+            <div key={lbl}>
+              <p className='text-2xs text-gray-600 uppercase tracking-wide leading-none'>{lbl}</p>
+              <p className='text-sm font-mono font-semibold leading-snug text-gray-200'>{val}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer: Details toggle */}
+      <button
+        onClick={() => setShowDetails(d => !d)}
+        className='text-2xs text-gray-600 hover:text-gray-400 transition-colors'
+      >
+        {showDetails ? 'Hide details' : 'Loaded / Total / Cost \u25be'}
+      </button>
+
+      {/* Secondary detail row */}
+      {showDetails && (
+        <div className='grid grid-cols-3 gap-x-4 pt-1.5 border-t border-surface-600/60'>
+          {([
+            ['Loaded mi',  `${loadedMiles.toLocaleString()}mi`],
+            ['Total mi',   `${totalMiles.toLocaleString()}mi`],
+            ['Est. cost',  `$${Math.round(estimatedCost).toLocaleString()}`],
+          ] as [string, string][]).map(([lbl, val]) => (
+            <div key={lbl}>
+              <p className='text-2xs text-gray-600 uppercase tracking-wide leading-none'>{lbl}</p>
+              <p className='text-xs font-mono text-gray-400 leading-snug'>{val}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Why reasons */}
+      {showWhy && whyReasons.length > 0 && (
+        <div className='flex flex-wrap gap-1.5 pt-0.5 border-t border-surface-600/60'>
+          {whyReasons.map((r, i) => (
+            <span key={i} className='text-2xs px-2 py-0.5 rounded-full bg-surface-600 border border-surface-500 text-gray-400'>
+              {r}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Compact single-line profit display for ranked table rows
+// ---------------------------------------------------------------------------
+
+function CompactProfitBar({
+  check, onAddRate,
+}: {
+  check: ProfitCheck
+  onAddRate?: () => void
+}) {
+  if (check.incomplete) {
+    return (
+      <div className='flex items-center gap-1.5'>
+        <AlertCircle size={10} className='text-gray-600 shrink-0' />
+        {check.missingField === 'rate' && onAddRate ? (
+          <span className='text-2xs text-gray-500'>
+            No rate —{' '}
+            <button
+              onClick={onAddRate}
+              className='text-orange-400 hover:text-orange-300 underline transition-colors'
+            >
+              add rate
+            </button>
+          </span>
+        ) : (
+          <span className='text-2xs text-gray-600'>
+            {MISSING_MSG[check.missingField] ?? 'Incomplete data'}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  const { band, deadheadMiles, grossRevenue, estimatedNet, effectiveRpm } = check
+  const s = BAND_STYLE[band]
+
+  return (
+    <div className={`inline-flex items-center gap-4 px-2.5 py-1 rounded border text-2xs ${s.border} ${s.bg}`}>
+      {/* Net — hero value */}
+      <div className='flex items-baseline gap-1'>
+        <span className='text-gray-500 uppercase tracking-wide'>Net</span>
+        <span className={`font-mono font-bold text-sm ${s.text}`}>
+          ${Math.round(estimatedNet).toLocaleString()}
+        </span>
+      </div>
+      <div className='flex items-baseline gap-1'>
+        <span className='text-gray-500 uppercase tracking-wide'>DH</span>
+        <span className='font-mono text-gray-400'>{deadheadMiles}mi</span>
+      </div>
+      <div className='flex items-baseline gap-1'>
+        <span className='text-gray-500 uppercase tracking-wide'>Gross</span>
+        <span className='font-mono text-gray-400'>${Math.round(grossRevenue).toLocaleString()}</span>
+      </div>
+      <div className='flex items-baseline gap-1'>
+        <span className='text-gray-500 uppercase tracking-wide'>Eff RPM</span>
+        <span className='font-mono text-gray-400'>${effectiveRpm.toFixed(2)}</span>
+      </div>
+      <span className={`font-semibold uppercase tracking-wide ${s.text}`}>
+        {BAND_LABEL[band]}
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Broker Intel Badge
 // ---------------------------------------------------------------------------
 
@@ -94,16 +579,24 @@ function BrokerIntelBadge({ company, intel }: { company: string | null | undefin
 // ---------------------------------------------------------------------------
 
 function FirstCallCard({
-  load, onAdd, brokerIntel, bookmarked, onBookmark,
+  load, onAdd, brokerIntel, bookmarked, onBookmark, profitCheck, brokers, onCreateBroker,
 }: {
   load: ScoredLoad
   onAdd: (l: ScoredLoad) => void
   brokerIntel: BrokerIntelMap
   bookmarked: boolean
   onBookmark: (l: ScoredLoad) => void
+  profitCheck: ProfitCheck
+  brokers: import('../types/models').Broker[]
+  onCreateBroker: (l: ScoredLoad) => void
 }) {
   const { o, d } = route(load)
   const badge = CALL_BADGE[load.first_call_rank ?? 0] ?? 'bg-gray-600'
+  const matchedBroker = load.company
+    ? brokers.find(b => b.name.toLowerCase() === load.company!.toLowerCase())
+    : null
+  const displayPhone = matchedBroker?.phone ?? load.phone ?? null
+  const displayEmail = matchedBroker?.email ?? load.email ?? null
   return (
     <div className='flex-1 min-w-[220px] rounded-xl border border-surface-400 bg-surface-700 p-4 space-y-2.5'>
       <div className='flex items-center justify-between'>
@@ -162,65 +655,121 @@ function FirstCallCard({
         </div>
       )}
 
+      {/* Pre-booking profit check */}
+      <ProfitStrip check={profitCheck} />
+
       <div className='space-y-0.5'>
         <div className='flex items-center justify-between text-2xs text-gray-600'>
           <span className='truncate max-w-[120px]'>{load.company ?? '—'}</span>
           <span>{load.pickup_date ?? '—'}</span>
         </div>
         <BrokerIntelBadge company={load.company} intel={brokerIntel} />
+        {/* Broker contact info */}
+        {(displayPhone || displayEmail) && (
+          <div className='flex flex-col gap-0.5 pt-0.5'>
+            {displayPhone && (
+              <span className='text-2xs text-gray-500 font-mono'>{displayPhone}</span>
+            )}
+            {displayEmail && (
+              <span className='text-2xs text-gray-500 truncate'>{displayEmail}</span>
+            )}
+          </div>
+        )}
+        {/* Create broker action if no match */}
+        {load.company && !matchedBroker && (
+          <button
+            onClick={() => onCreateBroker(load)}
+            className='text-2xs text-blue-400 hover:text-blue-300 underline transition-colors'
+          >
+            + Create broker record
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Full ranked load row (Top 5 table)
+// Full ranked load row (table)
 // ---------------------------------------------------------------------------
 
 function LoadRow({
-  load, onAdd, brokerIntel, bookmarked, onBookmark,
+  load, onAdd, brokerIntel, bookmarked, onBookmark, profitCheck, onRateEdit, brokers, onCreateBroker,
 }: {
   load: ScoredLoad
   onAdd: (l: ScoredLoad) => void
   brokerIntel: BrokerIntelMap
   bookmarked: boolean
   onBookmark: (l: ScoredLoad) => void
+  profitCheck: ProfitCheck
+  onRateEdit?: (rate: number) => void
+  brokers: import('../types/models').Broker[]
+  onCreateBroker: (l: ScoredLoad) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded,    setExpanded   ] = useState(false)
+  const [addingRate,  setAddingRate  ] = useState(false)
+  const [rateInput,   setRateInput  ] = useState('')
   const { o, d } = route(load)
+  const matchedBroker = load.company
+    ? brokers.find(b => b.name.toLowerCase() === load.company!.toLowerCase())
+    : null
+  const displayPhone = matchedBroker?.phone ?? load.phone ?? null
+  const displayEmail = matchedBroker?.email ?? load.email ?? null
+
+  const handleSaveRate = () => {
+    const v = parseFloat(rateInput.replace(/[$,]/g, ''))
+    if (isNaN(v) || v <= 0) return
+    onRateEdit?.(v)
+    setAddingRate(false)
+    setRateInput('')
+  }
 
   return (
     <>
-      <tr className='border-b border-surface-600 last:border-0 hover:bg-surface-700 transition-colors'>
-        <td className='pl-4 pr-2 py-2.5 text-xs font-bold text-gray-400'>{load.rank}</td>
-        <td className='pr-3 py-2.5'>
+      <tr className='border-b border-surface-600 hover:bg-surface-700 transition-colors'>
+        <td className='pl-4 pr-2 py-1.5 text-xs font-bold text-gray-400'>{load.rank}</td>
+        <td className='pr-3 py-1.5'>
           <span className='flex items-center gap-1 text-xs'>
-            <span className='text-gray-300'>{o}</span>
-            <ArrowRight size={9} className='text-gray-600 shrink-0' />
+            <span className='text-gray-200 font-medium'>{o}</span>
+            <ArrowRight size={9} className='text-gray-500 shrink-0' />
             <span className='text-gray-400'>{d}</span>
           </span>
         </td>
-        <td className='pr-3 py-2.5 text-xs font-semibold text-gray-200'>{fmt$(load.rate)}</td>
-        <td className='pr-3 py-2.5 text-xs font-mono text-gray-500'>{fmtRpm(load.loaded_rpm)}</td>
-        <td className={`pr-3 py-2.5 text-xs font-mono font-semibold ${rpmColor(load.all_in_rpm)}`}>
+        <td className='pr-3 py-1.5 text-xs font-mono font-semibold text-gray-200'>{fmt$(load.rate)}</td>
+        <td className='pr-3 py-1.5 text-xs font-mono text-gray-500'>{fmtRpm(load.loaded_rpm)}</td>
+        <td className={`pr-3 py-1.5 text-xs font-mono font-semibold ${rpmColor(load.all_in_rpm)}`}>
           {fmtRpm(load.all_in_rpm)}
         </td>
-        <td className={`pr-3 py-2.5 text-xs font-semibold ${marginColor(load.est_margin)}`}>
+        <td className={`pr-3 py-1.5 text-xs font-mono font-semibold ${marginColor(load.est_margin)}`}>
           {fmt$(load.est_margin)}
         </td>
-        <td className='pr-3 py-2.5 text-xs text-orange-400'>
+        <td className='pr-3 py-1.5 text-xs font-mono text-orange-400'>
           {load.negotiation_target != null ? fmt$(load.negotiation_target) : ''}
         </td>
-        <td className='pr-3 py-2.5 text-xs text-gray-500'>
+        <td className='pr-3 py-1.5 text-xs font-mono text-gray-500'>
           {load.origin_dh != null ? `${load.origin_dh}mi` : '—'}
         </td>
-        <td className='pr-3 py-2.5 text-xs text-gray-500'>{fmtN(load.miles)}mi</td>
-        <td className='pr-3 py-2.5 text-xs text-gray-400 max-w-[150px]'>
+        <td className='pr-3 py-1.5 text-xs font-mono text-gray-500'>{fmtN(load.miles)}mi</td>
+        <td className='pr-3 py-1.5 text-xs text-gray-400 max-w-[150px]'>
           <span className='truncate block'>{load.company ?? '—'}</span>
           <BrokerIntelBadge company={load.company} intel={brokerIntel} />
+          {displayPhone && (
+            <span className='block text-2xs text-gray-600 font-mono truncate'>{displayPhone}</span>
+          )}
+          {displayEmail && (
+            <span className='block text-2xs text-gray-600 truncate'>{displayEmail}</span>
+          )}
+          {load.company && !matchedBroker && (
+            <button
+              onClick={() => onCreateBroker(load)}
+              className='text-2xs text-blue-400 hover:text-blue-300 underline transition-colors'
+            >
+              + Create broker
+            </button>
+          )}
         </td>
-        <td className='pr-3 py-2.5 text-xs text-gray-600'>{load.pickup_date ?? '—'}</td>
-        <td className='pr-3 py-2.5'>
+        <td className='pr-3 py-1.5 text-xs text-gray-500'>{load.pickup_date ?? '—'}</td>
+        <td className='pr-3 py-1.5'>
           <div className='flex items-center gap-1'>
             <button
               onClick={() => onBookmark(load)}
@@ -245,9 +794,47 @@ function LoadRow({
         </td>
       </tr>
 
+      {/* Compact profit bar — always visible, no expand required */}
+      <tr className='border-b border-surface-600 last:border-0'>
+        <td colSpan={12} className='pl-8 pr-4 py-1'>
+          {addingRate ? (
+            <div className='flex items-center gap-2'>
+              <span className='text-2xs text-gray-500'>Rate $</span>
+              <input
+                type='number'
+                value={rateInput}
+                onChange={e => setRateInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveRate(); if (e.key === 'Escape') { setAddingRate(false); setRateInput('') } }}
+                placeholder='850'
+                autoFocus
+                className='w-24 bg-surface-700 border border-surface-500 focus:border-orange-500 text-gray-100 text-xs rounded px-2 py-1 font-mono focus:outline-none'
+              />
+              <button
+                onClick={handleSaveRate}
+                disabled={!rateInput.trim()}
+                className='text-2xs px-2 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-40 transition-colors'
+              >
+                Save
+              </button>
+              <button
+                onClick={() => { setAddingRate(false); setRateInput('') }}
+                className='text-2xs px-2 py-1 rounded bg-surface-600 hover:bg-surface-500 text-gray-400 border border-surface-500 transition-colors'
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <CompactProfitBar
+              check={profitCheck}
+              onAddRate={onRateEdit ? () => setAddingRate(true) : undefined}
+            />
+          )}
+        </td>
+      </tr>
+
       {expanded && (
         <tr>
-          <td colSpan={12} className='pl-8 pr-4 pb-3 pt-0'>
+          <td colSpan={12} className='pl-8 pr-4 pb-3 pt-1'>
             <div className='flex flex-wrap gap-2 items-center'>
               {load.reasons.map((r, i) => (
                 <span key={i} className='text-2xs px-2 py-0.5 rounded-full bg-surface-600 text-gray-400 border border-surface-500'>
@@ -452,6 +1039,24 @@ function FieldCopyRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** Projected net at driver's minimum RPM. Returns null when cpm or min_rpm is missing. */
+function laneProjectedNet(driver: Driver, estimatedMiles: number): number | null {
+  if (driver.min_rpm == null || driver.cpm == null) return null
+  const dh       = 75 // same-market deadhead estimate
+  const minGross = driver.min_rpm * estimatedMiles
+  const cost     = (dh + estimatedMiles) * driver.cpm
+  return minGross - cost
+}
+
+/** Band at a given net, using shared thresholds. RPM gate skipped (no actual rate). */
+function bandFromNet(net: number): ProfitBand {
+  const T = PROFIT_THRESHOLDS
+  if (net < T.REJECT_NET) return 'reject'
+  if (net < T.THIN_NET)   return 'thin'
+  if (net >= T.STRONG_NET) return 'strong'
+  return 'acceptable'
+}
+
 function LaneSuggestionCard({
   lane, driver, isSelected, onSelect,
 }: {
@@ -512,7 +1117,7 @@ function LaneSuggestionCard({
         )}
       </div>
 
-      {/* Tags + miles */}
+      {/* Tags + miles + projected profit signal */}
       <div className='flex items-center gap-1 flex-wrap'>
         {visibleTags.map(tag => (
           <span key={tag} className={`text-2xs px-1.5 py-0 rounded border ${tagStyle(tag)}`}>
@@ -522,6 +1127,23 @@ function LaneSuggestionCard({
         <span className='text-2xs text-gray-600 ml-auto shrink-0'>
           ~{lane.estimatedMiles.toLocaleString()} mi
         </span>
+        {(() => {
+          const net = laneProjectedNet(driver, lane.estimatedMiles)
+          if (net == null) return null
+          const band = bandFromNet(net)
+          const cls =
+            band === 'strong'     ? 'border-green-700/50 text-green-400'   :
+            band === 'acceptable' ? 'border-orange-700/50 text-orange-400' :
+            band === 'thin'       ? 'border-yellow-700/50 text-yellow-500' :
+                                    'border-red-700/50 text-red-400'
+          return (
+            <span className={`text-2xs px-1.5 py-px rounded border shrink-0 font-mono ${cls}`}
+              title={`Projected min net at $${driver.min_rpm!.toFixed(2)}/mi: $${Math.round(net).toLocaleString()}`}
+            >
+              ~${Math.round(net).toLocaleString()}
+            </span>
+          )
+        })()}
       </div>
 
       {/* Expanded: active preset fields + external board actions */}
@@ -607,27 +1229,29 @@ const STRATEGY_LABELS: Record<SearchStrategy, string> = {
 }
 
 function SuggestedLanesPanel({
-  driver, allLoads, selectedLane, onSelectLane,
+  driver, allLoads, selectedLane, onSelectLane, locationOverride,
 }: {
-  driver:        Driver
-  allLoads:      Load[]
-  selectedLane:  LaneSuggestion | null
-  onSelectLane:  (lane: LaneSuggestion | null) => void
+  driver:           Driver
+  allLoads:         Load[]
+  selectedLane:     LaneSuggestion | null
+  onSelectLane:     (lane: LaneSuggestion | null) => void
+  locationOverride?: string | null
 }) {
   const [strategy, setStrategy] = useState<SearchStrategy>('all')
 
-  const originKey    = resolveMarket(driver.current_location)
+  const effectiveLocation = locationOverride ?? driver.current_location
+  const originKey    = resolveMarket(effectiveLocation)
   const originMarket = originKey ? getMarket(originKey) : null
 
   const suggestions: LaneSuggestion[] = useMemo(() => getSuggestedLanes({
-    currentLocation: driver.current_location,
+    currentLocation: effectiveLocation,
     homeBase:        driver.home_base,
     trailerType:     driver.trailer_type,
     driverId:        driver.id,
     historicalLoads: allLoads,
     strategy,
     limit: 8,
-  }), [driver, allLoads, strategy])
+  }), [effectiveLocation, driver.home_base, driver.trailer_type, driver.id, allLoads, strategy])
 
   // When driver changes, clear the selected lane
   const prevDriverId = useRef(driver.id)
@@ -811,6 +1435,7 @@ export function FindLoads() {
   const [showRejected,     setShowRejected    ] = useState(false)
   const [browserListening, setBrowserListening] = useState(false)
   const [dropCity,         setDropCity        ] = useState<string | null>(null)
+  const [dropCityBasis,    setDropCityBasis   ] = useState<'actual' | 'estimated'>('estimated')
   // New state
   const [resultTimestamp,  setResultTimestamp ] = useState<Date | null>(null)
   const [compareDriverId,  setCompareDriverId ] = useState<number | null>(null)
@@ -819,8 +1444,51 @@ export function FindLoads() {
   const [selectedLane,     setSelectedLane    ] = useState<LaneSuggestion | null>(null)
   const [cmdCopied,        setCmdCopied       ] = useState(false)
   const [datCopied,        setDatCopied       ] = useState(false)
+  const [profitSort,       setProfitSort      ] = useState<'net' | 'rpm' | null>(null)
+  const [hideBands,        setHideBands       ] = useState<Set<ProfitBand>>(new Set())
+  const [resultSource,     setResultSource    ] = useState<'file' | 'browser' | 'sample' | 'paste' | null>(null)
+  const [showPaste,        setShowPaste       ] = useState(false)
+  const [showAllLoads,     setShowAllLoads    ] = useState(false)
+  const [pasteText,        setPasteText       ] = useState('')
+  const [parseStatus,      setParseStatus     ] = useState<string | null>(null)
+  const [dropCityOverride, setDropCityOverride] = useState<string | null>(null)
+  const [editingDropCity,  setEditingDropCity ] = useState(false)
+  const [dropCityInput,    setDropCityInput   ] = useState('')
 
   const lastSeqRef = useRef(0)
+
+  // Reset "show all" whenever a new result is loaded
+  useEffect(() => { setShowAllLoads(false) }, [result])
+
+  // ── Session persistence for pasted/file results ───────────────────────────
+  // Persist non-browser results to sessionStorage so navigating to Add Load
+  // and returning does not wipe the parsed result.
+  const SESSION_KEY = `ontrack_findloads_${driverId ?? 'default'}`
+  useEffect(() => {
+    if (!result || !resultSource || resultSource === 'browser') return
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ result, resultSource })) }
+    catch { /* quota – silent */ }
+  }, [result, resultSource, SESSION_KEY])
+
+  // Restore on mount (once, before the browser-import restore runs)
+  const sessionRestored = useRef(false)
+  useEffect(() => {
+    if (sessionRestored.current) return
+    sessionRestored.current = true
+    // Scan all session keys for this page to find a result (any driver)
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (!key?.startsWith('ontrack_findloads_')) continue
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? '')
+        if (saved?.result?.loads?.length) {
+          setResult(saved.result)
+          setResultSource(saved.resultSource)
+          return
+        }
+      } catch { /* corrupt entry */ }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.api.drivers.list('Active').then(setDrivers)
@@ -845,6 +1513,7 @@ export function FindLoads() {
         return
       }
       setResult(payload)
+      setResultSource('browser')
       setResultTimestamp(new Date())
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -858,6 +1527,7 @@ export function FindLoads() {
           lastSeqRef.current = seq
           setBrowserListening(false)
           setResult(payload)
+          setResultSource('browser')
           setResultTimestamp(new Date())
         }
       } catch { /* main process not ready — ignore */ }
@@ -897,9 +1567,12 @@ export function FindLoads() {
     else setCpm(0.75)
   }, [driverId, drivers])
 
-  // Resolve driver's current position
+  // Resolve driver's current position and record whether it is the confirmed
+  // current_location ('actual') or a fallback estimate ('estimated').
+  // Priority: active-load drop city → current_location → home_base.
+  // Only current_location is treated as 'actual'; the others are fallbacks.
   useEffect(() => {
-    if (!driverId) { setDropCity(null); return }
+    if (!driverId) { setDropCity(null); setDropCityBasis('estimated'); return }
     const driver = drivers.find(d => d.id === driverId)
     Promise.all([
       window.api.loads.list('In Transit'),
@@ -908,11 +1581,17 @@ export function FindLoads() {
     ]).then(([inTransit, pickedUp, booked]: [Load[], Load[], Load[]]) => {
       const active = [...inTransit, ...pickedUp, ...booked].find(l => l.driver_id === driverId)
       if (active?.dest_city) {
+        // Estimated: we know where the load ends, not where the driver is mid-haul
         setDropCity([active.dest_city, active.dest_state].filter(Boolean).join(', '))
+        setDropCityBasis('estimated')
       } else if (driver?.current_location) {
+        // Actual: dispatcher has confirmed the driver's current position
         setDropCity(driver.current_location)
+        setDropCityBasis('actual')
       } else {
+        // Estimated: home base is a standing default, not a live position
         setDropCity(driver?.home_base ?? null)
+        setDropCityBasis('estimated')
       }
     })
   }, [driverId, drivers])
@@ -927,6 +1606,7 @@ export function FindLoads() {
       if ((res as any).cancelled) return
       if (res.error) { setError(res.error); return }
       setResult(res)
+      setResultSource('file')
       setResultTimestamp(new Date())
     } catch (e) {
       setError(String(e))
@@ -935,17 +1615,198 @@ export function FindLoads() {
     }
   }
 
+  const handleLoadSample = () => {
+    // Synthetic loads designed to exercise all profit bands and edge cases.
+    // Rates/miles chosen so deadhead heuristic (same-state=75mi, cross-state=250mi)
+    // produces clear strong / acceptable / thin / reject outcomes at typical CPM.
+    const samples: ScoredLoad[] = [
+      // --- STRONG (TX->TX same-state, high rate, reasonable miles) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 2800, rpm: 2.80, origin_dh: 30,
+        origin_city: 'Dallas',    origin_state: 'TX',
+        dest_city:   'Houston',   dest_state:   'TX',
+        miles: 1000, length_ft: 48, weight: 42000,
+        equip: 'Van', mode: 'FTL', company: 'Echo Global',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 2.80, all_in_miles: 1075, all_in_rpm: 2.60,
+        est_cost: 807, est_margin: 1993, negotiation_target: 2900,
+        score: 95, rank: 1, reasons: ['High RPM', 'Same-state short DH'],
+        skip: false, skip_reason: null, first_call_rank: 1,
+      },
+      // --- STRONG (long haul, high rate) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 4500, rpm: 3.00, origin_dh: 45,
+        origin_city: 'Atlanta',   origin_state: 'GA',
+        dest_city:   'Chicago',   dest_state:   'IL',
+        miles: 1500, length_ft: 53, weight: 38000,
+        equip: 'Van', mode: 'FTL', company: 'Coyote Logistics',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 3.00, all_in_miles: 1750, all_in_rpm: 2.57,
+        est_cost: 1313, est_margin: 3187, negotiation_target: 4600,
+        score: 88, rank: 2, reasons: ['Top RPM', 'Long haul premium'],
+        skip: false, skip_reason: null, first_call_rank: 2,
+      },
+      // --- ACCEPTABLE (mid-rate, moderate miles, cross-state DH) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 1800, rpm: 2.25, origin_dh: 60,
+        origin_city: 'Nashville', origin_state: 'TN',
+        dest_city:   'Charlotte', dest_state:   'NC',
+        miles: 800, length_ft: 48, weight: 35000,
+        equip: 'Van', mode: 'FTL', company: 'XPO Logistics',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 2.25, all_in_miles: 1050, all_in_rpm: 1.71,
+        est_cost: 788, est_margin: 1012, negotiation_target: 1900,
+        score: 62, rank: 3, reasons: ['Decent RPM'],
+        skip: false, skip_reason: null, first_call_rank: null,
+      },
+      // --- THIN (low rate, short miles, cross-state deadhead eats margin) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 950, rpm: 1.90, origin_dh: 90,
+        origin_city: 'Memphis',   origin_state: 'TN',
+        dest_city:   'Little Rock', dest_state: 'AR',
+        miles: 500, length_ft: 48, weight: 28000,
+        equip: 'Van', mode: 'FTL', company: 'Total Quality Logistics',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 1.90, all_in_miles: 750, all_in_rpm: 1.27,
+        est_cost: 563, est_margin: 387, negotiation_target: 1050,
+        score: 34, rank: 4, reasons: ['Short run', 'Low RPM'],
+        skip: false, skip_reason: null, first_call_rank: null,
+      },
+      // --- THIN (long deadhead case — cross-state 250mi DH, modest rate) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 1200, rpm: 2.00, origin_dh: 200,
+        origin_city: 'Phoenix',   origin_state: 'AZ',
+        dest_city:   'Las Vegas', dest_state:   'NV',
+        miles: 600, length_ft: 53, weight: 40000,
+        equip: 'Reefer', mode: 'FTL', company: 'Uber Freight',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 2.00, all_in_miles: 850, all_in_rpm: 1.41,
+        est_cost: 638, est_margin: 562, negotiation_target: 1300,
+        score: 28, rank: 5, reasons: ['Long DH', 'Backhaul lane'],
+        skip: false, skip_reason: null, first_call_rank: null,
+      },
+      // --- REJECT (rate barely covers cost at any CPM) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 550, rpm: 1.38, origin_dh: 40,
+        origin_city: 'St. Louis', origin_state: 'MO',
+        dest_city:   'Kansas City', dest_state: 'MO',
+        miles: 400, length_ft: 48, weight: 22000,
+        equip: 'Van', mode: 'FTL', company: 'Mode Transport',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 1.38, all_in_miles: 475, all_in_rpm: 1.16,
+        est_cost: 356, est_margin: 194, negotiation_target: 700,
+        score: 10, rank: 6, reasons: ['Very low RPM', 'Short haul'],
+        skip: false, skip_reason: null, first_call_rank: null,
+      },
+      // --- REJECT (cross-state DH kills a mediocre rate) ---
+      {
+        pickup_date: new Date().toISOString().slice(0, 10),
+        rate: 700, rpm: 1.40, origin_dh: 250,
+        origin_city: 'Denver',    origin_state: 'CO',
+        dest_city:   'Salt Lake City', dest_state: 'UT',
+        miles: 500, length_ft: 48, weight: 30000,
+        equip: 'Flatbed', mode: 'FTL', company: 'Convoy',
+        d2p: null, phone: null, email: null,
+        loaded_rpm: 1.40, all_in_miles: 750, all_in_rpm: 0.93,
+        est_cost: 563, est_margin: 137, negotiation_target: 900,
+        score: 5, rank: 7, reasons: ['Dead freight lane', 'Extreme DH'],
+        skip: false, skip_reason: null, first_call_rank: null,
+      },
+    ]
+
+    const driverName = selectedDriver?.name ?? 'Sample Driver'
+
+    setResult({
+      loads:       samples,
+      driver_name: driverName,
+      raw_count:   samples.length,
+    })
+    setResultSource('sample')
+    setResultTimestamp(new Date())
+  }
+
+  const handleParsePaste = () => {
+    const loads = parsePastedLoads(pasteText)
+    if (loads.length === 0) {
+      // Count time-marker blocks for diagnostics
+      const blockCount = pasteText.split(/\r?\n/).filter(l => /^\d+[mh]$/.test(l.trim().replace(/\p{Cf}/gu, ''))).length
+      setParseStatus(
+        blockCount > 0
+          ? `Found ${blockCount} load blocks but could not extract locations. Check that city/state lines follow "City, ST" format.`
+          : 'No load blocks found. Each load must start with a time-posted line (e.g. "5m" or "3h").'
+      )
+      return
+    }
+    const driverName = selectedDriver?.name ?? 'Pasted loads'
+    setResult({ loads, driver_name: driverName, raw_count: loads.length })
+    setResultSource('paste')
+    setResultTimestamp(new Date())
+    setShowPaste(false)
+    setPasteText('')
+    setParseStatus(null)
+  }
+
   const handleAdd = (load: ScoredLoad) => {
     const params = new URLSearchParams()
-    if (load.origin_city)   params.set('origin_city',  load.origin_city)
-    if (load.origin_state)  params.set('origin_state', load.origin_state)
-    if (load.dest_city)     params.set('dest_city',    load.dest_city)
-    if (load.dest_state)    params.set('dest_state',   load.dest_state)
-    if (load.rate != null)  params.set('rate',         String(load.rate))
-    if (load.miles != null) params.set('miles',        String(load.miles))
-    if (load.company)       params.set('broker_name',  load.company)
-    if (driverId)           params.set('driver_id',    String(driverId))
+    if (load.origin_city)    params.set('origin_city',    load.origin_city)
+    if (load.origin_state)   params.set('origin_state',   load.origin_state)
+    if (load.dest_city)      params.set('dest_city',      load.dest_city)
+    if (load.dest_state)     params.set('dest_state',     load.dest_state)
+    if (load.rate != null)   params.set('rate',           String(load.rate))
+    if (load.miles != null)  params.set('miles',          String(load.miles))
+    if (load.origin_dh != null) params.set('deadhead_miles', String(load.origin_dh))
+    const [pickupDate, rawSecondDate] = _parseDateField(load.pickup_date)
+    if (pickupDate)          params.set('pickup_date',    pickupDate)
+    // DAT date ranges are board availability windows, not confirmed drop dates.
+    // Do not prefill delivery_date. Preserve the raw window as a note instead.
+    if (rawSecondDate && load.pickup_date?.includes('-')) {
+      params.set('notes', `DAT board window: ${load.pickup_date}`)
+    }
+    if (load.equip)          params.set('trailer_type',   load.equip)
+    if (load.company)        params.set('broker_name',    load.company)
+    if (driverId)            params.set('driver_id',      String(driverId))
+    // Prefer matched broker_id over broker_name lookup in Loads.tsx
+    const matched = load.company
+      ? brokers.find(b => b.name.toLowerCase() === load.company!.toLowerCase())
+      : null
+    if (matched)             params.set('broker_id',      String(matched.id))
     navigate(`/loads?new=1&${params.toString()}`)
+  }
+
+  const handleCreateBroker = (load: ScoredLoad) => {
+    const params = new URLSearchParams()
+    params.set('new', '1')
+    if (load.company) params.set('name',  load.company)
+    if (load.phone)   params.set('phone', load.phone)
+    if (load.email)   params.set('email', load.email)
+    navigate(`/brokers?${params.toString()}`)
+  }
+
+  // Inline rate editor: update a parsed load's rate and recompute RPM fields.
+  // profitChecks memo reacts automatically because result changes.
+  const handleRateEdit = (rank: number, rate: number) => {
+    setResult(prev => {
+      if (!prev) return prev
+      const loads = prev.loads.map(l => {
+        if (l.rank !== rank) return l
+        const loadedRpm = l.miles != null && l.miles > 0 ? rate / l.miles : null
+        const allInRpm  = l.all_in_miles != null && l.all_in_miles > 0 ? rate / l.all_in_miles : loadedRpm
+        return { ...l, rate, loaded_rpm: loadedRpm, all_in_rpm: allInRpm }
+      })
+      // Re-rank first_call_rank by all-in RPM (uses parsed DH when available)
+      const ranked = [...loads]
+        .filter(l => !l.skip && (l.all_in_rpm ?? l.loaded_rpm) != null)
+        .sort((a, b) => (b.all_in_rpm ?? b.loaded_rpm ?? 0) - (a.all_in_rpm ?? a.loaded_rpm ?? 0))
+      ranked.slice(0, 3).forEach((l, i) => { l.first_call_rank = i + 1 })
+      ranked.slice(3).forEach(l => { l.first_call_rank = null })
+      return { ...prev, loads }
+    })
   }
 
   const toggleBookmark = (load: ScoredLoad) => {
@@ -962,8 +1823,8 @@ export function FindLoads() {
     const cmd =
       `Import loads from my ${selectedDriver.trailer_type ?? 'DAT/Truckstop'} tab for ${selectedDriver.name}` +
       (selectedDriver.min_rpm ? `, min $${selectedDriver.min_rpm.toFixed(2)}/mi` : '') +
-      (dropCity
-        ? `, currently dropping in ${dropCity}`
+      (effectiveDropCity
+        ? `, currently dropping in ${effectiveDropCity}`
         : selectedDriver.home_base ? `, home base ${selectedDriver.home_base}` : '')
     navigator.clipboard.writeText(cmd).then(() => {
       setCmdCopied(true)
@@ -989,7 +1850,7 @@ export function FindLoads() {
       clipText = parts.join(' | ')
     } else {
       const parts: string[] = []
-      if (dropCity) parts.push(dropCity)
+      if (effectiveDropCity) parts.push(effectiveDropCity)
       if (selectedDriver?.trailer_type) parts.push(selectedDriver.trailer_type)
       if (selectedDriver?.trailer_length) parts.push(selectedDriver.trailer_length)
       if (selectedDriver?.min_rpm) parts.push(`Min $${selectedDriver.min_rpm.toFixed(2)}/mi`)
@@ -1009,12 +1870,72 @@ export function FindLoads() {
     setResultTimestamp(null)
     setBookmarked(new Set())
     setCompareDriverId(null)
+    setResultSource(null)
+    // Clear persisted session so it doesn't restore on next mount
+    try { sessionStorage.removeItem(SESSION_KEY) } catch { /* silent */ }
   }
 
   const selectedDriver  = drivers.find(d => d.id === driverId)
   const brokerIntel     = buildBrokerIntel(brokers, allLoads)
-  const goodLoads       = result?.loads.filter(l => !l.skip) ?? []
-  const top5            = goodLoads.slice(0, 5)
+  // Manual origin override — takes precedence over the auto-resolved dropCity.
+  const effectiveDropCity      = dropCityOverride ?? dropCity
+  const effectiveDropCityBasis = dropCityOverride ? 'estimated' : dropCityBasis
+
+  // Compute per-load profitability using the driver's actual resolved location.
+  // Uses dropCity (active-load dest → current_location → home_base) so the
+  // deadhead estimate reflects where the driver will actually be on pickup day.
+  const profitChecks = useMemo((): Map<number, ProfitCheck> => {
+    if (!result || !selectedDriver) return new Map()
+    const map = new Map<number, ProfitCheck>()
+    for (const load of result.loads) {
+      if (load.skip) continue
+      map.set(load.rank, checkProfitability({
+        driverLocation:      effectiveDropCity,
+        locationBasis:       effectiveDropCityBasis,
+        driverCpm:           cpm,           // resolved state: driver.cpm → min_rpm fallback → 0.75
+        driverMinRpm:        selectedDriver.min_rpm,
+        pickupCity:          load.origin_city,
+        pickupState:         load.origin_state,
+        loadedMiles:         load.miles,
+        grossRate:           load.rate,
+        parsedDeadheadMiles: load.origin_dh,
+      }))
+    }
+    return map
+  }, [result, selectedDriver, cpm, effectiveDropCity, effectiveDropCityBasis])
+
+  const INCOMPLETE_CHECK: ProfitCheck = { incomplete: true, missingField: 'location' }
+
+  const goodLoads = result?.loads.filter(l => !l.skip) ?? []
+
+  const toggleHideBand = (band: ProfitBand) => {
+    setHideBands(prev => {
+      const next = new Set(prev)
+      if (next.has(band)) next.delete(band); else next.add(band)
+      return next
+    })
+  }
+
+  // Filter by band, then sort. Loads with no check data are never hidden.
+  const sortedGoodLoads = useMemo(() => {
+    const base = hideBands.size === 0
+      ? goodLoads
+      : goodLoads.filter(l => {
+          const c = profitChecks.get(l.rank)
+          return !c || c.incomplete || !hideBands.has(c.band)
+        })
+    if (!profitSort || profitChecks.size === 0) return base
+    return [...base].sort((a, b) => {
+      const ca = profitChecks.get(a.rank)
+      const cb = profitChecks.get(b.rank)
+      if (!ca || ca.incomplete || !cb || cb.incomplete) return 0
+      return profitSort === 'net'
+        ? cb.estimatedNet - ca.estimatedNet
+        : cb.effectiveRpm - ca.effectiveRpm
+    })
+  }, [goodLoads, hideBands, profitSort, profitChecks])
+
+  const visibleLoads    = showAllLoads ? sortedGoodLoads : sortedGoodLoads.slice(0, 5)
   const firstCalls      = goodLoads
     .filter(l => l.first_call_rank != null)
     .sort((a, b) => (a.first_call_rank ?? 9) - (b.first_call_rank ?? 9))
@@ -1047,12 +1968,62 @@ export function FindLoads() {
           </select>
         </div>
 
-        {/* Current search origin hint */}
-        {dropCity && (
+        {/* Current search origin — click to override */}
+        {effectiveDropCity && !editingDropCity && (
           <div className='flex items-center gap-1.5 text-sm'>
             <MapPin size={12} className='text-orange-400 shrink-0' />
-            <span className='text-gray-500'>Search DAT from: </span>
-            <span className='text-orange-300 font-medium'>{dropCity}</span>
+            <span className='text-gray-500 shrink-0'>Search DAT from:</span>
+            <button
+              onClick={() => { setDropCityInput(effectiveDropCity); setEditingDropCity(true) }}
+              className='text-orange-300 font-medium hover:text-orange-200 hover:underline transition-colors'
+              title='Click to override origin for DAT search'
+            >
+              {effectiveDropCity}
+            </button>
+            {dropCityOverride && (
+              <button
+                onClick={() => { setDropCityOverride(null); clearResults() }}
+                className='text-2xs text-gray-600 hover:text-gray-400 transition-colors'
+                title='Reset to driver-derived location'
+              >
+                reset
+              </button>
+            )}
+          </div>
+        )}
+        {editingDropCity && (
+          <div className='flex items-center gap-1.5'>
+            <MapPin size={12} className='text-orange-400 shrink-0' />
+            <input
+              autoFocus
+              value={dropCityInput}
+              onChange={e => setDropCityInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const v = dropCityInput.trim()
+                  setDropCityOverride(v || null)
+                  setEditingDropCity(false)
+                  clearResults()
+                }
+                if (e.key === 'Escape') {
+                  setEditingDropCity(false)
+                }
+              }}
+              placeholder='City, ST'
+              className='w-36 bg-surface-700 border border-orange-500/60 text-gray-100 text-sm rounded-lg px-2 py-1 focus:outline-none focus:border-orange-400 font-medium'
+            />
+            <button
+              onClick={() => { setDropCityOverride(dropCityInput.trim() || null); setEditingDropCity(false); clearResults() }}
+              className='text-2xs px-2 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white transition-colors'
+            >
+              Set
+            </button>
+            <button
+              onClick={() => setEditingDropCity(false)}
+              className='text-2xs text-gray-600 hover:text-gray-400 transition-colors'
+            >
+              Cancel
+            </button>
           </div>
         )}
 
@@ -1070,70 +2041,32 @@ export function FindLoads() {
           />
         </div>
 
-        {/* Import XLSX */}
+        {/* Paste Loads — primary real-world import path */}
         <button
-          onClick={handleImport}
-          disabled={!driverId || loading || browserListening}
-          className='flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors'
+          onClick={() => { setShowPaste(p => !p); setParseStatus(null) }}
+          disabled={loading || browserListening}
+          className={[
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+            showPaste
+              ? 'bg-orange-600 hover:bg-orange-500 text-white'
+              : 'bg-orange-600 hover:bg-orange-500 text-white',
+          ].join(' ')}
+          title='Paste load results directly from DAT or Truckstop'
         >
-          {loading ? <Loader2 size={15} className='animate-spin' /> : <FileSpreadsheet size={15} />}
-          {loading ? 'Analyzing...' : 'Import XLSX'}
+          <Copy size={15} />
+          Paste Loads
         </button>
 
-        {/* Import from Browser */}
-        <button
-          onClick={startBrowserListen}
-          disabled={!driverId || loading}
-          className={[
-            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            browserListening
-              ? 'bg-blue-700 hover:bg-blue-600 text-white'
-              : 'bg-surface-600 hover:bg-surface-500 text-gray-300 border border-surface-400',
-            (!driverId || loading) ? 'opacity-40 cursor-not-allowed' : '',
-          ].join(' ')}
-          title='Have Claude read your DAT or Truckstop tab and import the results'
-        >
-          {browserListening
-            ? <><Radio size={15} className='animate-pulse' /> Listening...</>
-            : <><Globe size={15} /> Import from Browser</>
-          }
-        </button>
-
-        {/* Open DAT */}
-        <button
-          onClick={openDat}
-          className={[
-            'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors',
-            datCopied
-              ? 'bg-green-800/40 border-green-700/50 text-green-300'
-              : 'bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200 border-surface-400',
-          ].join(' ')}
-          title={
-            datCopied
-              ? 'Search details copied to clipboard'
-              : dropCity
-                ? `Open DAT — search from ${dropCity}`
-                : 'Open DAT load board'
-          }
-        >
-          {datCopied ? <Check size={13} /> : <ExternalLink size={13} />}
-          <span>{datCopied ? 'Copied' : 'DAT'}</span>
-        </button>
-
-        {/* Plan the Week — opens Suggested Lanes / search strategy panel */}
-        <button
-          onClick={() => setShowStrategy(s => !s)}
-          className={[
-            'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors',
-            showStrategy
-              ? 'bg-orange-700/30 border-orange-600/50 text-orange-300'
-              : 'bg-surface-600 hover:bg-surface-500 text-gray-400 hover:text-gray-200 border-surface-400',
-          ].join(' ')}
-          title='Open lane planning — see suggested search corridors for this driver'
-        >
-          <Compass size={13} />
-          <span>Plan the Week</span>
-        </button>
+        {/* Clear Data — only shown when results are loaded */}
+        {result && resultSource !== 'browser' && (
+          <button
+            onClick={clearResults}
+            className='text-xs text-gray-600 hover:text-red-400 border border-surface-500 hover:border-red-700/50 px-3 py-1.5 rounded-lg transition-colors'
+            title='Remove current parsed result set'
+          >
+            Clear Data
+          </button>
+        )}
 
         {/* Driver summary */}
         {selectedDriver && (
@@ -1144,6 +2077,47 @@ export function FindLoads() {
           </span>
         )}
       </div>
+
+      {/* Paste loads panel */}
+      {showPaste && (
+        <div className='rounded-xl border border-surface-400 bg-surface-700 p-4 space-y-3'>
+          <div className='flex items-center justify-between'>
+            <p className='text-sm font-medium text-gray-200'>Paste load results</p>
+            <p className='text-2xs text-gray-600'>Select rows in DAT or Truckstop, copy, and paste below</p>
+          </div>
+          <textarea
+            value={pasteText}
+            onChange={e => { setPasteText(e.target.value); setParseStatus(null) }}
+            placeholder={'Select rows in DAT, press Ctrl+C, then paste here.\n\nExpected format:\n2m\n$1,200\n$3.47*/mi\n270\nDallas, TX\n(22)\nHouston, TX\n(0)\n4/17\nV\n53 ft\n...'}
+            rows={6}
+            className='w-full bg-surface-800 border border-surface-500 text-gray-200 text-xs font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 resize-y placeholder:text-gray-700'
+          />
+          {parseStatus && (
+            <p className='text-xs text-yellow-400 flex items-center gap-1.5'>
+              <AlertCircle size={11} /> {parseStatus}
+            </p>
+          )}
+          <div className='flex items-center gap-3'>
+            <button
+              onClick={handleParsePaste}
+              disabled={!pasteText.trim()}
+              className='flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors'
+            >
+              <Calculator size={14} />
+              Parse Loads
+            </button>
+            <button
+              onClick={() => { setShowPaste(false); setPasteText(''); setParseStatus(null) }}
+              className='text-xs text-gray-600 hover:text-gray-400 transition-colors'
+            >
+              Cancel
+            </button>
+            <span className='text-2xs text-gray-700 ml-auto'>
+  Select load rows in DAT, copy (Ctrl+C), paste here
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Active preset banner — shown when a lane is applied */}
       {selectedLane && (
@@ -1201,7 +2175,7 @@ export function FindLoads() {
               <p>
                 1. In DAT, set your search origin to{' '}
                 <span className='text-orange-300 font-medium'>
-                  {dropCity ?? "the driver's current city"}
+                  {effectiveDropCity ?? "the driver's current city"}
                 </span>
                 {' '}and run your search.
               </p>
@@ -1211,8 +2185,8 @@ export function FindLoads() {
                   Import loads from my {selectedDriver?.trailer_type ?? 'DAT/Truckstop'} tab for{' '}
                   {selectedDriver?.name ?? 'my driver'}
                   {selectedDriver?.min_rpm ? `, min $${selectedDriver.min_rpm.toFixed(2)}/mi` : ''}
-                  {dropCity
-                    ? `, currently dropping in ${dropCity}`
+                  {effectiveDropCity
+                    ? `, currently dropping in ${effectiveDropCity}`
                     : selectedDriver?.home_base ? `, home base ${selectedDriver.home_base}` : ''
                   }
                 </p>
@@ -1247,6 +2221,7 @@ export function FindLoads() {
             allLoads={allLoads}
             selectedLane={selectedLane}
             onSelectLane={setSelectedLane}
+            locationOverride={dropCityOverride}
           />
 
           {/* Lane fit history (historical corridors from past loads) */}
@@ -1266,6 +2241,7 @@ export function FindLoads() {
           allLoads={allLoads}
           selectedLane={selectedLane}
           onSelectLane={setSelectedLane}
+          locationOverride={dropCityOverride}
         />
       )}
 
@@ -1286,7 +2262,8 @@ export function FindLoads() {
             <div className='flex items-center gap-3'>
               <CheckCircle2 size={16} className='text-green-400' />
               <span className='text-sm text-gray-300'>
-                <span className='font-semibold text-gray-100'>{goodLoads.length}</span> ranked loads for{' '}
+                <span className='font-semibold text-gray-100'>{goodLoads.length}</span>{' '}
+                {resultSource === 'sample' ? 'ranked sample loads for' : resultSource === 'paste' ? 'pasted loads for' : 'ranked loads for'}{' '}
                 <span className='text-orange-400'>{result.driver_name}</span>
                 {rejectedLoads.length > 0 && (
                   <span className='text-gray-600'> · {rejectedLoads.length} rejected</span>
@@ -1297,8 +2274,29 @@ export function FindLoads() {
               </span>
             </div>
             <div className='flex items-center gap-3'>
+              {/* Band filter toggles */}
+              {(['reject', 'thin'] as ProfitBand[]).map(band => {
+                const active = hideBands.has(band)
+                return (
+                  <button
+                    key={band}
+                    onClick={() => toggleHideBand(band)}
+                    className={[
+                      'text-2xs px-2 py-0.5 rounded border transition-colors',
+                      active
+                        ? band === 'reject'
+                          ? 'bg-red-900/30 border-red-700/50 text-red-400'
+                          : 'bg-yellow-900/30 border-yellow-700/50 text-yellow-500'
+                        : 'bg-surface-700 border-surface-500 text-gray-500 hover:text-gray-300 hover:border-surface-400',
+                    ].join(' ')}
+                    title={active ? `Show ${band} loads` : `Hide ${band} loads`}
+                  >
+                    {active ? `Show ${band}` : `Hide ${band}`}
+                  </button>
+                )
+              })}
               <span className='text-xs text-gray-600'>
-                {result.raw_count} loads in file · CPM ${cpm.toFixed(2)}
+                {resultSource === 'sample' ? 'sample data' : resultSource === 'paste' ? `${result.raw_count} pasted` : `${result.raw_count} loads in file`} · CPM ${cpm.toFixed(2)}
                 {resultTimestamp && (
                   <span className='text-gray-700'> · {timeAgo(resultTimestamp)}</span>
                 )}
@@ -1399,7 +2397,7 @@ export function FindLoads() {
 
             {compareDriverId && (() => {
               const d2 = drivers.find(d => d.id === compareDriverId)
-              if (!d2 || !top5.length) return null
+              if (!d2 || !visibleLoads.length) return null
               const cpm2 = d2.cpm ?? d2.min_rpm ?? 0.75
               return (
                 <div className='rounded-xl border border-surface-400 bg-surface-800 overflow-x-auto'>
@@ -1422,7 +2420,7 @@ export function FindLoads() {
                       </tr>
                     </thead>
                     <tbody>
-                      {top5.map((load, i) => {
+                      {visibleLoads.map((load, i) => {
                         const aim     = load.all_in_miles ?? ((load.miles ?? 0) + (load.origin_dh ?? 0))
                         const margin2 = load.rate != null && aim > 0 ? load.rate - aim * cpm2 : null
                         const m1      = load.est_margin
@@ -1480,19 +2478,70 @@ export function FindLoads() {
                     brokerIntel={brokerIntel}
                     bookmarked={bookmarked.has(load.rank)}
                     onBookmark={toggleBookmark}
+                    profitCheck={profitChecks.get(load.rank) ?? INCOMPLETE_CHECK}
+                    brokers={brokers}
+                    onCreateBroker={handleCreateBroker}
                   />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Top 5 Ranked Loads */}
-          {top5.length > 0 && (
+          {/* Ranked Loads */}
+          {visibleLoads.length > 0 && (
             <div className='space-y-3'>
-              <div className='flex items-center gap-2'>
+              <div className='flex items-center gap-2 flex-wrap'>
                 <TrendingUp size={14} className='text-green-400' />
-                <h2 className='text-sm font-semibold text-gray-200'>Top {top5.length} Ranked Loads</h2>
-                <span className='text-xs text-gray-600'>Sorted by estimated margin and all-in RPM</span>
+                <h2 className='text-sm font-semibold text-gray-200'>
+                  {showAllLoads ? `All ${sortedGoodLoads.length}` : `Top ${visibleLoads.length}`} Ranked Loads
+                </h2>
+                <span className='text-xs text-gray-600'>
+                  {profitSort ? `Sorted by driver ${profitSort === 'net' ? 'net' : 'eff. RPM'}` : 'Sorted by estimated margin and all-in RPM'}
+                </span>
+                {/* Show count / toggle */}
+                {sortedGoodLoads.length > 5 && (
+                  <div className='flex items-center gap-1'>
+                    {(['top5', 'all'] as const).map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setShowAllLoads(v === 'all')}
+                        className={[
+                          'text-2xs px-2 py-0.5 rounded border transition-colors',
+                          (v === 'all') === showAllLoads
+                            ? 'bg-orange-600/20 border-orange-500/60 text-orange-300'
+                            : 'bg-surface-700 border-surface-500 text-gray-500 hover:text-gray-200 hover:border-surface-400',
+                        ].join(' ')}
+                      >
+                        {v === 'top5' ? 'Top 5' : `All ${sortedGoodLoads.length}`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <span className='text-2xs text-gray-700'>
+                  {showAllLoads
+                    ? `Showing all ${sortedGoodLoads.length}`
+                    : `Showing ${visibleLoads.length} of ${sortedGoodLoads.length}`}
+                </span>
+                {/* Profit-based sort controls */}
+                <div className='flex items-center gap-1 ml-auto'>
+                  <span className='text-2xs text-gray-600'>Sort:</span>
+                  {(['net', 'rpm'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setProfitSort(prev => prev === s ? null : s)}
+                      className={[
+                        'text-2xs px-2 py-0.5 rounded border transition-colors',
+                        profitSort === s
+                          ? 'bg-orange-600/20 border-orange-500/60 text-orange-300'
+                          : 'bg-surface-700 border-surface-500 text-gray-500 hover:text-gray-200 hover:border-surface-400',
+                      ].join(' ')}
+                      title={s === 'net' ? 'Sort by driver estimated net' : 'Sort by effective RPM (driver-specific)'}
+                    >
+                      {s === 'net' ? 'Net' : 'Eff. RPM'}
+                      {profitSort === s && ' \u2193'}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className='rounded-xl border border-surface-400 bg-surface-800 overflow-x-auto'>
                 <table className='w-full text-sm border-collapse'>
@@ -1509,7 +2558,7 @@ export function FindLoads() {
                     </tr>
                   </thead>
                   <tbody>
-                    {top5.map((load, i) => (
+                    {visibleLoads.map((load, i) => (
                       <LoadRow
                         key={i}
                         load={load}
@@ -1517,6 +2566,10 @@ export function FindLoads() {
                         brokerIntel={brokerIntel}
                         bookmarked={bookmarked.has(load.rank)}
                         onBookmark={toggleBookmark}
+                        profitCheck={profitChecks.get(load.rank) ?? INCOMPLETE_CHECK}
+                        onRateEdit={rate => handleRateEdit(load.rank, rate)}
+                        brokers={brokers}
+                        onCreateBroker={handleCreateBroker}
                       />
                     ))}
                   </tbody>

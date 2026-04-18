@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { Broker, BrokerFlag } from '../types/models'
+import { useSearchParams } from 'react-router-dom'
+import type { Broker, BrokerFlag, CreateBrokerDto } from '../types/models'
 import { BrokersToolbar, type BrokerFilters } from '../components/brokers/BrokersToolbar'
 import { BrokersTable } from '../components/brokers/BrokersTable'
 import { BrokerModal } from '../components/brokers/BrokerModal'
@@ -8,15 +9,17 @@ import { STARTER_BROKERS } from '../data/starterBrokers'
 import { Building2, Download } from 'lucide-react'
 
 export function Brokers() {
-  const [brokers, setBrokers]   = useState<Broker[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
-  const [filters, setFilters]   = useState<BrokerFilters>({ flag: '', contact_type: '' })
-  const [sortKey, setSortKey]   = useState<keyof Broker>('name')
-  const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc')
-  const [selected, setSelected] = useState<Broker | null>(null)
-  const [editBrk, setEditBrk]   = useState<Broker | null>(null)
-  const [modal, setModal]       = useState(false)
+  const [brokers, setBrokers]       = useState<Broker[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [search, setSearch]         = useState('')
+  const [filters, setFilters]       = useState<BrokerFilters>({ flag: '', contact_type: '' })
+  const [sortKey, setSortKey]       = useState<keyof Broker>('name')
+  const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('asc')
+  const [selected, setSelected]     = useState<Broker | null>(null)
+  const [editBrk, setEditBrk]       = useState<Broker | null>(null)
+  const [modal, setModal]           = useState(false)
+  const [modalPrefill, setModalPrefill] = useState<Partial<CreateBrokerDto> | null>(null)
+  const [searchParams] = useSearchParams()
 
   const reload = async () => {
     setLoading(true)
@@ -24,6 +27,20 @@ export function Brokers() {
     setBrokers(data); setLoading(false)
   }
   useEffect(() => { reload() }, [])
+
+  // Auto-open modal with prefill from Find Loads "Create broker" action
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      const name  = searchParams.get('name')  || ''
+      const phone = searchParams.get('phone') || null
+      const email = searchParams.get('email') || null
+      if (name) {
+        setEditBrk(null)
+        setModalPrefill({ name, phone, email })
+        setModal(true)
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSort = (k: keyof Broker) => {
     if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -52,8 +69,8 @@ export function Brokers() {
 
   const [seeding, setSeeding] = useState(false)
 
-  const openAdd  = () => { setEditBrk(null); setModal(true) }
-  const openEdit = (b: Broker) => { setEditBrk(b); setModal(true); setSelected(null) }
+  const openAdd  = () => { setEditBrk(null); setModalPrefill(null); setModal(true) }
+  const openEdit = (b: Broker) => { setEditBrk(b); setModalPrefill(null); setModal(true); setSelected(null) }
 
   const seedStarterBrokers = async () => {
     setSeeding(true)
@@ -147,7 +164,7 @@ export function Brokers() {
         />
       )}
       {modal && (
-        <BrokerModal broker={editBrk} onSave={handleSave} onClose={() => setModal(false)} />
+        <BrokerModal broker={editBrk} prefill={modalPrefill} onSave={handleSave} onClose={() => { setModal(false); setModalPrefill(null) }} />
       )}
     </div>
   )

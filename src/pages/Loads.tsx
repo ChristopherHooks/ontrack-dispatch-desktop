@@ -38,21 +38,29 @@ export function Loads() {
       setLoads(l); setDrivers(d); setBrokers(b)
       // Auto-open new load modal if navigated from Find Loads
       if (searchParams.get('new') === '1') {
-        const brokerName = searchParams.get('broker_name')
-        const matched    = brokerName
-          ? (b as Broker[]).find(br => br.name.toLowerCase() === brokerName.toLowerCase())
-          : null
+        const brokerName  = searchParams.get('broker_name')
+        const brokerIdRaw = searchParams.get('broker_id')
+        // broker_id takes precedence over broker_name lookup
+        const brokerId = brokerIdRaw
+          ? Number(brokerIdRaw)
+          : brokerName
+            ? ((b as Broker[]).find(br => br.name.toLowerCase() === brokerName.toLowerCase())?.id ?? null)
+            : null
         const driverId = searchParams.get('driver_id')
         setPrefill({
-          origin_city:  searchParams.get('origin_city')  || null,
-          origin_state: searchParams.get('origin_state') || null,
-          dest_city:    searchParams.get('dest_city')    || null,
-          dest_state:   searchParams.get('dest_state')   || null,
-          rate:         searchParams.get('rate')   ? Number(searchParams.get('rate'))  : null,
-          miles:        searchParams.get('miles')  ? Number(searchParams.get('miles')) : null,
-          broker_id:    matched ? matched.id : null,
-          driver_id:    driverId ? Number(driverId) : null,
-          status:       'Booked',
+          origin_city:    searchParams.get('origin_city')    || null,
+          origin_state:   searchParams.get('origin_state')   || null,
+          dest_city:      searchParams.get('dest_city')      || null,
+          dest_state:     searchParams.get('dest_state')     || null,
+          rate:           searchParams.get('rate')            ? Number(searchParams.get('rate'))           : null,
+          miles:          searchParams.get('miles')           ? Number(searchParams.get('miles'))          : null,
+          deadhead_miles: searchParams.get('deadhead_miles')  ? Number(searchParams.get('deadhead_miles')) : null,
+          pickup_date:    searchParams.get('pickup_date')    || null,
+          trailer_type:   searchParams.get('trailer_type')   || null,
+          notes:          searchParams.get('notes')          || null,
+          broker_id:      brokerId,
+          driver_id:      driverId ? Number(driverId) : null,
+          status:         'Booked',
         })
         setModal(true)
       }

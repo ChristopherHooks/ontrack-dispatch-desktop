@@ -19,24 +19,51 @@
   html:not(.dark) {
     color-scheme: light;
   }
-  html:not(.dark) body {
-    background-color: #f4f4f5;
-    color: #18181b;
-  }
-  html:not(.dark) .bg-surface-800  { background-color: #f4f4f5 !important; }
-  html:not(.dark) .bg-surface-750  { background-color: #e4e4e7 !important; }
-  html:not(.dark) .bg-surface-700  { background-color: #ffffff  !important; }
-  html:not(.dark) .bg-surface-600  { background-color: #f0f0f2  !important; }
-  html:not(.dark) .bg-surface-500  { background-color: #e8e8ed  !important; }
-  html:not(.dark) .border-surface-400 { border-color: #d4d4d8  !important; }
-  html:not(.dark) .border-surface-300 { border-color: #a1a1aa  !important; }
-  html:not(.dark) .text-gray-100   { color: #18181b !important; }
-  html:not(.dark) .text-gray-200   { color: #27272a !important; }
-  html:not(.dark) .text-gray-300   { color: #3f3f46 !important; }
-  html:not(.dark) .text-gray-400   { color: #52525b !important; }
-  html:not(.dark) .text-gray-500   { color: #71717a !important; }
-  html:not(.dark) .text-gray-600   { color: #71717a !important; }
-  html:not(.dark) .text-gray-700   { color: #71717a !important; }
+
+  /* ── Surface hierarchy: page → section → card → input ───────────────────── */
+  html:not(.dark) body              { background-color: #ededf0; color: #18181b; }
+  html:not(.dark) .bg-surface-800  { background-color: #ededf0 !important; } /* page bg */
+  html:not(.dark) .bg-surface-750  { background-color: #e0e0e5 !important; } /* section dividers */
+  html:not(.dark) .bg-surface-700  { background-color: #ffffff !important; } /* cards / panels */
+  html:not(.dark) .bg-surface-600  { background-color: #f3f3f6 !important; } /* nested sections */
+  html:not(.dark) .bg-surface-500  { background-color: #e8e8ed !important; } /* inputs / tags */
+  html:not(.dark) .border-surface-300 { border-color: #9696a0 !important; }
+  html:not(.dark) .border-surface-400 { border-color: #c4c4cc !important; } /* card borders — visible */
+  html:not(.dark) .border-surface-500 { border-color: #d8d8e0 !important; } /* inner dividers */
+  html:not(.dark) .border-surface-600 { border-color: #e0e0e8 !important; } /* row separators */
+
+  /* ── Text hierarchy: clear separation between label and value ───────────── */
+  html:not(.dark) .text-gray-100   { color: #0f0f11 !important; } /* headings */
+  html:not(.dark) .text-gray-200   { color: #1a1a1d !important; } /* primary values */
+  html:not(.dark) .text-gray-300   { color: #35353a !important; } /* secondary values */
+  html:not(.dark) .text-gray-400   { color: #45454a !important; } /* body text */
+  html:not(.dark) .text-gray-500   { color: #565660 !important; } /* labels / metadata — readable */
+  html:not(.dark) .text-gray-600   { color: #70707a !important; } /* muted — still scannable */
+  html:not(.dark) .text-gray-700   { color: #8e8e96 !important; } /* decorative — not invisible */
+
+  /* ── Band text: richer equivalents for light backgrounds ───────────────── */
+  html:not(.dark) .text-green-400  { color: #14532d !important; } /* strong — deep forest */
+  html:not(.dark) .text-orange-400 { color: #92320f !important; } /* acceptable — dark rust */
+  html:not(.dark) .text-yellow-400 { color: #78450b !important; } /* thin — dark amber */
+  html:not(.dark) .text-red-400    { color: #8b1a1a !important; } /* reject — dark red */
+  html:not(.dark) .text-blue-400   { color: #1e3a8a !important; } /* info — dark blue */
+  html:not(.dark) .text-orange-300 { color: #b83b0a !important; } /* negotiation target */
+
+  /* ── Band backgrounds: tinted but distinct from white card surface ───────── */
+  html:not(.dark) .bg-green-900\/10  { background-color: rgba(220,252,231,0.85) !important; }
+  html:not(.dark) .bg-orange-900\/10 { background-color: rgba(255,237,213,0.85) !important; }
+  html:not(.dark) .bg-yellow-900\/10 { background-color: rgba(254,249,195,0.85) !important; }
+  html:not(.dark) .bg-red-900\/10    { background-color: rgba(254,226,226,0.85) !important; }
+
+  /* ── Band borders: solid enough to read on light tints ─────────────────── */
+  html:not(.dark) .border-green-700\/40  { border-color: rgba(20,83,45,0.45)    !important; }
+  html:not(.dark) .border-orange-700\/40 { border-color: rgba(146,50,15,0.45)   !important; }
+  html:not(.dark) .border-yellow-700\/40 { border-color: rgba(120,69,11,0.45)   !important; }
+  html:not(.dark) .border-red-700\/40    { border-color: rgba(139,26,26,0.45)   !important; }
+  html:not(.dark) .border-blue-700\/40   { border-color: rgba(30,58,138,0.4)    !important; }
+
+  /* ── Table hover — clearly visible against white card surface ───────────── */
+  html:not(.dark) .hover\:bg-surface-700:hover { background-color: #f0f0f4 !important; }
 }
 
 /* ── Default dark theme (applied when .dark IS on <html>) ───────────────── */
