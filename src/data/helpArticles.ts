@@ -51,17 +51,17 @@ OnTrack is a local-first desktop application built for trucking dispatch operati
 ## Sidebar Navigation
 The left sidebar contains every module in the app. Collapse it with the arrow button to gain screen space.
 
-- Operations — command center: KPIs, AI summary, check calls, warm leads, today's tasks
-- Load Match — AI-powered load recommendations matched to each driver
+- Operations — command center: KPIs, AI summary, warm leads, today's tasks
+- Dispatcher Board — fleet status at a glance; assign loads; handle urgent drivers
 - Find Loads — paste load board data, score and rank loads, add to system
-- Active Loads — live tracking board for every load currently in motion
-- Dispatcher — drag-and-drop board showing all driver statuses at a glance
-- Leads — carrier prospect pipeline with CRM features and call logs
+- Active Loads — live tracking board with Load Health, timeline urgency, and check calls
+- Dispatch Calendar — pickup and delivery view; driver availability windows for forward planning
+- Leads — carrier prospect pipeline with Do This Now panel, overdue tracking, and call logs
 - Drivers — driver profiles, documents, CDL/insurance expiry tracking
 - Loads — full load lifecycle from Searching to Paid
 - Brokers — broker database with flags, payment terms, lane intel
 - Invoices — generate, send, and track dispatch fee invoices
-- Marketing — Facebook group posting, post templates, coverage analysis
+- Marketing — Facebook group posting, step-based daily workflow, post history
 - Tasks — daily dispatch checklist with recurring task support
 - Documents — SOP and reference library
 - Analytics — revenue, RPM, lane profitability, and lead conversion reports
@@ -128,12 +128,12 @@ Operations is the first page you should open each morning. It pulls data from ev
 
 ## KPI Cards (top row)
 The top row shows at-a-glance numbers:
-- Drivers Needing Loads — active drivers with no current load
+- Revenue MTD — dispatch fees collected this month
 - Loads In Transit — loads currently moving
+- Drivers Avail. — active drivers who need loads today
 - Overdue Leads — leads whose follow-up date has passed
-- Today's Groups — Facebook groups recommended to post in today
-- Outstanding Invoices — invoices not yet marked Paid
-- FB Inbox — new and active Facebook conversations
+- Groups to Post — Facebook groups eligible to post to today
+- Open Invoices — invoices in Draft, Sent, or Overdue status
 
 Click any KPI card to navigate directly to that module.
 
@@ -155,152 +155,180 @@ Log inbound check calls from your drivers here. Each entry records the driver, t
 
   {
     id: 'dispatcher-board',
-    title: 'Dispatcher Board',
+    title: 'Dispatcher Board: Action-Driven Fleet Management',
     category: 'Operations',
-    tags: ['dispatcher', 'board', 'drag and drop', 'kanban', 'assign load'],
-    summary: 'Use the Dispatcher Board to see all driver statuses and assign loads by dragging.',
-    content: `## What the Dispatcher Board Does
-The Dispatcher Board shows every driver grouped by their current status. It gives you a single view of your entire fleet at a glance and lets you assign loads to drivers by dragging.
+    tags: ['dispatcher', 'board', 'assign load', 'best matches', 'needs load', 'urgency', 'do this now'],
+    summary: 'Use the Dispatcher Board to identify urgent drivers, assign loads from Best Matches, and monitor in-transit deliveries.',
+    content: `## Purpose
+The Dispatcher Board is your primary tool for managing the fleet throughout the day. It shows every driver grouped by status, surfaces urgent actions at the top, and connects you directly to the best available loads for each driver.
 
-## Driver Groups
-Drivers are automatically grouped into:
-- Needs Load — active drivers with no current load (highlighted in orange — these need action)
-- Booked — driver has a confirmed load, not yet picked up
-- Picked Up — driver has picked up the load
-- In Transit — driver is rolling to destination
-- Available Soon — driver is on a load but approaching delivery
-- Inactive — drivers marked Inactive in their profile
+## When to Use
+Open the Dispatcher Board every morning and check back throughout the day — especially when a driver delivers or becomes available.
 
-## Assigning a Load
-1. Click a driver row in the "Needs Load" group to select them
-2. The panel on the right shows available loads and AI-recommended loads for that driver
-3. Drag a load card onto the driver row, or click the assign button
-4. Confirm the assignment in the dialog that appears
-5. The driver moves to the Booked group automatically
+## Step 1 — Read the "Do This Now" Strip
+A compact action summary appears at the top of the board when there are urgent items:
+- Orange dot = driver needs a load assigned (losing money idle)
+- Red dot = delivery overdue; check on that driver immediately
+Click any item in the strip to jump to that driver's recommendations.
+
+## Step 2 — Handle "Needs Load" Drivers First
+The Needs Load section is highlighted in orange. Each row shows "Losing money — no load" — these drivers are costing you revenue every hour they sit idle.
+Do not move on to other tasks until every Needs Load driver has either a load assigned or a clear reason for waiting.
+
+## Step 3 — Use "Find Best Load" to Get Recommendations
+Click "Find Best Load" on any Needs Load driver row (or click the row itself).
+The Best Matches panel opens on the right, showing the top 3 loads ranked for that driver:
+- Rank 1 is marked "Best Match" with an orange badge — start here
+- Each card shows RPM, broker flag, route, and rate
+- Validate: RPM meets your minimum, broker is not flagged Avoid or Blacklisted
+
+## Step 4 — Assign Immediately
+Click Assign on the Best Match card.
+Confirm in the dialog. The driver moves to Booked automatically.
+Do not delay the assignment — loads on the board go fast.
+
+## Step 5 — Monitor In-Transit Deliveries
+In the In Transit and Picked Up sections, the delivery date is color-coded:
+- Red + "Overdue" = delivery date has passed. Call the driver now.
+- Yellow + "Due today" = delivery is today. Confirm ETA.
+- Orange + "Tomorrow" = delivery is tomorrow. No action needed yet.
+
+## Step 6 — Log Check Calls
+Use the "Call" button on any in-transit driver row to log a check call without leaving the board.
+
+## Driver Groups (Reference)
+- Needs Load — active, no current load (urgent)
+- Booked — load confirmed, not yet picked up
+- Picked Up — driver has the load, en route to delivery
+- In Transit — rolling to destination
+- Available Soon — on a load, approaching delivery
+- Inactive — not currently dispatching
 
 ## Filters
-Use the toolbar to filter by trailer type or broker. The search box filters by driver name.
-
-## Refreshing the Board
-Click the refresh button in the top-right to reload all driver and load statuses. The board does not auto-refresh to prevent interruptions while you are working.`,
+Filter by trailer type or broker using the dropdowns. Search by driver name or city.`,
   },
 
   {
     id: 'active-loads',
-    title: 'Active Loads: Tracking Loads in Motion',
+    title: 'Active Loads: Load Health and Timeline Management',
     category: 'Operations',
-    tags: ['active loads', 'tracking', 'check call', 'timeline', 'status update'],
-    summary: 'Monitor every load currently in transit and log check calls and status changes.',
-    content: `## What Active Loads Shows
-Active Loads shows only the loads that are currently moving — Booked, Picked Up, In Transit. It is built for real-time tracking and does not include Searching, Delivered, or Paid loads.
+    tags: ['active loads', 'load health', 'check call', 'timeline', 'at risk', 'watch', 'on track', 'coming up next'],
+    summary: 'Monitor Load Health, act on overdue events, and drive check calls from the timeline.',
+    content: `## Purpose
+Active Loads shows every load currently in motion — Booked, Picked Up, In Transit. It is your real-time tracking board. The goal is to ensure nothing slips without you knowing.
 
-## Load Cards
-Each load card shows:
-- Driver name and truck type
-- Route: origin to destination
-- Current status and pickup/delivery times
-- Overdue indicator if a pickup or delivery window has passed
-- Timeline of status changes, check calls, and notes
+## When to Use
+Check Active Loads at the start of every day and after every check call. Re-check any time you see a red indicator on the Dispatcher Board or Operations page.
 
-## Advancing a Load Status
-Click the status button on any load card to advance it to the next step:
-- Booked -> Picked Up
-- Picked Up -> In Transit
-- In Transit -> Delivered (moves load out of Active Loads)
+## Load Health (top priority signal)
+Every selected load shows a "Load Health" label next to the status badge:
+- On Track (green) — all timeline events are scheduled and current
+- Watch (yellow) — a check call or event is due within 4 hours
+- At Risk (red) — a timeline event is overdue; action required now
 
-## Logging Check Calls
-Click Log Check Call on any load card to record a driver contact. Enter the time and any notes. The check call appears in that load's timeline.
+Address every "At Risk" load before doing anything else on this page.
 
-## Adding Notes
-Click Add Note to log any free-form update to a load without changing its status.
+## Left Panel — Load Cards
+Each card in the left list shows a colored dot:
+- Green dot = On Track
+- Yellow dot = Watch (upcoming within 4 hours)
+- Red dot = At Risk (overdue)
 
-## Overdue Loads
-Loads with a pickup or delivery time in the past are highlighted in red. Check in with the driver immediately when you see an overdue indicator.`,
+The next event also shows relative timing: "in 2h", "in 45m", "overdue 1h".
+Sort your attention by the red dots first, then yellow.
+
+## Selecting a Load
+Click any load card to open its detail view on the right. If the load has no timeline events yet, OnTrack initializes a default schedule automatically.
+
+## Next Action Panel
+The Next Action panel shows the single most urgent pending event for the selected load.
+- Red background = overdue. Do this now.
+- Orange background = due soon. Do this next.
+Actions: Mark Done (completes the event), Done + Schedule Next in 4h (marks done and books the next check call), Call Driver (opens phone dialer).
+
+## Coming Up Next
+Below the Next Action panel, "Coming up next" shows the next 1 to 2 scheduled events.
+Use this to stay ahead of the schedule without scrolling through the full timeline.
+
+## Timeline — Color Signals
+The full timeline shows all events in order:
+- Red row + AlertTriangle icon = overdue (act immediately)
+- Orange text + Clock icon = upcoming within 4 hours (prepare now)
+- Green checkmark = completed (no action needed)
+- Muted = completed events pushed below a divider
+
+Time is shown both absolutely (9:30 AM) and relatively (in 2h, overdue 1h) so you always know how urgent it is.
+
+## Scheduling Check Calls
+When there is no pending check call:
+- Use the quick-schedule buttons: +2h, +4h, +8h
+- Or type a time manually by adding a timeline event
+
+## Advancing Load Status
+Use the Update Status section at the bottom to mark a load as Picked Up, In Transit, or Delivered.
+When marked Delivered, OnTrack prompts you to create the invoice immediately.
+
+## Message Helpers
+Use the Message Helpers section to generate ready-to-send messages for common scenarios: driver check-in, broker update, POD request, or delivery confirmation.`,
   },
 
   // ── Dispatch ─────────────────────────────────────────────────────────────
 
   {
     id: 'booking-a-load',
-    title: 'Booking and Dispatching a Load',
+    title: 'Load Booking SOP',
     category: 'Dispatch',
-    tags: ['load', 'dispatch', 'booking', 'workflow', 'rate con', 'broker'],
-    summary: 'Step-by-step: find a load, negotiate the rate, confirm with your driver, and enter it in OnTrack.',
-    content: `## Load Lifecycle
-A load moves through these statuses: Searching > Booked > Picked Up > In Transit > Delivered > Invoiced > Paid
+    tags: ['load', 'dispatch', 'booking', 'best matches', 'RPM', 'rate con', 'broker', 'workflow'],
+    summary: 'Start from Best Matches on the Dispatcher Board. Validate RPM and broker. Assign immediately.',
+    content: `## Purpose
+Book loads fast and decisively. Every hour a driver sits idle is revenue lost. Do not browse — use Best Matches.
+
+## When to Use
+Any time a driver enters "Needs Load" status on the Dispatcher Board.
 
 ## Pre-Booking Checklist
-Before contacting any broker confirm ALL of the following:
-1. Driver is available — confirm current location and when and where they are free
-2. Equipment type matches — Dry Van, Reefer, Flatbed, Step Deck, etc.
-3. Driver insurance is current — check driver profile; expired insurance means do not dispatch
-4. MC authority is active — verify on FMCSA SAFER; suspended means stop
+Confirm ALL of the following before booking:
+1. Driver is available — status is Active and not currently on a load
+2. Equipment matches — trailer type on the load matches the driver's trailer
+3. Driver insurance is current — check driver profile; expired = do not dispatch
+4. MC authority is active — if uncertain, verify on FMCSA SAFER
 5. Deadhead is acceptable — empty miles from driver to pickup; under 100 miles preferred
 
-## Step 1 — Find the Load
-Use load boards to find available freight:
-- DAT One (dat.com) — industry standard, highest volume
-- Truckstop (truckstop.com) — solid alternative
-- Direct broker calls — call trusted brokers for freight in your lane
+## Step 1 — Go to Dispatcher Board
+Open the Dispatcher Board. Find the driver in the "Needs Load" group.
 
-## Step 2 — Evaluate the Rate
-Rate Per Mile (RPM) = Total Rate divided by Total Miles.
-- Dry Van minimum: $2.00/mile. Target: $2.50+
-- Reefer minimum: $2.50/mile. Target: $3.00+
-- Flatbed minimum: $2.25/mile. Target: $2.75+
-Check the broker in your Brokers page. If flagged Avoid, do not book.
+## Step 2 — Open Best Matches
+Click "Find Best Load" on the driver row, or click the row itself.
+The Best Matches panel appears on the right with the top 3 loads ranked for that driver.
 
-## Step 3 — Call the Broker
-Introduce yourself, confirm the load is available, and negotiate.
-Start 10-15% above the posted rate. If posted at $1,800 counter with $2,000.
-Say: "Let me confirm with my driver and call you back in 5 minutes" if you need time.
+## Step 3 — Validate the Top Result
+Start with Rank 1 (marked "Best Match"):
+- RPM meets your minimum (Dry Van $2.00+, Reefer $2.50+, Flatbed $2.25+)
+- Broker is not flagged Avoid or Blacklisted in your Brokers database
+- Pickup date and lane work for the driver's location
 
-## Step 4 — Confirm with Your Driver
-Get a clear YES before accepting. Never book without driver confirmation.
+If Rank 1 does not work, check Rank 2 then Rank 3.
+If none of the top 3 work, use Find Loads to paste load board data and score alternatives.
 
-## Step 5 — Get the Rate Confirmation
-Ask the broker to email the rate confirmation to your dispatch email.
-Review it carefully before forwarding to your driver.
+## Step 4 — Call the Broker and Negotiate
+Introduce yourself and confirm the load is still available.
+Counter 10 to 15% above the posted rate. If posted at $1,800, counter with $2,000.
+Accept only after driver has verbally confirmed.
 
-## Step 6 — Enter the Load in OnTrack
-Go to Loads > New Load. Fill in: origin, destination, pickup date, delivery date, rate, miles, commodity, driver, broker. Set status to Booked.
+## Step 5 — Assign in OnTrack
+Click Assign on the Best Match card.
+Confirm in the modal. The driver moves to Booked.
+
+## Step 6 — Confirm Rate and Enter Load Details
+Open the load in OnTrack and fill in: origin, destination, pickup date, delivery date, rate, miles, commodity, and load reference number.
 
 ## Step 7 — Send Driver Instructions
-Confirm: pickup address, date and time, shipper contact, commodity, weight, and delivery address. Tell them the rate confirmation is coming to their email.`,
-  },
+Confirm with the driver: pickup address, date and time, shipper contact, commodity, and delivery address. Tell them the rate confirmation is coming to their email.
 
-  {
-    id: 'load-match',
-    title: 'Load Match: AI Load Recommendations',
-    category: 'Dispatch',
-    tags: ['load match', 'AI', 'recommendations', 'scanner', 'broker intel', 'lane intel'],
-    summary: 'Use Load Match to get AI-scored load recommendations matched to each driver\'s lane and equipment.',
-    content: `## What Load Match Does
-Load Match analyzes your drivers' preferred lanes, equipment types, and home base to recommend the best available loads. It also shows broker intel and historical lane performance.
-
-## Using Load Match
-1. Select a driver from the dropdown at the top
-2. OnTrack shows recommended loads ranked by fit score (Strong / Good / Fair / Weak)
-3. Each recommendation shows: route, rate, RPM, broker flag, and a fit explanation
-4. Click Add to System to create a load record and advance to booking
-
-## Broker Intel Panel
-For each recommended load, the broker intel section shows:
-- Payment reliability rating (Preferred, Neutral, Caution, Avoid)
-- Historical payment terms performance
-- Flagged status from your Brokers database
-
-## Lane Intel Panel
-Shows how the route has performed historically based on your completed loads:
-- Average RPM for that lane
-- Load frequency
-- Lane strength rating (Strong, Average, Weak)
-
-## Driver Lane Fit
-Below the recommendations, the driver lane fit section shows which lanes are the strongest match for this driver based on their preferred lanes and home base.
-
-## Booking Checklist
-Each recommendation includes a pre-booking checklist with checkboxes to confirm broker verification, pickup details, rate agreement, rate confirmation, load logged, and driver notification.`,
+## RPM Targets (Reference)
+- Dry Van: minimum $2.00/mile, target $2.50+
+- Reefer: minimum $2.50/mile, target $3.00+
+- Flatbed: minimum $2.25/mile, target $2.75+`,
   },
 
   {
@@ -372,39 +400,55 @@ RPM is color coded in the table: green ($3.00+), orange ($2.50-$2.99), yellow ($
 
   {
     id: 'lead-pipeline',
-    title: 'Managing the Lead Pipeline',
+    title: 'Lead Pipeline SOP',
     category: 'Leads',
-    tags: ['leads', 'CRM', 'follow-up', 'kanban', 'call log', 'pipeline', 'score'],
-    summary: 'Track carrier prospects from first contact through to a signed dispatch agreement.',
+    tags: ['leads', 'CRM', 'follow-up', 'pipeline', 'do this now', 'call log', 'score', 'overdue'],
+    summary: 'Work the Do This Now panel first, call overdue leads, log every attempt, and follow up 2-3 times before moving on.',
     content: `## Lead Statuses
-New > Contacted > Interested > Signed (or Rejected)
+New > Attempted > Contacted > Interested > Signed (or Not Interested / Bad Fit / Rejected)
+
+## Daily Lead Routine
+1. Open the Leads page
+2. Read the "Do This Now — Pipeline" panel at the top — it surfaces the highest-urgency leads first
+3. Work every lead in the panel before anything else
+4. Then scan the table for overdue follow-up dates (red rows)
+5. Log every call attempt — even no-answers count
+
+## The "Do This Now" Panel
+The orange panel at the top of the Leads page shows up to 5 leads that need action right now, sorted by urgency:
+- Overdue follow-up date (red) — call these first
+- Follow-up due today (orange) — call these next
+- Warm leads with no recent contact (yellow) — do not let them go cold
+- Untouched new leads (blue) — make first contact
+Each row shows the next action label so you know exactly what to do: "First call", "Follow up", "Call back", "Send info", "Schedule call".
+
+## Next-Action Labels (Reference)
+Each lead row shows a small label under the company name to tell you the exact next step:
+- First call — new lead, never contacted
+- Follow up — called before, no answer or attempted contact
+- Call back — voicemail was left; wait for return or try again
+- Send info — driver is interested; send dispatch agreement or rate sheet
+- Schedule call — driver wants to talk; get a time on the calendar
 
 ## Adding a Lead
-Go to Leads and click + New Lead. Enter: name, company, MC number, contact info, trailer type, home base, preferred lanes. Set a follow-up date — leads past their follow-up date appear on the Operations page.
-
-## Table vs. Kanban View
-Toggle between Table and Kanban views using the toolbar. Kanban shows leads organized by status column for a visual pipeline view.
+Click + New Lead. Required: name, phone or email. Recommended: MC number, company, trailer type, home base. Always set a follow-up date. Leads past their follow-up date turn the row red and appear at the top of the Do This Now panel.
 
 ## Lead Score
-OnTrack automatically scores every lead from 0 to 100 based on:
-- Contact info completeness
-- MC authority date (newer authority = higher priority)
-- Follow-up recency
-- Status progress
+Every lead is scored 0–100 automatically based on contact completeness, authority age, follow-up recency, and status progress. Use the score to prioritize who to call when the pipeline is full.
 
-Scores are shown as a badge on each lead row. Use them to prioritize who to call first.
+## Logging Call Attempts
+Open the lead drawer and go to the Call Log tab. Log every attempt: date, outcome (Reached, Voicemail, No Answer, etc.), and notes. This is how OnTrack knows when you last contacted someone and what the next action should be.
 
-## Call Logs
-Open a lead drawer and go to the Call Log tab to record every outreach attempt. Enter: date, outcome (Reached, No Answer, Left VM, etc.), and notes. Call logs build your contact history so you always know where a conversation left off.
+Most leads require 2 to 3 follow-up attempts before you get a real conversation. Do not mark "Not Interested" after one no-answer.
 
 ## FMCSA Verification
-Open a lead drawer and click the FMCSA button to pull up the carrier's SAFER profile in your browser. Verify MC number, DOT number, authority status, and insurance before signing.
+Before signing, click the MC or DOT number on any lead row to open the SAFER profile in your browser. Verify authority is active and insurance is current.
 
 ## Advancing to Signed
-When a lead agrees to a dispatch agreement, change their status to Signed. The lead disappears from the active pipeline and the driver becomes available to add as a Driver profile.
+When a lead agrees to dispatch, set status to Signed. The lead exits the pipeline. Go to Drivers and create a driver profile for them.
 
 ## Filtering and Search
-Filter leads by status, trailer type, or follow-up date range. The search bar matches on name, company, MC number, and email.`,
+Filter by status, trailer type, priority, or follow-up date range. Search matches name, company, MC number, and email.`,
   },
 
   // ── Drivers ───────────────────────────────────────────────────────────────
@@ -477,7 +521,7 @@ Flags appear as color-coded badges in the Brokers table and in load recommendati
 Enter the broker's agreed payment terms (Net 7, Net 15, Net 30, Quick Pay, etc.). These feed into invoice due date calculations and overdue tracking.
 
 ## Lane Intel
-As you complete loads with a broker, OnTrack builds a lane history. In Load Match, you will see each broker's average RPM and reliability rating based on your actual transaction history.
+As you complete loads with a broker, OnTrack builds a lane history. In Analytics > Broker Reliability, you will see each broker's average RPM and payment performance based on your actual transaction history.
 
 ## Broker Notes
 Use the Notes field to record important information: contact preferences, rate con email address, common commodities, problem patterns, and anything else useful for future bookings.
@@ -526,42 +570,55 @@ Filter by status (Draft, Sent, Paid, Overdue), driver, or date range. The search
 
   {
     id: 'marketing-groups',
-    title: 'Marketing: Facebook Group Posting',
+    title: 'Marketing SOP: Daily Facebook Group Workflow',
     category: 'Marketing',
-    tags: ['marketing', 'Facebook', 'groups', 'post templates', 'coverage', 'recommendations'],
-    summary: 'Manage your Facebook group list, generate post content, and track posting history.',
-    content: `## What Marketing Does
-The Marketing module manages your list of Facebook groups for driver recruitment, generates post content for each group, tracks posting history, and analyzes your group coverage across truck types and regions.
+    tags: ['marketing', 'Facebook', 'groups', 'post templates', 'coverage', 'daily workflow', 'pending'],
+    summary: 'Five-step daily posting workflow: Post Today list, open group, copy post, paste and post, mark posted.',
+    content: `## Purpose
+The Marketing module manages your Facebook group list for driver recruitment and tracks your posting history. The goal is consistent daily presence across your active groups without repeating content.
+
+## Daily Posting Workflow (5 Steps)
+Do this once per day, ideally in the morning.
+
+Step 1 — Open Marketing and look at the "Post Today" recommendations at the top of the Groups tab.
+These are the groups that are overdue for a post or that have not been posted to in the longest time.
+
+Step 2 — Click the first recommended group.
+The right panel shows the group details and a Generate Post button.
+
+Step 3 — Click Generate Post.
+OnTrack picks a template appropriate for the group's category. Templates rotate automatically — the same post will not repeat within 90 days for the same group.
+Review the post. Edit if needed.
+
+Step 4 — Click Copy, then open the Facebook group in your browser and paste the post.
+Post it. Do not close the tab yet.
+
+Step 5 — Return to OnTrack and click Mark Posted.
+This logs the post and removes the group from today's recommendations.
+If the post is still pending (same-day, not yet visible), it shows a "Pending" state — that is normal.
+
+Repeat for the remaining recommended groups.
 
 ## Groups Tab
-The Groups tab shows every Facebook group in your list with:
-- Group name and category (Owner Operator, Hotshot, Reefer, etc.)
+Each group card shows:
 - Last posted date
 - Priority (High, Medium, Low)
 - Signed drivers attributed to that group
-- Active or Inactive status
+- Active or Inactive toggle
 
-## Today's Recommendations
-The top of the Groups tab shows which groups to post in today, scored by how long since you last posted and group priority. Post to the recommended groups first before working through the rest of your list.
+High priority groups should be posted to every 2 to 3 days. Medium priority every 4 to 5 days. Low priority weekly.
 
 ## Adding a Group
-Click + Add Group and enter the group name, Facebook URL if available, category, and priority. Set Active to include it in recommendations.
+Click + Add Group. Enter the group name, Facebook URL, category (Owner Operator, Hotshot, Reefer, Flatbed, General Trucking, etc.), and priority. Set Active so it appears in daily recommendations.
 
-## Generating a Post
-1. Select a group from the list
-2. Click Generate Post
-3. OnTrack picks an appropriate post template based on the group's category
-4. Review the generated post and click Copy to clipboard
-5. Paste into Facebook, post, and click Mark Posted
-
-## Post Templates
-The Marketing page maintains a library of post templates covering Driver Recruitment, Educational content, New Authority Tips, Lane Availability, and more. Templates rotate automatically so the same post is not repeated within 90 days for the same group.
+## Post History
+The History tab shows every logged post: group, template used, and date. Use this to confirm you are maintaining coverage and to review what was recently posted in a group.
 
 ## Coverage Analysis
-The Coverage section shows how many active groups you have in each truck type category. Gaps (underweight categories) are flagged so you can find and add more groups in those areas.
+The Coverage section shows how many active groups you have per truck type. Gaps are flagged. If you have no Reefer groups, you are missing that driver segment — find and add groups to fill the gap.
 
-## Post Log
-The History tab shows every post you have marked as posted, including which group, which template, and when.`,
+## Tracking Replies
+OnTrack does not connect directly to Facebook. If someone replies to your post with interest, add them as a lead immediately (click + New Lead), then open the lead drawer and log the initial contact in the Call Log tab. Set a follow-up date within 24 hours.`,
   },
 
   // ── Analytics ─────────────────────────────────────────────────────────────
@@ -666,6 +723,147 @@ Today's tasks appear in the Operations command center so you can check them off 
 
 ## Priority and Ordering
 Tasks are sorted by priority (High first) and then by time of day. High priority tasks with no completion appear at the top of the list.`,
+  },
+
+  // ── SOPs ──────────────────────────────────────────────────────────────────
+
+  {
+    id: 'daily-dispatch-routine',
+    title: 'Daily Dispatch Routine SOP',
+    category: 'Dispatch',
+    tags: ['daily routine', 'morning routine', 'dispatcher board', 'active loads', 'leads', 'check calls', 'calendar'],
+    summary: 'Five-step morning routine to run every day before taking new work.',
+    content: `## Purpose
+A consistent daily routine prevents missed check calls, lets idle drivers sit unnoticed, and keeps leads from going cold. Run this every morning before taking on new requests.
+
+## Step 1 — Dispatcher Board (5 minutes)
+Open the Dispatcher Board first.
+Read the "Do This Now" strip at the top.
+Every orange dot is a driver losing money with no load. Handle all Needs Load drivers before anything else.
+For each Needs Load driver: click "Find Best Load", review the Best Matches panel, validate RPM and broker, assign immediately.
+Do not move to Step 2 until every Needs Load driver has a load or a documented reason for waiting.
+
+## Step 2 — Active Loads — At Risk Loads (5 minutes)
+Open Active Loads.
+Scan the load card list on the left for red dots (At Risk).
+Click each red-dot load. Read the Next Action panel. The background will be red if the event is overdue.
+Mark the event done, schedule the next check call, or call the driver — whichever the panel calls for.
+Then check yellow-dot loads (Watch — due within 4 hours). Note the next event time and prepare to act.
+
+## Step 3 — Dispatch Calendar (2 minutes)
+Open the Dispatch Calendar.
+Scan today's pickup and delivery events.
+Any delivery today — confirm the driver is on track. Any pickup today — confirm the driver knows the address and shipper contact.
+Look at tomorrow's events so nothing catches you off guard overnight.
+
+## Step 4 — Lead Pipeline (5 minutes)
+Open Leads.
+Read the "Do This Now — Pipeline" panel.
+Call or follow up on every lead in the panel from top to bottom.
+Log each attempt in the call log even if it is a no-answer or voicemail.
+Check for red rows (overdue follow-up date) below the panel and work those next.
+
+## Step 5 — Marketing Post (5 minutes)
+Open Marketing.
+Check the "Post Today" recommendations.
+Generate and post to the first 2 to 3 recommended groups.
+Mark each posted before moving on.
+
+## End of Day
+Before closing for the day:
+- Check Active Loads for any events due before midnight
+- Schedule any morning check calls needed for overnight drivers
+- Confirm tomorrow's pickups are locked in with drivers
+
+## Total Time
+This routine takes 20 to 30 minutes when the operation is healthy. If it is taking longer, something in the pipeline is backlogged and needs attention.`,
+  },
+
+  {
+    id: 'check-call-sop',
+    title: 'Check Call SOP',
+    category: 'Dispatch',
+    tags: ['check call', 'driver contact', 'timeline', 'in transit', 'active loads', 'location', 'ETA'],
+    summary: 'How to conduct and log check calls from the Active Loads timeline.',
+    content: `## Purpose
+A check call confirms the driver is moving, on schedule, and without issues. It also protects you if a broker disputes delivery timing. Log every check call — no exceptions.
+
+## When to Call
+- Every 4 to 8 hours on in-transit loads, or at the interval agreed with the broker
+- Immediately when an Active Loads event turns red (overdue)
+- Any time a driver has not checked in within the expected window
+- Before and after any pickup or delivery appointment
+
+## How to Conduct the Call
+Keep check calls short and structured. Cover three things:
+
+1. Location — "Where are you right now?" Get a city and state or a mile marker.
+2. ETA — "What is your ETA to [delivery city]?" If they are behind, get a realistic new ETA.
+3. Issues — "Any problems with the load, truck, or delivery appointment?" If yes, note details.
+
+If the driver does not answer: leave a voicemail with your name, the load reference number, and ask for a call back within 30 minutes. Then schedule a follow-up event on the timeline for 30 to 45 minutes out.
+
+## Logging in Active Loads
+1. Open Active Loads and select the load
+2. Find the current pending event in the Next Action panel or timeline
+3. Click Mark Done to complete the event
+4. Click "Done + Schedule Next in 4h" to immediately book the next check call
+5. Add notes in the event detail if the driver reported anything unusual
+
+## Logging a Late or Missed Check Call
+If a check call was missed (the event shows overdue), still log it when you do make contact.
+Mark the overdue event done with a note explaining the delay.
+Then schedule the next event normally.
+
+## Escalation
+If you cannot reach a driver after 2 attempts, 30 minutes apart:
+- Try the driver's emergency contact if available
+- Contact the broker to see if they have heard from the driver
+- Check if the driver has delivery appointment contact info and call the shipper or receiver
+
+## After Delivery
+When the driver confirms delivery: open the load, advance status to Delivered, note the actual delivery time, and generate the invoice.`,
+  },
+
+  {
+    id: 'fmcsa-import',
+    title: 'FMCSA Import SOP',
+    category: 'Leads',
+    tags: ['FMCSA', 'import', 'carrier', 'MC number', 'DOT', 'enrichment', 'skipped', 'failed'],
+    summary: 'Import carrier data from FMCSA SAFER to create or enrich leads in bulk.',
+    content: `## Purpose
+The FMCSA import tool lets you pull carrier records directly from the FMCSA SAFER database and create leads in bulk. Use it to prospect new carriers in a specific lane, equipment type, or authority age range.
+
+## When to Use
+- Prospecting a new driver segment (hotshot, reefer, flatbed)
+- Building a call list for a specific region or lane
+- Refreshing data on existing leads whose MC info may be outdated
+
+## How to Import
+1. Go to Leads — the FMCSA import panel appears in the toolbar area above the lead table
+2. Confirm your FMCSA key is configured (Settings > Integrations) — the panel will warn you if it is not
+3. Click Run Scan (or the import button) — OnTrack queries the FMCSA SAFER database automatically
+4. Wait for the scan to complete — results appear immediately below the button
+
+## Understanding the Import Results
+After the scan, OnTrack shows a summary line:
+- added — new prospect records created from FMCSA data
+- skipped — carriers already in your system (matched by MC number); no changes made
+- lookup(s) failed — records where FMCSA enrichment returned incomplete data (shown only when > 0)
+
+A high skipped count is normal on repeat scans once your prospect list is built up. If lookups failed, the underlying FMCSA data may be incomplete — those carriers were not added.
+
+## After Import
+Newly imported leads land in "New" status with no follow-up date set.
+Immediately after import: sort by lead score, set a follow-up date on the top 10 to 20 leads, and add them to your daily call list.
+Do not import more leads than you can follow up on within 48 hours — a lead that sits untouched for a week is a wasted import.
+
+## FMCSA Verification (Individual Leads)
+To verify a single lead's FMCSA status at any time: click the MC number or DOT number on any lead row. This opens the carrier's SAFER profile directly in your browser.
+Verify before signing any new driver: authority must be Active, insurance must be current.
+
+## Fallback (Manual Entry)
+If FMCSA data is unavailable or incomplete, enter leads manually. The import tool is a supplement to your lead generation process — not a replacement for relationship-driven prospecting.`,
   },
 
   // ── Documents ─────────────────────────────────────────────────────────────
